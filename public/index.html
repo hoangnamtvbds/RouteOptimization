@@ -325,7 +325,7 @@
     </div>
 
     <!-- Driver Cards -->
-    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 pb-20 space-y-2.5"></div>
+    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 pb-36 space-y-2.5"></div>
 
     <!-- FIXED BOTTOM DOCK CHO TÀI XẾ: HIỂN THỊ TIỀN COD & DẪN ĐƯỜNG ĐIỂM TIẾP THEO -->
     <div class="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-2.5 shadow-2xl border-t border-slate-800 flex items-center justify-between z-[1000] gap-2">
@@ -1006,14 +1006,19 @@
       });
     }
 
+    let windowDepotMarker = null;
     function drawDepotPin() {
+      if (!map) return;
+      if (windowDepotMarker) {
+        map.removeLayer(windowDepotMarker);
+      }
       let depotIcon = L.divIcon({
         className: 'depot-pin',
         html: `<div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-white shadow-xl flex items-center justify-center text-white text-[10px] font-bold">KHO</div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 16]
       });
-      L.marker([warehouseDepot.lat, warehouseDepot.lon], { icon: depotIcon })
+      windowDepotMarker = L.marker([warehouseDepot.lat, warehouseDepot.lon], { icon: depotIcon })
         .bindPopup(`<b>${warehouseDepot.name}</b><br>Mốc xuất phát & quay về kho.<br>Tọa độ: ${warehouseDepot.lat}, ${warehouseDepot.lon}`)
         .addTo(map);
     }
