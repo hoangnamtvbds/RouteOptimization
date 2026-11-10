@@ -45,7 +45,6 @@
     }
   </style>
 </head>
-</head>
 <body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased">
 
   <!-- ========================================================================= -->
@@ -801,21 +800,131 @@
       }
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      let isDriver = await checkDriverRoutingMode();
+    window.addEventListener('DOMContentLoaded', () => {
+      let isDriver = checkDriverRoutingModeSync();
       if (!isDriver) {
-        initMap();
+        // 1. Khởi tạo giao diện NGAY LẬP TỨC từ bộ nhớ cục bộ để không bao giờ bị đơ
         loadPermanentData();
         checkMonthlyAutoReset();
-        await syncMasterDataFromSupabase();
-        await loadTodayDispatchFromSupabase();
+        initMap();
         renderFleetTabs();
         updateManualTruckDropdown();
         updateDashboardReport();
-        setupSupabaseRealtime();
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+
+        // 2. Chạy đồng bộ Supabase ngầm trong background (không chặn giao diện)
+        setTimeout(() => {
+          if (map) map.invalidateSize();
+          backgroundSyncSupabase();
+          setupSupabaseRealtime();
+        }, 100);
       }
-      lucide.createIcons();
     });
+
+    function checkDriverRoutingModeSync() {
+      let hash = window.location.hash || '';
+      if (!hash.startsWith('#/driver')) return false;
+
+      document.getElementById('dispatchAppContainer').classList.add('hidden');
+      document.getElementById('driverStandaloneApp').classList.remove('hidden');
+
+      let urlParams = new URLSearchParams(hash.split('?')[1] || '');
+      activeTruckId = parseInt(urlParams.get('truck') || 1);
+      let orderDate = urlParams.get('date') || getTodayString();
+      let token = urlParams.get('token') || '';
+
+      let isExpired = false;
+      if (token) {
+        isExpired = isTokenExpired(token);
+      } else if (orderDate) {
+        let orderTime = new Date(orderDate).getTime();
+        if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) {
+          isExpired = true;
+        }
+      }
+
+      if (isExpired) {
+        document.getElementById('drvExpiredBanner').classList.remove('hidden');
+        document.getElementById('driverAppCardsList').innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+        return true;
+      }
+
+      loadPermanentData();
+      initDriverMiniMap();
+      renderDriverAppCards();
+
+      // Tải bổ sung từ Supabase ngầm
+      if (supabase) {
+        Promise.race([
+          supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+        ]).then(({ data }) => {
+          if (data && data.stops && data.stops.length > 0) {
+            let truck = fleet.find(t => t.id === activeTruckId);
+            if (!truck) {
+              truck = { id: activeTruckId, name: data.truck_name || `Xe ${activeTruckId}`, plate: data.plate || '', driver: data.driver_name || '', phone: data.driver_phone || '', maxCapacity: data.max_capacity || 150, stops: [] };
+              fleet.push(truck);
+            }
+            truck.stops = data.stops;
+            truck.driver = data.driver_name || truck.driver;
+            truck.plate = data.plate || truck.plate;
+            truck.name = data.truck_name || truck.name;
+            renderDriverAppCards();
+          }
+        }).catch(err => console.warn("Supabase driver fetch skipped:", err));
+      }
+      return true;
+    }
+
+    async function backgroundSyncSupabase() {
+      if (!supabase) return;
+      try {
+        // Tải đơn hôm nay với timeout 4s tránh treo mạng
+        let today = getTodayString();
+        let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
+        let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+
+        let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
+        if (res && res.data && res.data.length > 0) {
+          res.data.forEach(record => {
+            let t = fleet.find(x => x.id === record.truck_id);
+            if (t) {
+              t.stops = record.stops || [];
+              t.linkIssued = true;
+              t.linkToken = today;
+            }
+          });
+          renderFleetTabs();
+          updateTruckSummary();
+          renderStopsList();
+          renderRouteOnMap();
+          updateDashboardReport();
+          checkButtonsState();
+        }
+
+        // Đồng bộ danh mục Master Data ngầm
+        let masterRes = await Promise.race([
+          supabase.from('master_customers').select('*'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+        ]).catch(() => null);
+
+        if (masterRes && masterRes.data && masterRes.data.length > 0) {
+          masterRes.data.forEach(m => {
+            masterGpsMap.set(m.id, {
+              id: m.id,
+              name: m.name,
+              phone: m.phone,
+              lat: parseFloat(m.lat),
+              lon: parseFloat(m.lon),
+              addr: m.addr
+            });
+          });
+        }
+      } catch (e) {
+        console.warn("Background sync error (safe ignored):", e);
+      }
+    }
 
     window.addEventListener('resize', () => {
       if (map) map.invalidateSize();
@@ -1204,6 +1313,7 @@ Anh chỉ cần dán (Paste) link này qua Zalo cho tài xế ${truck.driver}. T
       routeLayer = L.layerGroup().addTo(map);
       pinsLayer = L.layerGroup().addTo(map);
       drawDepotPin();
+      setTimeout(() => { if (map) map.invalidateSize(); }, 250);
 
       map.on('click', function(e) {
         if (currentDetailStop) {
