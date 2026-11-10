@@ -32,6 +32,7 @@
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     #map { height: 100%; width: 100%; background: #e2e8f0; }
+    #drvMiniMap { height: 210px; width: 100%; background: #e2e8f0; }
     .leaflet-popup-content-wrapper { border-radius: 12px; font-size: 12px; }
     @media print {
       body * { visibility: hidden; }
@@ -43,7 +44,7 @@
 <body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800">
 
   <!-- ========================================================================= -->
-  <!-- A. GIAO DIỆN KẾ TOÁN & ĐIỀU PHỐI (CHÍNH) -->
+  <!-- A. GIAO DIỆN KẾ TOÁN & ĐIỀU PHỐI (DESKTOP / LAPTOP / IPAD) -->
   <!-- ========================================================================= -->
   <div id="dispatchAppContainer" class="h-full w-full flex flex-col overflow-hidden">
     <!-- TOPBAR -->
@@ -54,31 +55,37 @@
         </div>
         <div>
           <h1 class="text-xs md:text-sm font-bold tracking-tight flex items-center gap-1.5">
-            Hệ Thống Điều Phối & Xếp Tuyến NPP
+            Điều Phối Tuyến & Xếp Xe NPP
             <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
               <i data-lucide="database" class="w-3 h-3"></i> 624 KH Đã Nhúng Vĩnh Viễn
             </span>
           </h1>
-          <p class="text-[10px] text-slate-400">Gợi ý xe theo tải trọng • Bảng đơn chưa map • Link tài xế 48h độc lập</p>
+          <p class="text-[10px] text-slate-400">Tối ưu cung đường khép kín • Quản trị mốc kho • Phân xe theo tải trọng</p>
         </div>
       </div>
 
       <!-- Right Top Actions -->
       <div class="flex items-center space-x-1.5">
-        <!-- Nút Quản Trị Master Data (Pass 1111) -->
-        <button onclick="promptMasterAdmin()" class="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 shadow transition">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-          <span>Data Master (1111)</span>
+        <!-- Đổi Vị Trí Kho Lưu Vĩnh Viễn -->
+        <button onclick="openDepotUpdateModal()" title="Cập nhật vị trí Kho NPP" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1">
+          <i data-lucide="warehouse" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span class="hidden sm:inline">Vị Trí Kho</span>
         </button>
 
-        <!-- Nút Gộp Điểm Trùng (Đại Phú...) -->
-        <button onclick="openAliasModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1">
+        <!-- Quản Trị Master Data (Mật khẩu 1111 ngầm) -->
+        <button onclick="promptMasterAdmin()" title="Quản trị Master Data GPS" class="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 shadow transition">
+          <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+          <span>Quản Trị Master</span>
+        </button>
+
+        <!-- Gộp Điểm Trùng (Đại Phú...) -->
+        <button onclick="openAliasModal()" title="Bảng gom mã trùng (Đại Phú...)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1">
           <i data-lucide="git-merge" class="w-3.5 h-3.5 text-blue-400"></i>
           <span class="hidden sm:inline">Gộp Trùng</span>
         </button>
 
-        <!-- Đồng Bộ Giữa Kế Toán & Quản Lý -->
-        <button onclick="openSyncModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1">
+        <!-- Đồng Bộ Kế Toán & Quản Lý -->
+        <button onclick="openSyncModal()" title="Đồng bộ dữ liệu sang thiết bị khác" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1">
           <i data-lucide="cloud" class="w-3.5 h-3.5 text-emerald-400"></i>
           <span class="hidden sm:inline">Đồng Bộ</span>
         </button>
@@ -103,7 +110,7 @@
                 <i data-lucide="file-spreadsheet" class="w-5 h-5 text-blue-600 shrink-0"></i>
                 <div class="text-left">
                   <span class="text-xs font-bold text-slate-800 block" id="labelInvoice">Kéo File Hóa Đơn KiotViet Hôm Nay</span>
-                  <span class="text-[10px] text-slate-500" id="subInvoice">Đã nhúng 624 tọa độ gốc + Tự động gộp mã trùng</span>
+                  <span class="text-[10px] text-slate-500" id="subInvoice">Đã nhúng 624 tọa độ gốc + Gộp điểm trùng</span>
                 </div>
               </div>
               <span class="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-1 rounded-md border border-blue-200 shrink-0">Chọn File</span>
@@ -115,7 +122,7 @@
           <div class="flex items-center gap-1.5">
             <button id="btnSmartDispatch" onclick="runSmartFleetDispatch()" disabled class="flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition">
               <i data-lucide="wand-2" class="w-4 h-4"></i>
-              <span>Gợi Ý Xếp Đơn Tự Động (Tải Trọng + Cung Đường)</span>
+              <span>Gợi Ý Xếp Đơn Tự Động (Tải Trọng + Vòng Tuyến Kho)</span>
             </button>
             <button onclick="openFleetConfigModal()" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs py-2 px-2.5 rounded-lg flex items-center gap-1 shadow-sm transition shrink-0">
               <i data-lucide="settings" class="w-3.5 h-3.5"></i>
@@ -173,11 +180,11 @@
           </div>
         </div>
 
-        <!-- BOTTOM ACTIONS: TẠO LINK RIÊNG TÀI XẾ & IN PHIẾU -->
+        <!-- BOTTOM ACTIONS: TẠO DUY NHẤT 1 LINK TÀI XẾ & IN PHIẾU KHO -->
         <div class="p-2.5 bg-slate-900 text-white border-t border-slate-800 text-xs shrink-0 flex items-center justify-between gap-2">
           <button onclick="generateStandaloneDriverLink()" id="btnGenDriverLink" disabled class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed shadow">
-            <i data-lucide="send" class="w-3.5 h-3.5"></i>
-            <span id="btnDriverLinkText">Tạo Link Riêng Cho Xe Này</span>
+            <i data-lucide="link" class="w-3.5 h-3.5"></i>
+            <span id="btnDriverLinkText">Tạo Link Tài Xế Xe Này (Copy Link Zalo)</span>
           </button>
           <button onclick="printLifoPackingSlip()" id="btnPrint" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed">
             <i data-lucide="printer" class="w-3.5 h-3.5"></i>
@@ -204,7 +211,7 @@
           <div id="map"></div>
         </div>
 
-        <!-- BOTTOM: EXECUTIVE DASHBOARD BÁO CÁO XE & DOANH THU TRONG NGÀY (45%) -->
+        <!-- BOTTOM: EXECUTIVE DASHBOARD BÁO CÁO XE & DOANH THU & LÝ DO HỦY (45%) -->
         <div class="flex-1 bg-white p-3 overflow-y-auto space-y-3">
           
           <!-- KPI SUMMARY CARDS -->
@@ -218,7 +225,7 @@
             <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
               <div class="text-[10px] text-amber-700 uppercase font-semibold">Tổng Tiền Cần Thu (COD)</div>
               <div id="dashTotalCod" class="text-lg font-black text-amber-900 mt-0.5">0 đ</div>
-              <div class="text-[10px] text-amber-600" id="dashCollectedCod">Đã thu: 0 đ</div>
+              <div class="text-[10px] text-emerald-700 font-bold" id="dashCollectedCod">Đã thu: 0 đ</div>
             </div>
 
             <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
@@ -231,6 +238,19 @@
               <div class="text-[10px] text-indigo-700 uppercase font-semibold">Tiến Độ Giao Hàng</div>
               <div id="dashDeliveryProgress" class="text-lg font-black text-indigo-700 mt-0.5">0%</div>
               <div class="text-[10px] text-indigo-500" id="dashDeliveryRatio">0 / 0 điểm thành công</div>
+            </div>
+          </div>
+
+          <!-- BẢNG BÁO CÁO PHÂN TÍCH LÝ DO HỦY / THẤT BẠI TRONG NGÀY -->
+          <div id="failureAnalysisContainer" class="border rounded-xl p-3 bg-rose-50/40 border-rose-200 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-rose-900 flex items-center gap-1.5">
+                <i data-lucide="pie-chart" class="w-4 h-4 text-rose-600"></i> Báo Cáo Tỷ Lệ Lý Do Không Giao Được Trong Ngày
+              </span>
+              <span class="text-[11px] text-rose-700 font-semibold" id="totalFailedCountText">0 đơn thất bại</span>
+            </div>
+            <div id="failureReasonsBarList" class="space-y-1.5 text-xs">
+              <div class="text-slate-400 text-[11px] italic">Chưa có đơn nào bị hủy hoặc không giao được.</div>
             </div>
           </div>
 
@@ -249,7 +269,7 @@
                   <th class="p-2 text-center">Số Điểm</th>
                   <th class="p-2 text-right">Tiền COD</th>
                   <th class="p-2 text-center">Tiến Độ Thực Tế</th>
-                  <th class="p-2 text-center">Link Riêng</th>
+                  <th class="p-2 text-center">Link Xe</th>
                 </tr>
               </thead>
               <tbody id="dashFleetTableBody" class="divide-y divide-slate-100"></tbody>
@@ -267,7 +287,7 @@
   <div id="driverStandaloneApp" class="hidden h-full w-full flex flex-col bg-slate-100 overflow-hidden">
     
     <!-- Driver App Header -->
-    <header class="bg-blue-700 text-white p-3.5 shadow-md flex items-center justify-between shrink-0">
+    <header class="bg-blue-700 text-white p-3 shadow-md flex items-center justify-between shrink-0">
       <div>
         <h2 class="text-sm font-bold flex items-center gap-1.5">
           <span id="drvAppTruckTitle">Xe 1 (61C-112.34)</span>
@@ -275,10 +295,20 @@
         </h2>
         <p class="text-[11px] text-blue-100 mt-0.5" id="drvAppProgressText">Đang tải lộ trình...</p>
       </div>
-      <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-2.5 py-1 rounded-lg border border-blue-600 flex items-center gap-1">
-        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Cập Nhật
-      </button>
+      <div class="flex items-center gap-1.5">
+        <button onclick="toggleDriverMiniMap()" id="btnToggleMiniMap" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-2 py-1 rounded-lg border border-blue-600 flex items-center gap-1">
+          <i data-lucide="map" class="w-3.5 h-3.5"></i> <span id="textToggleMiniMap">Ẩn Map</span>
+        </button>
+        <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-xs px-2 py-1 rounded-lg border border-blue-600">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
     </header>
+
+    <!-- Mini-Map Lộ Trình Tài Xế (Thu gọn 210px) -->
+    <div id="drvMiniMapContainer" class="relative shrink-0 border-b border-slate-300 shadow-inner">
+      <div id="drvMiniMap"></div>
+    </div>
 
     <!-- Expiration Banner (if expired) -->
     <div id="drvExpiredBanner" class="hidden p-4 bg-rose-600 text-white text-center text-xs font-bold">
@@ -291,23 +321,117 @@
       <button onclick="setDriverAppFilter('all')" id="fltAppAll" class="flex-1 py-1 rounded bg-blue-100 text-blue-800 font-bold">Tất cả</button>
       <button onclick="setDriverAppFilter('pending')" id="fltAppPending" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Chưa giao</button>
       <button onclick="setDriverAppFilter('success')" id="fltAppSuccess" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Đã xong</button>
-      <button onclick="setDriverAppFilter('failed')" id="fltAppFailed" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Không giao được</button>
+      <button onclick="setDriverAppFilter('failed')" id="fltAppFailed" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Thất bại</button>
     </div>
 
     <!-- Driver Cards -->
-    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 space-y-2.5"></div>
+    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 pb-20 space-y-2.5"></div>
+
+    <!-- FIXED BOTTOM DOCK CHO TÀI XẾ: HIỂN THỊ TIỀN COD & DẪN ĐƯỜNG ĐIỂM TIẾP THEO -->
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-2.5 shadow-2xl border-t border-slate-800 flex items-center justify-between z-[1000] gap-2">
+      <div>
+        <div class="text-[10px] text-slate-400 uppercase font-semibold">Tiền COD trong túi:</div>
+        <div id="drvDockCodCollected" class="text-sm font-extrabold text-emerald-400">0 đ</div>
+      </div>
+      <button onclick="openNextPendingStopNavigation()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition">
+        <i data-lucide="navigation" class="w-4 h-4"></i>
+        <span>Dẫn Đường Điểm Tiếp Theo</span>
+      </button>
+    </div>
   </div>
 
   <!-- ========================================================================= -->
-  <!-- C. CÁC MODAL QUẢN TRỊ & BẢO MẬT (PASSWORD: 1111) -->
+  <!-- MODAL: GỢI Ý 7 LÝ DO HỦY ĐƠN THỰC CHIẾN (CHỌN 1 CHẠM CHO TÀI XẾ) -->
   <!-- ========================================================================= -->
+  <div id="driverRejectModal" class="fixed inset-0 bg-black/60 z-[3000] hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3 animate-in slide-in-from-bottom-5">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-rose-700">
+          <i data-lucide="alert-circle" class="w-4 h-4"></i> Chọn Lý Do Không Giao Được
+        </h3>
+        <button onclick="closeDriverRejectModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
-  <!-- MODAL MASTER DATA ADMIN (PASSWORD: 1111) -->
+      <p class="text-[11px] text-slate-500">Tài xế chọn 1 chạm lý do bên dưới để báo cáo ngay về cho kế toán kho:</p>
+
+      <!-- 7 Quick-chips lý do thực chiến ngành FMCG -->
+      <div class="grid grid-cols-1 gap-1.5 text-xs font-semibold">
+        <button onclick="submitDriverRejectReason('Quán đóng cửa / Nghỉ trưa')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>1. Quán đóng cửa / Nghỉ trưa</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Chủ đi vắng / Không người nhận')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>2. Chủ đi vắng / Không người nhận</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Không đủ tiền mặt (Hẹn hôm sau)')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>3. Không đủ tiền mặt (Hẹn hôm sau)</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Thuê bao / Không bắt máy')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>4. Thuê bao / Không bắt máy</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Sai đơn / Sai giá / Không lấy')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>5. Sai đơn / Sai giá / Không lấy</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Sale đặt trùng đơn')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>6. Sale đặt trùng đơn</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+        <button onclick="submitDriverRejectReason('Đường cấm tải / Không vào được hẻm')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
+          <span>7. Đường cấm tải / Không vào được hẻm</span>
+          <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+        </button>
+      </div>
+
+      <div class="flex justify-end pt-1">
+        <button onclick="closeDriverRejectModal()" class="w-full py-2 bg-slate-100 text-slate-600 font-semibold text-xs rounded-xl">Hủy Bỏ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CẬP NHẬT VỊ TRÍ KHO LƯU VĨNH VIỄN -->
+  <div id="depotModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-amber-700">
+          <i data-lucide="warehouse" class="w-4 h-4"></i> Cập Nhật Vị Trí Kho Xuất Phát (Lưu Vĩnh Viễn)
+        </h3>
+        <button onclick="closeDepotModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <p class="text-[11px] text-slate-600">
+        Tọa độ này sẽ dùng làm mốc <strong>Khởi hành & Quay về (Round-trip TSP)</strong> cho toàn bộ đội xe để tính toán cung đường gần nhất.
+      </p>
+
+      <div class="space-y-2 text-xs">
+        <div>
+          <label class="font-bold text-slate-700">Tên Kho:</label>
+          <input type="text" id="inputDepotName" value="Kho NPP Bến Cát (Mỹ Phước)" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
+        </div>
+        <div>
+          <label class="font-bold text-slate-700">Tọa độ GPS (Lat, Long) hoặc Link Google Maps của Kho:</label>
+          <input type="text" id="inputDepotCoords" placeholder="Ví dụ: 11.1550, 106.6150 hoặc 11,1550, 106,6150" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
+        </div>
+        <button onclick="saveDepotCoordinates()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs shadow">
+          Lưu Vị Trí Kho Vĩnh Viễn
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL MASTER DATA ADMIN (PASSWORD: 1111 NGẦM) -->
   <div id="masterAdminModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-amber-700">
-          <i data-lucide="shield-alert" class="w-4 h-4"></i> Quản Trị Master Data GPS (Đã Khóa Bảo Mật)
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Quản Trị Master Data GPS (Đã Xác Thực)
         </h3>
         <button onclick="closeMasterAdminModal()" class="text-slate-400 hover:text-slate-600">
           <i data-lucide="x" class="w-4 h-4"></i>
@@ -315,7 +439,7 @@
       </div>
 
       <p class="text-[11px] text-slate-600">
-        Khu vực này cho phép <strong>Ghi đè file Master Data mới</strong> hoặc chỉnh sửa tọa độ gốc. Mọi thay đổi tại đây sẽ được <strong>lưu vĩnh viễn</strong> cho toàn bộ hệ thống.
+        Cho phép <strong>Ghi đè file Master Data mới</strong> hoặc chỉnh sửa tọa độ gốc. Mọi thay đổi tại đây được <strong>lưu vĩnh viễn</strong> cho hệ thống.
       </p>
 
       <!-- Upload New Master Excel -->
@@ -364,7 +488,7 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-2 gap-2 bg-amber-50 p-2 rounded-xl border border-amber-200">
+      <div class="grid grid-cols-2 gap-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
         <div>
           <div class="text-[10px] text-amber-700 uppercase font-semibold">Tiền Cần Thu (COD)</div>
           <div id="modalStopCod" class="text-base font-extrabold text-amber-900">0 đ</div>
@@ -389,8 +513,7 @@
         </table>
       </div>
 
-      <!-- Quick GPS Fix & Save Permanently -->
-      <div class="bg-slate-50 p-2 rounded-xl border flex items-center justify-between gap-2 text-xs">
+      <div class="bg-slate-50 p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs">
         <div class="truncate flex-1">
           <span class="text-slate-500">Tọa độ: </span>
           <strong id="modalStopGpsText" class="font-mono text-blue-600">Chưa có</strong>
@@ -419,7 +542,7 @@
       </div>
 
       <p class="text-[11px] text-slate-500">
-        Nhiều Sale lên đơn tạo các mã KiotViet khác nhau (như Đại Phú: KH076223, KH075859, 00633982). Khi gộp tại đây, sau này <strong>bất kỳ Sale nào lên đơn ở mã nào</strong> cũng tự động gom chung về 1 điểm dừng trên bản đồ!
+        Nhiều Sale lên đơn tạo các mã KiotViet khác nhau (như Đại Phú: KH076223, KH075859, 00633982)[cite: 21]. Khi gộp tại đây, sau này <strong>bất kỳ Sale nào lên đơn ở mã nào</strong> cũng tự động gom chung về 1 điểm dừng trên bản đồ!
       </p>
 
       <div id="aliasListContainer" class="space-y-1.5 max-h-[220px] overflow-y-auto"></div>
@@ -498,16 +621,14 @@
   <!-- JAVASCRIPT LOGIC ENGINE -->
   <!-- ========================================================================= -->
   <script>
-    // 1. NHÚNG VĨNH VIỄN 624 KHÁCH HÀNG CHUẨN TỌA ĐỘ BẾN CÁT - BÀU BÀNG
     const EMBEDDED_MASTER_DATA = [{"id": "KH071691", "name": "TH Thuận Hương ( 12h nghĩ trưa tới 14h30) - đường đt 7A ấp tân lập", "phone": "363815606", "lat": 11.141548, "lon": 106.569525, "addr": "100b ĐT7A, Hung Vuong Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000564", "name": "THẢO ANH - D2- KDC rạch bắp- Tổ 18, ấp kiến an( kế Thiên Phúc)", "phone": "963367347", "lat": 11.143875, "lon": 106.553512, "addr": "Kp1 D2 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071914", "name": "Cày Tơ Quán(Vòng Xoay An Điền, DT7A, An Điền, Bến Cát, Bình Dương)", "phone": "988913193", "lat": 11.147507, "lon": 106.582436, "addr": "0 DT7A Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071564", "name": "Hoi ngo d11 - mỹ phước 1, Thới Hòa", "phone": "973154551", "lat": 11.124799, "lon": 106.605027, "addr": "My Phuoc 1 D11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH076660", "name": "Hoà hương ( D7 , mp1 ) bến cát", "phone": "nan", "lat": 11.126986, "lon": 106.603686, "addr": "Kp6 d7 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000158", "name": "MINH HƯNG.nghỉ trưa 12-15h - D3 ấp kiến an- rạch bắp (11.142491, 106.554654)", "phone": "984618016", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072648", "name": "ĐẠI TUẤN PHÁT - đường D8 An điền rạch bắp", "phone": "973014496", "lat": 11.140048, "lon": 106.557409, "addr": "0 d8 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000145", "name": "TH BÌNH HIẾU k xuất hđ ( nghỉ trưa 1h-3 rưỡi) - Đường D8, KCN rạch bắp (11.133058, 106.533433), An Điền", "phone": "975502105", "lat": 11.133058, "lon": 106.533433, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072451", "name": "THÚY AN - Đường bùi ngọc thu, Hiệp An", "phone": "362474457", "lat": 11.021497, "lon": 106.642746, "addr": "220 Bui Ngoc Thu Phuong Hiep An TP Thu Dau Mot Binh Duong"}, {"id": "KH072448", "name": "Cô Út - quốc lộ 13 ( gần chợ bưng cầu) - hiệp An", "phone": "984776605", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000542", "name": "HỒNG THẮM - Ấp Xóm Bến, ngã 3 bến súc rẻ trái 300m", "phone": "743562449", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072814", "name": "ĐẠI lý Nguyễn Tùng", "phone": "908301349", "lat": 11.025904, "lon": 106.631109, "addr": "593 Nguyen Chi Thanh Phuong Tan An TP Thu Dau Mot Binh Duong"}, {"id": "KH073176", "name": "Khánh Phương  ( mới đổi thành Huy Phát )- D6 rạch bắp", "phone": "nan", "lat": 11.145821, "lon": 106.555521, "addr": "d6 rạch bắp Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000160", "name": "XUÂN MAI 2 - KDC rạch bắp( gần minh hưng) (11.142491, 106.554654)", "phone": "366275883", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH070916", "name": "BHTH MINH TÂM( nghỉ trưa 12h-3h30) -D8 KCN Rạch Bắp ( gần Bình Hiếu), An Tây", "phone": "973961465", "lat": 11.134329, "lon": 106.537309, "addr": "tổ 11,ấp rạch bắp  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH075565", "name": "ANH THƯ - đội 2,rạch bắp", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075205", "name": "quang minh - N6, Phường Mỹ Phước, Bến Cát BD", "phone": "nan", "lat": 11.113782, "lon": 106.601081, "addr": "N6.tc1 kp6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH072096", "name": "TH NHƯ THIỆN", "phone": "901015079", "lat": 11.071861, "lon": 106.660147, "addr": "00 ĐT741, To 10, Khu Pho Phu Nghi Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH072017", "name": "Tùng Dương Quán ( GIAO BUỔI SÁNG) - H6, Thới Hòa, Bến Cát, Bình Dương", "phone": "987963185", "lat": 11.122362, "lon": 106.602851, "addr": "0 D14 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075300", "name": "th anh thư DB5/NB8 -  mỹ phuoc 2", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072069", "name": "TH NGỌC SANG ( đường N14 )", "phone": "907682978", "lat": 11.096556, "lon": 106.665448, "addr": "N14 Khu phố An Hòa Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "1100000926", "name": "TAP HOA TUYET DAO(nghỉ trưa 12-15h) - Quốc Lộ 13, Mỹ Phước", "phone": "916838554", "lat": 11.158517, "lon": 106.594118, "addr": "0 Ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071734", "name": "TH HÀ PHƯƠNG ANH - Hòa Lợi", "phone": "387075370", "lat": 11.104019, "lon": 106.662878, "addr": "1875 ĐT741 Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH071339", "name": "Đại lí kim phụng (nhận hàng sau 13h)", "phone": "989620937", "lat": 11.151779, "lon": 106.620741, "addr": "7b 9-Feb Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071579", "name": "Quán Khói (Giao Sáng) - NI7A - Thới Hòa", "phone": "362200668", "lat": 11.118567, "lon": 106.649239, "addr": "7a NI7A Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075940", "name": "Bia Sệt Phố Đêm( GIAO SÁNG)", "phone": "375035847", "lat": 11.134285, "lon": 106.612954, "addr": "XC2 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072754", "name": "Quán Tư Địa ( giao Sáng ) - Đường Phú Chánh 39, Phú Chánh", "phone": "971716849", "lat": 11.076468, "lon": 106.695658, "addr": "0 Phu Chanh 39 Phuong Phu Chanh TX Tan Uyen Binh Duong"}, {"id": "KH074050", "name": "th tố uyên ( th ngọc cũ)", "phone": "388255548", "lat": 11.114648, "lon": 106.600827, "addr": "My Phuoc 1 N6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075582", "name": "QUÁN NHẬU GIÓCHIỀU- Đường D8, KCN RẠCH BẮP, An Điền", "phone": "906260758", "lat": 11.132915, "lon": 106.532468, "addr": "D8 KCN Rạch Bắp Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "0983405385", "name": "QUÁN CƠM HỒNG NHUNG", "phone": "983405385", "lat": 11.138194, "lon": 106.556791, "addr": "DT7A Tân Lập Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH072780", "name": "Quỳnh nga ( 13h nghĩ trưa đến 16h ) - ngã 3 chú lường rẽ phải 500m. an  điền", "phone": "373185712", "lat": 11.084657, "lon": 106.583699, "addr": "hl 608 ngã ba chú lường Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH000157", "name": "LƯƠNG NGUYÊN - Đường D3-KCN Rạch Bắp", "phone": "979930820", "lat": 11.14036, "lon": 106.555134, "addr": "D3 Ấp Tân Lập Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH070925", "name": "Công Biên (Vòng xoay An Điền)", "phone": "962722137", "lat": 11.147371, "lon": 106.582351, "addr": "0 7a Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH076272", "name": "Hồng Lanh ( Đt 748. An Điền. bến cát)", "phone": "911480117", "lat": 11.12728, "lon": 106.577614, "addr": "61 To2 dt748 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071581", "name": "Quang Hưng (đường dk5a, p.thới hòa)", "phone": "975810806", "lat": 11.09023, "lon": 106.637261, "addr": "DK5 KP3A Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071523", "name": "THIỆN PHÁT Minimart - qua Chợ bến lớn có ngã 3 rẽ phải vào 300m.tân định", "phone": "972330431", "lat": 11.057595, "lon": 106.626525, "addr": "Kp1 Ben Lon Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH073888", "name": "cô út QL13 thới hoà", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073178", "name": "Thu Hà -hẻm 056 .kp2. gần đại lý Tân long - KHU PHỐ 2, P. TÂN ĐỊNH", "phone": "398413739", "lat": 11.052588, "lon": 106.634166, "addr": "Kp2 Hoang Gia Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "00121035", "name": "Bách Hóa Hoàng Yến 2", "phone": "nan", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072357", "name": "HOÀNG YẾN 2 ( 12h nghĩ trưa tới 2h30) - chợ hoàng gia", "phone": "936148121", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072356", "name": "Linh Thư - khu phố 1 tân định", "phone": "358225588", "lat": 11.044754, "lon": 106.641848, "addr": "Kp1 Hoang Gia Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH076231", "name": "Tuấn Anh ( QL13. cổng kdc Thịnh Gia. Tân Định)", "phone": "nan", "lat": 11.069992, "lon": 106.627556, "addr": "Kp4 Ql13 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH071569", "name": "Cô Út - qua Chợ bến lớn có ngã 3 rẽ phải  vào 300m. tân định", "phone": "908445277", "lat": 11.057435, "lon": 106.62665, "addr": "To 13 kp3 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH074173", "name": "Thăng Long.0", "phone": "nan", "lat": 11.155346, "lon": 106.584642, "addr": "67 749A Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075829", "name": "Hồng Thắm", "phone": "nan", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075683", "name": "Phát Dạt 9(gần chợ an tây) - An Tây/ BD", "phone": "nan", "lat": 11.14529, "lon": 106.608362, "addr": "93 DB8 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000674", "name": "LUÔN ĐẠT 2(giao hàng trước 12h nghĩ trưa đến 3 h) - ẤP DÒNG SỎI AN TÂY", "phone": "975358789", "lat": 11.106614, "lon": 106.534906, "addr": "168 DT744 , DONG SOI Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072834", "name": "Cô Út (Chợ Bến Lớn)", "phone": "987465444", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076661", "name": "Khánh vy ( đường NA3 + đường ĐF2 , CPH ) Mp2 ( 0982374646 )", "phone": "nan", "lat": 11.150092, "lon": 106.609953, "addr": "04,đường TC4 KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076269", "name": "anh đức ( kho đạn 0367315377 ) thới hoà , bến cát", "phone": "nan", "lat": 11.118096, "lon": 106.643565, "addr": "DI2 Di2 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH073012", "name": "Cẩm Tú ( nghỉ trưa -gọi sđt 0917681482) - 173,Tổ 8 Dòng sỏi,An Tây", "phone": "917681482", "lat": 11.141774, "lon": 106.611097, "addr": "24 NB16 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076452", "name": "TH NINH PHƯƠNG(ngã 4 thùng thơ rẻ trái 500m bên phải)", "phone": "nan", "lat": 11.134598, "lon": 106.608989, "addr": "Tc2 mỹ phước Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076377", "name": "HỒNG THẮM( PHÚ THỨ -AN TÂY)", "phone": "nan", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071536", "name": "Anh Thư An Tây", "phone": "392138691", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075131", "name": "Phú Yên Quán - H6 mỹ phước 1 bến cát bình dương", "phone": "945419519", "lat": 11.123234, "lon": 106.602501, "addr": "0 H6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071558", "name": "TH Thanh Xuân giao trước 12h - góc ni7/di2 KCN MP3", "phone": "392826367", "lat": 11.118599, "lon": 106.643561, "addr": "Ni 7 DI2 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075487", "name": "Quán nướng Thi 36 h6 Phường Thới Hòa", "phone": "394842232", "lat": 11.122753, "lon": 106.602484, "addr": "h6 thới hòa bến cát Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071771", "name": "QUÁN NHẬU PHƯƠNG NAM ( Giao Sáng ) -ĐT741, Khu Phố An Hòa, Hòa Lợi, Bến Cát", "phone": "374993779", "lat": 11.087966, "lon": 106.666269, "addr": "00 Khu Pho An Hoa Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH071601", "name": "duy hải", "phone": "977279736", "lat": 11.14759, "lon": 106.626992, "addr": "241 9-Feb Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074780", "name": "Dì Út - Phú an, Xã An Tây", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075280", "name": "gia bảo", "phone": "nan", "lat": 11.135685, "lon": 106.608303, "addr": "Đường XC8A KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072330", "name": "Trung thành - N6 mp1", "phone": "969258078", "lat": 11.117441, "lon": 106.600668, "addr": "My Phuoc 1 N6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "110000000398", "name": "Khánh Băng ( mp1 , QL13 ) 0", "phone": "37895983", "lat": 11.134896, "lon": 106.604449, "addr": "quốc lộ 13 QL13 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH076408", "name": "Bách Hóa Phước Khang NB16", "phone": "368166880", "lat": 11.14176, "lon": 106.610576, "addr": "Số 30 NB16 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076137", "name": "Nhật Minh.( 12h nghĩ trưa đến 14h30 ) db4. Mỹ phước 2. 0", "phone": "nan", "lat": 11.144521, "lon": 106.605386, "addr": "89 DB4 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH071342", "name": "TH HOÀNG NAM ( nghỉ trưa 12H - 14H ) - D10 N4 mỹ phước 1", "phone": "365657987", "lat": 11.125418, "lon": 106.604382, "addr": "My Phuoc 1 D10 N5 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071346", "name": "Thanh nguyên -  xc2, MP2", "phone": "345115828", "lat": 11.027869, "lon": 106.653719, "addr": "37/28 My Phuoc Tan Van Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH071048", "name": "BH Hoàng Yến 2, KP2, Tân Định", "phone": "nan", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "01234567", "name": "quán nướng 37 An ĐIỀN", "phone": "398228869", "lat": 11.143618, "lon": 106.558446, "addr": "đường d16B,kp kiến an, an điền, bến cát, b  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH075651", "name": "KIM NGÂN( ĐỐI DIỆN CHỊ ĐÈO BƯNG CÒNG)", "phone": "nan", "lat": 11.134441, "lon": 106.614391, "addr": "Xc2 XC2, Khu Pho 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072750", "name": "Quán Má Heo 368 (Ko nhận hàng 1h ~ 3h trưa) - NE2, Thới Hòa, Bến Cát, Bình Dương", "phone": "974361948", "lat": 11.117076, "lon": 106.649762, "addr": "DA4 Thoi Hoa Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH074692", "name": "KHÁNH HUYỀN ( kế ngọc hân củ) - Lai Uyên, Bàu Bàng", "phone": "905275515", "lat": 11.242758, "lon": 106.634216, "addr": "N5-5A 0 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH071341", "name": "DL Kim Long (Cầu Đò) - Đường Hùng Vương ( chân cầu Đò ),Phường An Điền", "phone": "908375408", "lat": 11.150816, "lon": 106.587335, "addr": "413 Hung Vuong Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071952", "name": "Quán Nướng D9 ( Giao Bia Buổi Sáng ) - D9, Thới Hòa, Bến Cát, Bình Dương", "phone": "908186826", "lat": 11.126431, "lon": 106.607204, "addr": "0 D9 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "123456", "name": "th khánh lâm", "phone": "985447025", "lat": 11.144771, "lon": 106.559802, "addr": "d16B,tổ 18 khu phố kiến an,an điền  0 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072029", "name": "Quán Tùng Nướng Lu (Giao buổi sáng) 74,DA1-1", "phone": "388856718", "lat": 11.144632, "lon": 106.611915, "addr": "0 DA1,1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "0985561684", "name": "QUÁN NHẬU THU GIANG", "phone": "985561684", "lat": 11.093127, "lon": 106.53967, "addr": "ấp dòng sỏi, xã an tây, bến cát, bình dương  0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072428", "name": "QUAN OC BO 68 - Xã An Tây, Thị Xã Bến Cát, Bình Dương", "phone": "nan", "lat": 11.116541, "lon": 106.531967, "addr": "0 DT 744 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH071784", "name": "Kim Dung ( đường N 14 ) - Ngã 4 Hoà Lợi", "phone": "972708650", "lat": 11.096313, "lon": 106.664898, "addr": "00 N14 Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH072317", "name": "HẢI PHÁT chợ chánh lưu", "phone": "973970210", "lat": 11.1456, "lon": 106.668308, "addr": "70c Đuong 2/9, Khu Pho 2 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072180", "name": "TH PHƯƠNG DUNG - Đường DG3, Tổ 5, Khu Phố 5. Chánh Phú Hòa", "phone": "974188896", "lat": 11.138105, "lon": 106.657606, "addr": "00 DG3 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH071577", "name": "Tạp Hóa Phượng -Đường DG3, Chánh Phú Hòa, Bến Cát, Bình Dương", "phone": "937743823", "lat": 11.13674, "lon": 106.657723, "addr": "Dg3 KP.8 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072075", "name": "TH Phước Lộc ( Nguyễn Thành Dũng )", "phone": "918675084", "lat": 11.102762, "lon": 106.637249, "addr": "Dj5 dj5 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071682", "name": "MINH THƯ CHÁNH PHÚ HÒA - NE4, CPH", "phone": "972429251", "lat": 11.135776, "lon": 106.664506, "addr": "00 NE4, To 5, Khu Pho 9 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "0386492613", "name": "Th Cô Vinh, dòng sỏi,an tây, đói diện th cf 5 thương", "phone": "386492613", "lat": 11.100013, "lon": 106.539256, "addr": "cổng ba sang, dòng sỏi, đường đất, bến cát, bình   0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH071168", "name": "TH Diễm châu ( đường DJ 9 , MP 3 )", "phone": "941194450", "lat": 11.101151, "lon": 106.640171, "addr": "Kp3a dj9 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000381", "name": "KIM HUỆ - Ấp Bà Phái, Long Nguyên", "phone": "937030986", "lat": 11.200868, "lon": 106.570905, "addr": "Ap Ba Phai DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "KH000383", "name": "TH THỦY THẢO - 41 DT 749A Ấp Bưng Thuốc , Long nguyên", "phone": "378973827", "lat": 11.212255, "lon": 106.568121, "addr": "41 DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "110000000444", "name": "HAI HỒNG ( ĐỐI DIỆN CHỢ LONG NGUYÊN) - Ấp Long Hưng, Long Nguyên", "phone": "389488278", "lat": 11.230898, "lon": 106.562541, "addr": "Dt 749a DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "KH072936", "name": "Bia Sệt 77 DA1.1 (giao 10h sáng) -Ngã 3 DA1-1/Đường 2/9", "phone": "389332516", "lat": 11.154132, "lon": 106.611598, "addr": "0 DA1,1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073091", "name": "Th bình phương.0", "phone": "988042227", "lat": 11.126473, "lon": 106.636283, "addr": "0 DH3 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "1100004203", "name": "TH HOANG ANH - khu nhà ở xã hội định hòa.tdm", "phone": "932559325", "lat": 11.051371, "lon": 106.659679, "addr": "NOXH Block B3 Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "DANKO04304", "name": "TH THÀNH PHÁT ( gần Băng nhi )", "phone": "nan", "lat": 11.146438, "lon": 106.609612, "addr": "0 NB9 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072417", "name": "Khánh Linh - Đường Tạo lực 5 .kp phú hòa, Hòa Lợi", "phone": "963772181", "lat": 11.152182, "lon": 106.618613, "addr": "2 tháng 9 KP 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072322", "name": "Tuấn Kiệt - đường đt 741, Hòa Lợi", "phone": "967180867", "lat": 11.070638, "lon": 106.659354, "addr": "00 ĐT741, Nguyen Van Thanh, Khu Pho Phu Nghi Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH000223", "name": "THANH THẢO - DT749, Long Nguyên", "phone": "343767422", "lat": 11.162076, "lon": 106.579744, "addr": "0 30/4 Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "1100004199", "name": "TH PHÁT TÀI ( kế cô châu) 11h30 nghĩ trưa tới 2h30- Đường Nguyễn Văn Thạnh Định Hòa", "phone": "962988349", "lat": 11.050288, "lon": 106.651412, "addr": "420a Nguyen Van Thanh Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH072319", "name": "Huy Hoàng - quốc lộ 14 - Định Hòa", "phone": "968855706", "lat": 11.047433, "lon": 106.648623, "addr": "350 Nguyễn Văn Thành Kp 7 Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH072741", "name": "Quán Ốc D12.3 - An. Điền *****", "phone": "nan", "lat": 11.146845, "lon": 106.582824, "addr": "0 DT 7A Xa An Dien TX Ben Cat Binh Duong"}, {"id": "1234", "name": "quán nhậu tuấn phước- đường D8 An Điền", "phone": "868719248", "lat": 11.143061, "lon": 106.556296, "addr": "D14 KCN Rạch Bắp Xa Phu An TX Ben Cat Binh Duong"}, {"id": "KH074404", "name": "Quán Ốc 68 DB9 (Giao hàng 16h)", "phone": "964778195", "lat": 11.142544, "lon": 106.609716, "addr": "66 DB9 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073129", "name": "QUÁN BIA SỆT 79 - ĐT 744, An Tây", "phone": "nan", "lat": 11.104642, "lon": 106.535358, "addr": "ĐT 744 Ấp Dòng Sỏi Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH076693", "name": "Lương kđ", "phone": "nan", "lat": 11.145606, "lon": 106.607285, "addr": "Đường NB10 KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "0971116553", "name": "lẩu mắm miền tây", "phone": "971116553", "lat": 11.132031, "lon": 106.528718, "addr": "đường d8 0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH074130", "name": "Chị Tuyền", "phone": "375907745", "lat": 11.305902, "lon": 106.455004, "addr": "dt 748 0 Xa Dinh Hiep Huyen Dau Tieng Binh Duong"}, {"id": "KH000034", "name": "TH CÔ CHÂU - Minh thạnh( đối diện trạm y tế) (11.429525, 106.505320)", "phone": "743545801", "lat": 11.429525, "lon": 106.50532, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH000003", "name": "TRÂM ANH - TỔ 1 ẤP HOÀ CƯỜNG MINH HÒA (11.443996, 106.486612)", "phone": "743545040", "lat": 11.443996, "lon": 106.486612, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH076697", "name": "TẠP HÓA CÔ THU", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000045", "name": "TH Bảy Mắm . Minh Tân - Chợ Minh Tân, Dh704, ấp Tân Đức", "phone": "982445339", "lat": 11.405455, "lon": 106.45095, "addr": "dt704 0 Xa Minh Tan Huyen Dau Tieng Binh Duong"}, {"id": "0917539392", "name": "Th Kim Anh,an tây, dòng sỏi", "phone": "917539392", "lat": 11.105386, "lon": 106.535197, "addr": "Đường ĐT 744,dòng sỏi, an tây, TX bến cát, bình   0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072288", "name": "124 MART - ấp 2 Tân Hiệp - PG", "phone": "967714348", "lat": 11.332524, "lon": 106.747221, "addr": "0 To 2 Ap 4 Xa Tan Hiep Huyen Phu Giao Binh Duong"}, {"id": "KH076303", "name": "kim Ngân ( 67 Đường 19 tháng 5, Ấp 9, Xã Phú Giáo, TP Hồ Chí Minh)", "phone": "nan", "lat": 11.134441, "lon": 106.614391, "addr": "Xc2 XC2, Khu Pho 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074655", "name": "Th 179", "phone": "905866676", "lat": 11.112049, "lon": 106.605589, "addr": "N15-D2 kdt Ngũ Tượng, P. Thới Hòa Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH076681", "name": "Giá Trị Thật ( Đường N6. mỹ phước 1 )", "phone": "nan", "lat": 11.113225, "lon": 106.601115, "addr": "n6 thới hòa Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "00034448", "name": "Vpp Yến Nhi", "phone": "nan", "lat": 11.018024, "lon": 106.659484, "addr": "635 My Phuoc Tan Van Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH073555", "name": "TH Quý Anh Na11 Phường Thới Hòa", "phone": "394960369", "lat": 11.123859, "lon": 106.618495, "addr": "52 đường DA11 kp4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071499", "name": "HIỀN PHƯỢNG - d11 mỹ phước 1, Thới Hòa", "phone": "392035829", "lat": 11.124744, "lon": 106.604421, "addr": "163/165 d11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "0339933027", "name": "An Điền Quán", "phone": "339933027", "lat": 11.139412, "lon": 106.55538, "addr": "D12.2,an điền, bến cát, bình dương  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH076040", "name": "MINH QUÂN BÀU BÀNG ( gần châu anh)", "phone": "nan", "lat": 11.115818, "lon": 106.599928, "addr": "A4.1.01 kcc becamex Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076295", "name": "cô út .( đường DA1 -1 , mp2 , bến cát )0", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072247", "name": "TRÀ BẮC THÁI NGUYÊN - chợ tân long", "phone": "976500477", "lat": 11.327146, "lon": 106.673353, "addr": "gò bã đậu âp 2 Xa Tan Long Huyen Phu Giao Binh Duong"}, {"id": "KH000173", "name": "NHƯ THẢO( NGỈ TRƯA 12h-2h) - lô G8_Đường N13-LH- Lai Hưng", "phone": "989995807", "lat": 11.232305, "lon": 106.631056, "addr": "Lo G8 N13,LH Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH071696", "name": "GIA HOÀNG - N8 - LH , Kcn bàu bàng", "phone": "972723726", "lat": 11.226571, "lon": 106.63152, "addr": "Kdc Lh N8 Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "DANKO02900", "name": "NGỌC SƠN (Đường NB16. Mỹ phước 2) 0", "phone": "nan", "lat": 11.141777, "lon": 106.611099, "addr": "Nb16 NB16 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH073118", "name": "Vân trang", "phone": "933707679", "lat": 11.248218, "lon": 106.6338, "addr": "0 N17,5A Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH073068", "name": "Đạt phát - N10, Lai Uyên", "phone": "388056025", "lat": 11.260148, "lon": 106.597039, "addr": "0 N10 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH000710", "name": "tú linh. Dt750, ấp 2. Trừ v thố", "phone": "336676379", "lat": 11.345112, "lon": 106.626584, "addr": "0 DT 750 Xa Tru Van Tho Huyen Bau Bang Binh Duong"}, {"id": "KH072009", "name": "CẨM TÚ- Sát bên chùa Từ Huệ QL13, Lai Hưng", "phone": "972288379", "lat": 11.141774, "lon": 106.611097, "addr": "24 NB16 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "BHHOANGHA", "name": "Hoàng Hà (Gần Minh Quân) - Lai Uyên , Bàu Bàng", "phone": "nan", "lat": 11.258145, "lon": 106.626881, "addr": "0 D 18 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH075315", "name": "TH Tuấn Sinh - Đường N3-5B, kp Bàu Bàng, Lai Uyên", "phone": "328486487", "lat": 11.2593, "lon": 106.624707, "addr": "0 N3,5B Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH073265", "name": "THẢO HIỀN - Góc D11-N36, Lai Uyên", "phone": "972419268", "lat": 11.274833, "lon": 106.58919, "addr": "D14 D14 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH000807", "name": "Bình Minh. bàu bàng - Ql13 . Lai Uyên bầu bàng", "phone": "365375731", "lat": 11.338852, "lon": 106.637836, "addr": "272 Quoc lo 13 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH076205", "name": "kim ánh. ql13. lai Uyên", "phone": "nan", "lat": 11.320172, "lon": 106.633039, "addr": "0 Quoc  lo  13 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH075243", "name": "NHƯ HUỲNH KHO", "phone": "nan", "lat": 11.119607, "lon": 106.604603, "addr": "Đường D16,Mỹ Phước,Bến Cát,Bình Dương KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000069", "name": "QUẾ MÁC - 183_Đường cầu sắt _xã Lai Hưng", "phone": "379963639", "lat": 11.22573, "lon": 106.617688, "addr": "183 cau  sat Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH073918", "name": "TH Bà Tâm( đối diện quế mác)", "phone": "326909540", "lat": 11.225633, "lon": 106.617594, "addr": "180 trau  sua Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH071461", "name": "Th Quý Anh - 52 đường NA11' mỹ phước 2", "phone": "909769551", "lat": 11.123859, "lon": 106.618495, "addr": "52 đường DA11 kp4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071465", "name": "Th Nhật Minh mp2 - 89 đường db4, kp3 (11.144461, 106.605417)", "phone": "914678867", "lat": 11.144461, "lon": 106.605417, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH071975", "name": "Th trình liên - 21 D11 mỹ phước 1", "phone": "399733250", "lat": 11.125361, "lon": 106.610408, "addr": "21 d11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "110000000917", "name": "TAP HOA PHUONG ANH", "phone": "948320123", "lat": 11.075423, "lon": 106.571422, "addr": "0 Ap An Thuan , Xa Phu An TX Ben Cat Binh Duong"}, {"id": "KH071694", "name": "TH Thế Anh", "phone": "985031676", "lat": 11.143499, "lon": 106.609001, "addr": "64 DB13 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072016", "name": "Quán Nướng A Hào - 08 DB8 ( cách Ốc Duyên 100m), Mỹ Phước", "phone": "978137353", "lat": 11.15126, "lon": 106.607686, "addr": "08 DB8 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074325", "name": "Lẩu Dê Trường Giang - Dj4, Mp3", "phone": "356719118", "lat": 11.105995, "lon": 106.63663, "addr": "Dj4 My Phuoc 3 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000270", "name": "TỔNG HỢP KHOA VÂN - 514 đội 2,ấp rạch bắp (11.132270, 106.529886)", "phone": "974271244", "lat": 11.13227, "lon": 106.529886, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "00121383", "name": "Tạp Hóa Nguyên Hồng TL", "phone": "nan", "lat": 11.131629, "lon": 106.612899, "addr": "26 nc2 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000328", "name": "Bách hóa HÀ ANH( GẦN KHƯƠNG THẢO) - rạch bắp", "phone": "976253580", "lat": 11.144525, "lon": 106.611031, "addr": "15 NB12 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072369", "name": "Cô sáu ( bán buổi sáng tới 12h. Chiều ko bán) - kế tap hóa trang. Chợ Bưng cầu", "phone": "907375239", "lat": 11.134416, "lon": 106.604537, "addr": "Kp4 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073338", "name": "TH Anh Dư - NB16 (Tuấn Chi cũ) - NB16, MỸ PHƯỚC, BẾN CÁT", "phone": "865107274", "lat": 11.141718, "lon": 106.610744, "addr": "45 NB16 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073962", "name": "Quán Nướng Tiến Thành - 22 TC2", "phone": "967339707", "lat": 11.134687, "lon": 106.609186, "addr": "22 TC2 Mỹ Phước Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075876", "name": "SỨC HỒNG CƠ SỞ 2", "phone": "962879529", "lat": 11.124208, "lon": 106.606446, "addr": "D12 thới hòa bến cát Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075881", "name": "Quán nướng bình dân 77 (đối diện LN Sơn Hà)", "phone": "365571656", "lat": 11.047372, "lon": 106.640018, "addr": "0 KP1 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH076631", "name": "TH bà Tư", "phone": "942151849", "lat": 11.152524, "lon": 106.589546, "addr": "52 Hung Vuong Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071669", "name": "Bhth luân thế.0", "phone": "902517695", "lat": 11.122005, "lon": 106.649841, "addr": "To 1 Kp 1 DE4 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071500", "name": "TH Vỹ ( giao bia lúc 11-12h) - N1, KDT Thịnh Gia, Tân Định, Bến Cát, BD", "phone": "944107539", "lat": 11.070706, "lon": 106.622933, "addr": "B5,03 N1 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "DANKO01496", "name": "ĐẠI LÝ PHÚ MỸ HƯNG - XC6, MỸ PHƯỚC 2, TX BẾN CÁT, BD", "phone": "nan", "lat": 11.161624, "lon": 106.603352, "addr": "ĐẠI LÝ PHÚ MỸ HƯNG - XC6, MỸ PHƯỚC 2, TX BẾN CÁT, BD - Đường XC6, KCN Mỹ Phước 2"}, {"id": "KH000163", "name": "TUẤN DŨNG( nghỉ trưa 12h-3h) - Đường Hùng Vương, Ấp Tân Lập ( đối diện Trần An), An Điền", "phone": "0378009117", "lat": 11.156392, "lon": 106.615592, "addr": "TUẤN DŨNG( nghỉ trưa 12h-3h) - Đường Hùng Vương, Ấp Tân Lập ( đối diện Trần An), An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075721", "name": "ngọc mai", "phone": "nan", "lat": 11.152936, "lon": 106.612936, "addr": "ngọc mai - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075994", "name": "Đình Cường sale kinh đô", "phone": "0969479678", "lat": 11.152349, "lon": 106.617197, "addr": "Đình Cường sale kinh đô - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073002", "name": "Ngọc nhi ( gần nhà ở xã hội hoà lợi) giao hàng trước 12h hoặc sau 15h30 - Kp an hoà , hoà lợi", "phone": "0989763877", "lat": 11.155607, "lon": 106.616248, "addr": "Ngọc nhi ( gần nhà ở xã hội hoà lợi) giao hàng trước 12h hoặc sau 15h30 - Kp an hoà , hoà lợi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076475", "name": "c Thảo", "phone": "nan", "lat": 11.152124, "lon": 106.617819, "addr": "c Thảo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073887", "name": "Tạp hoá Vỹ- TH Thùy Dương ( 12h nghĩ trưa đến 3h )", "phone": "nan", "lat": 11.156995, "lon": 106.613274, "addr": "Tạp hoá Vỹ- TH Thùy Dương ( 12h nghĩ trưa đến 3h ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000544", "name": "CÔ HỒNG - Ngã 3 rạch kiến( gần hồng yến), Thanh Tuyền", "phone": "0916225299", "lat": 11.153091, "lon": 106.6131, "addr": "CÔ HỒNG - Ngã 3 rạch kiến( gần hồng yến), Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000267", "name": "Mỹ anh. bến súc - Dh711, ấp chợ ,Bến súc", "phone": "0947227222", "lat": 11.153825, "lon": 106.615149, "addr": "Mỹ anh. bến súc - Dh711, ấp chợ ,Bến súc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000097", "name": "THUỲ TRANG - Ấp Xóm Bưng-bến súc, Thanh Tuyền", "phone": "0335118206", "lat": 11.154592, "lon": 106.613747, "addr": "THUỲ TRANG - Ấp Xóm Bưng-bến súc, Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074804", "name": "Anh Hiếu (an lập)", "phone": "0842188022", "lat": 11.155671, "lon": 106.612837, "addr": "Anh Hiếu (an lập) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075283", "name": "kim ngân bảo nhi - n6, Thới Hòa", "phone": "nan", "lat": 11.153753, "lon": 106.614198, "addr": "kim ngân bảo nhi - n6, Thới Hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072143", "name": "kim Hương ( nghỉ trưa 12h-2h) - đt 744, an tây", "phone": "0908002263", "lat": 11.154736, "lon": 106.616711, "addr": "kim Hương ( nghỉ trưa 12h-2h) - đt 744, an tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075159", "name": "vân an dt744 - An Tây Bình Dương 12h nghỉ trưa", "phone": "nan", "lat": 11.144099, "lon": 106.545043, "addr": "vân an dt744 - An Tây Bình Dương 12h nghỉ trưa - Đường ĐT744, Bến Cát"}, {"id": "KH075982", "name": "Trần Thành Tâm", "phone": "nan", "lat": 11.155554, "lon": 106.612279, "addr": "Trần Thành Tâm - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070931", "name": "HAI ĐƯỢC(NGHỈ TRƯA 12h-1h30) - Ấp suối tre( gần Hùng Phát), Long Nguyên", "phone": "0373838293", "lat": 11.155645, "lon": 106.613023, "addr": "HAI ĐƯỢC(NGHỈ TRƯA 12h-1h30) - Ấp suối tre( gần Hùng Phát), Long Nguyên - Phường Mỹ Phước, Bến Cát"}, {"id": "BHHUNGTRANG", "name": "Bách Hóa Hùng Trang DJ9 mp3 (nghỉ trưa 11h 30-14h 30", "phone": "0812871719", "lat": 11.136695, "lon": 106.629347, "addr": "Bách Hóa Hùng Trang DJ9 mp3 (nghỉ trưa 11h 30-14h 30 - Đường DJ9, KCN Mỹ Phước 3"}, {"id": "00108374", "name": "Nhà Sách Huy Khánh 2", "phone": "nan", "lat": 11.157794, "lon": 106.61685, "addr": "Nhà Sách Huy Khánh 2 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076705", "name": "Công Ty TNHH Công Nghiệp Sắt Thép Connex-Aiko", "phone": "nan", "lat": 11.153828, "lon": 106.612586, "addr": "Công Ty TNHH Công Nghiệp Sắt Thép Connex-Aiko - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076356", "name": "phương anh. an lập 0", "phone": "nan", "lat": 11.156105, "lon": 106.614641, "addr": "phương anh. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000082", "name": "HỒNG YẾN nghĩ trưa 12h đến 3h - ngã 3 rạch kiến,bến súc, Thanh Tuyền", "phone": "0366706101", "lat": 11.152732, "lon": 106.614971, "addr": "HỒNG YẾN nghĩ trưa 12h đến 3h - ngã 3 rạch kiến,bến súc, Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073011", "name": "HƯƠNG SEN (RẠCH BẮP)", "phone": "0382427479", "lat": 11.152206, "lon": 106.617456, "addr": "HƯƠNG SEN (RẠCH BẮP) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076394", "name": "SACN Thảo Đình", "phone": "nan", "lat": 11.153553, "lon": 106.615975, "addr": "SACN Thảo Đình - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076112", "name": "Mỹ anh. bến súc0 cấm tải 11h đến 1h/ từ 4h đến 6h", "phone": "nan", "lat": 11.15387, "lon": 106.61512, "addr": "Mỹ anh. bến súc0 cấm tải 11h đến 1h/ từ 4h đến 6h - Phường Mỹ Phước, Bến Cát"}, {"id": "HUYNHHOA", "name": "CÔNG TY TNHH HUỲNH HOA FOOD", "phone": "nan", "lat": 11.158849, "lon": 106.569696, "addr": "CÔNG TY TNHH HUỲNH HOA FOOD - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "THUYVY", "name": "CTY TNHH SACN THÚY VI", "phone": "nan", "lat": 11.156651, "lon": 106.617637, "addr": "CTY TNHH SACN THÚY VI - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072974", "name": "Hoàng lớn - bưng còng Thanh Tuyền", "phone": "0818720666", "lat": 11.157369, "lon": 106.615587, "addr": "Hoàng lớn - bưng còng Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076159", "name": "hạnh thắng. an lập 0", "phone": "nan", "lat": 11.157531, "lon": 106.612531, "addr": "hạnh thắng. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075151", "name": "ngọc mai d8 chợ rạch bắp", "phone": "nan", "lat": 11.140088, "lon": 106.540636, "addr": "ngọc mai d8 chợ rạch bắp - Đường D8, KCN Rạch Bắp, An Điền"}, {"id": "KH073879", "name": "TH Ngọc Thảo ĐT744, Bưng Còng", "phone": "0966762630", "lat": 11.153952, "lon": 106.614332, "addr": "TH Ngọc Thảo ĐT744, Bưng Còng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076479", "name": "chị thắm. dáng hương. định hiệp", "phone": "nan", "lat": 11.153628, "lon": 106.616972, "addr": "chị thắm. dáng hương. định hiệp  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076111", "name": "mai Long. an lập 0", "phone": "nan", "lat": 11.154141, "lon": 106.613686, "addr": "mai Long. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "00108565", "name": "Điện Nước Duy Tân ( xuất hđ )", "phone": "nan", "lat": 11.155256, "lon": 106.612846, "addr": "Điện Nước Duy Tân ( xuất hđ ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076584", "name": "Huy ( đường huỳnh thị hiếu ) Tân an ( 0 )", "phone": "nan", "lat": 11.156813, "lon": 106.612447, "addr": "Huy ( đường huỳnh thị hiếu ) Tân an ( 0 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072101", "name": "Tạp Hoá Ngân", "phone": "0913981374", "lat": 11.157921, "lon": 106.616633, "addr": "Tạp Hoá Ngân - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072195", "name": "kim loan ( nghĩ trưa12h -14h30)đóng cửa thì Alo : 0902823675) - 278 hồ văn cống", "phone": "0902823675", "lat": 11.153192, "lon": 106.612033, "addr": "kim loan ( nghĩ trưa12h -14h30)đóng cửa thì Alo : 0902823675) - 278 hồ văn cống - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076288", "name": "thuỳ vân ( hồ văn cống ) trương bình hiệp", "phone": "nan", "lat": 11.156893, "lon": 106.616241, "addr": "thuỳ vân ( hồ văn cống ) trương bình hiệp - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072215", "name": "Tập hóa Trang ( bán buổi sáng tới 11h30. Chiều ko bán)- chợ bưng cầu, đường phan đăng lưu", "phone": "0834938390", "lat": 11.156374, "lon": 106.616628, "addr": "Tập hóa Trang ( bán buổi sáng tới 11h30. Chiều ko bán)- chợ bưng cầu, đường phan đăng lưu - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073336", "name": "Công Chánh ( kến bên tạp hoá trinh đường hồ văn cống )", "phone": "nan", "lat": 11.152444, "lon": 106.614151, "addr": "Công Chánh ( kến bên tạp hoá trinh đường hồ văn cống ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072673", "name": "Cô Hồng - đường bùi ngọc thu - Hiệp An", "phone": "0798154158", "lat": 11.152695, "lon": 106.617179, "addr": "Cô Hồng - đường bùi ngọc thu - Hiệp An - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075980", "name": "Trinh ( đối diện hoàng ly đường hồ văn cống )", "phone": "nan", "lat": 11.15574, "lon": 106.613985, "addr": "Trinh ( đối diện hoàng ly đường hồ văn cống ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076411", "name": "Thanh Phong ( 11h30 nghĩ trưa đến 3h30) đường huỳnh thị hiếu. ngã ba bến thế. tân an", "phone": "nan", "lat": 11.152381, "lon": 106.613866, "addr": "Thanh Phong ( 11h30 nghĩ trưa đến 3h30) đường huỳnh thị hiếu. ngã ba bến thế. tân an - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072347", "name": "Út thụy - nguyễn chí thanh - tân an", "phone": "nan", "lat": 11.153951, "lon": 106.616378, "addr": "Út thụy - nguyễn chí thanh - tân an - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072447", "name": "NGỌC SƠN - Đường lê chí dân ( cách ngã 4 sở sao 300m) Hiệp An,", "phone": "0336830336", "lat": 11.155825, "lon": 106.617323, "addr": "NGỌC SƠN - Đường lê chí dân ( cách ngã 4 sở sao 300m) Hiệp An, - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076110", "name": "Anh bảy ( huỳnh thị hiếu , tân an )", "phone": "nan", "lat": 11.154833, "lon": 106.612718, "addr": "Anh bảy ( huỳnh thị hiếu , tân an ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072217", "name": "Tập hóa Ngân ( nghĩ trưa 12h đến 2h30) - chợ bưng cầu, đường phan đăng lưu", "phone": "0919682229", "lat": 11.156279, "lon": 106.616565, "addr": "Tập hóa Ngân ( nghĩ trưa 12h đến 2h30) - chợ bưng cầu, đường phan đăng lưu - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070938", "name": "THU HÀO RẠCH BẮP", "phone": "nan", "lat": 11.155368, "lon": 106.616626, "addr": "THU HÀO RẠCH BẮP - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076145", "name": "minh hòa. an lập 0", "phone": "nan", "lat": 11.154963, "lon": 106.615136, "addr": "minh hòa. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072220", "name": "GIA NHƯ ( 12h nghĩ không bán buổi chiều)", "phone": "0898686552", "lat": 11.154565, "lon": 106.612153, "addr": "GIA NHƯ ( 12h nghĩ không bán buổi chiều) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076233", "name": "vũ ngọc ( huỳnh thị hiếu tân an )", "phone": "nan", "lat": 11.152647, "lon": 106.612189, "addr": "vũ ngọc ( huỳnh thị hiếu tân an ) - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO05262", "name": "VPP ANH THẢO", "phone": "nan", "lat": 11.155818, "lon": 106.613886, "addr": "VPP ANH THẢO - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072223", "name": "Mai nguyên - bùi ngọc thu , hiệp an", "phone": "0384877909", "lat": 11.155051, "lon": 106.617445, "addr": "Mai nguyên - bùi ngọc thu , hiệp an - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072221", "name": "Hậu vũ ( bán buổi sáng tới 11h30. Chiều ko bán)", "phone": "0792902020", "lat": 11.153496, "lon": 106.614462, "addr": "Hậu vũ ( bán buổi sáng tới 11h30. Chiều ko bán) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076114", "name": "Tuấn hằng. trong chợ bến súc", "phone": "nan", "lat": 11.156533, "lon": 106.613373, "addr": "Tuấn hằng. trong chợ bến súc  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076355", "name": "ngân thảo. trong chợ bến súc 0", "phone": "nan", "lat": 11.152462, "lon": 106.613739, "addr": "ngân thảo. trong chợ bến súc 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072100", "name": "tạp hoá Ngọc Bích - 537 Nguyễn chí thanh", "phone": "0964794032", "lat": 11.152967, "lon": 106.617578, "addr": "tạp hoá Ngọc Bích - 537 Nguyễn chí thanh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072518", "name": "Thùy Trinh - đường phan đăng lưu, tương bình hiệp", "phone": "0976855174", "lat": 11.156849, "lon": 106.6158, "addr": "Thùy Trinh - đường phan đăng lưu, tương bình hiệp - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074391", "name": "phúc tài xế", "phone": "nan", "lat": 11.157229, "lon": 106.616822, "addr": "phúc tài xế - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071007", "name": "TRỌNG NGHĨA( nghỉ trưa 11h30h-4h) - DT 7A rạch bắp,ko zao jo trưa", "phone": "0356206025", "lat": 11.153119, "lon": 106.617355, "addr": "TRỌNG NGHĨA( nghỉ trưa 11h30h-4h) - DT 7A rạch bắp,ko zao jo trưa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075557", "name": "kim Mai - 676 nguyễn chí thanh tổ 16 khu 3, hiệp An", "phone": "nan", "lat": 11.155236, "lon": 106.616845, "addr": "kim Mai - 676 nguyễn chí thanh tổ 16 khu 3, hiệp An - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076158", "name": "châu dương. an lập 0", "phone": "nan", "lat": 11.157377, "lon": 106.613908, "addr": "châu dương. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071503", "name": "DL Dung Lập (DX 85-Hiệp an-TDM)", "phone": "0949150437", "lat": 11.15266, "lon": 106.613368, "addr": "DL Dung Lập (DX 85-Hiệp an-TDM) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076156", "name": "Ngọc thao. an lập 0", "phone": "nan", "lat": 11.154563, "lon": 106.616908, "addr": "Ngọc thao. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076160", "name": "sáu bé. an lập", "phone": "nan", "lat": 11.157164, "lon": 106.612042, "addr": "sáu bé. an lập  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076086", "name": "Diễm hạnh. an lập 0", "phone": "nan", "lat": 11.155064, "lon": 106.614504, "addr": "Diễm hạnh. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000409", "name": "Thành thế - ấp dòng sỏi, An Tây", "phone": "0358598931", "lat": 11.153333, "lon": 106.612719, "addr": "Thành thế - ấp dòng sỏi, An Tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075045", "name": "anh hiếu an lập", "phone": "nan", "lat": 11.154026, "lon": 106.617657, "addr": "anh hiếu an lập - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076017", "name": "ANH BÌNH RẠCH BẮP", "phone": "nan", "lat": 11.153939, "lon": 106.615113, "addr": "ANH BÌNH RẠCH BẮP - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072776", "name": "Quán Dương Đăng D18A ( A Hào ) -D18A, Thới Hòa, Bến cát, Bình Dương", "phone": "0937578458", "lat": 11.156218, "lon": 106.614182, "addr": "Quán Dương Đăng D18A ( A Hào ) -D18A, Thới Hòa, Bến cát, Bình Dương - Phường Mỹ Phước, Bến Cát"}, {"id": "00034273", "name": "Vpp Trọng Nhân", "phone": "nan", "lat": 11.157831, "lon": 106.617775, "addr": "Vpp Trọng Nhân - Phường Mỹ Phước, Bến Cát"}, {"id": "00112658", "name": "Nhà Sách Tú Ngọc 4", "phone": "nan", "lat": 11.153511, "lon": 106.614983, "addr": "Nhà Sách Tú Ngọc 4 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076702", "name": "Chị Ngọc", "phone": "nan", "lat": 11.153805, "lon": 106.613709, "addr": "Chị Ngọc - Phường Mỹ Phước, Bến Cát"}, {"id": "0348027826", "name": "TH CƯỜNG THƯỜNG", "phone": "0348027826", "lat": 11.152221, "lon": 106.615657, "addr": "TH CƯỜNG THƯỜNG  - Phường Mỹ Phước, Bến Cát"}, {"id": "00121332", "name": "Vpp Ông Nâu", "phone": "nan", "lat": 11.155016, "lon": 106.612309, "addr": "Vpp Ông Nâu - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO00067", "name": "ANH ANH MART (Nghỉ trưa 12h -14h) - Nguyễn Văn Thành, Hòa Lợi", "phone": "nan", "lat": 11.153672, "lon": 106.61745, "addr": "ANH ANH MART (Nghỉ trưa 12h -14h) - Nguyễn Văn Thành, Hòa Lợi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071267", "name": "Đạt Tài Mỹ Phước 1 QL13 - 447, Mỹ Phước", "phone": "0974818409", "lat": 11.161219, "lon": 106.610935, "addr": "Đạt Tài Mỹ Phước 1 QL13 - 447, Mỹ Phước - Quốc lộ 13, Bến Cát"}, {"id": "KH072423", "name": "Tiến lộc", "phone": "nan", "lat": 11.154937, "lon": 106.617914, "addr": "Tiến lộc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076267", "name": "Tạp Hóa Đậu Đậu ( An Lợi . Hòa Lợi. Đối điện chợ Bến Đồn)", "phone": "nan", "lat": 11.153452, "lon": 106.616033, "addr": "Tạp Hóa Đậu Đậu ( An Lợi . Hòa Lợi. Đối điện chợ Bến Đồn) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075148", "name": "Công Ty Đông Nam - Tân Hiệp Đông - Dĩ An", "phone": "nan", "lat": 11.15657, "lon": 106.613426, "addr": "Công Ty Đông Nam - Tân Hiệp Đông - Dĩ An - Phường Mỹ Phước, Bến Cát"}, {"id": "00110746", "name": "Photo Quốc Hùng", "phone": "nan", "lat": 11.156369, "lon": 106.614207, "addr": "Photo Quốc Hùng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072478", "name": "TH Đông Nam dk5a - thới hòa", "phone": "0964612656", "lat": 11.155794, "lon": 106.615801, "addr": "TH Đông Nam dk5a - thới hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076680", "name": "TH A Vũ", "phone": "0916549403", "lat": 11.155215, "lon": 106.612542, "addr": "TH A Vũ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073624", "name": "Sâm Thuần", "phone": "nan", "lat": 11.157012, "lon": 106.613925, "addr": "Sâm Thuần - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000760", "name": "TẠP HOÁ 369 - 74B ấp tân lập. An Điền. bến cat", "phone": "0919179949", "lat": 11.153119, "lon": 106.612245, "addr": "TẠP HOÁ 369 - 74B ấp tân lập. An Điền. bến cat - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075554", "name": "Công Ty Đông Nam đổi bánh xì xẹp", "phone": "nan", "lat": 11.155545, "lon": 106.616065, "addr": "Công Ty Đông Nam đổi bánh xì xẹp  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000762", "name": "KIM HUÊ ( 12h nghĩ trưa đến 2h30) - Ấp An Mỹ( kế cô nga) An Điền", "phone": "0903662267", "lat": 11.1521, "lon": 106.615073, "addr": "KIM HUÊ ( 12h nghĩ trưa đến 2h30) - Ấp An Mỹ( kế cô nga) An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "110000000500", "name": "THUY DUNG - Xã An Tây, Thị xã Bến Cát", "phone": "039948288", "lat": 11.153359, "lon": 106.615871, "addr": "THUY DUNG - Xã An Tây, Thị xã Bến Cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075634", "name": "Quốc Dũng (chợ an tây)", "phone": "nan", "lat": 11.153046, "lon": 106.616146, "addr": "Quốc Dũng (chợ an tây) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000340", "name": "Th kim thủy (ngỉ trưa 12-3h) - 72dt 744 phú thứ", "phone": "0816846289", "lat": 11.15432, "lon": 106.61762, "addr": "Th kim thủy (ngỉ trưa 12-3h) - 72dt 744 phú thứ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076351", "name": "BẢO ANH ( hẽm đối diện chợ an tây)", "phone": "nan", "lat": 11.152825, "lon": 106.614046, "addr": "BẢO ANH ( hẽm đối diện chợ an tây) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076453", "name": "HUỆ NGUYỄN ( TÂN ĐỊNH .12H NGHĨ TRƯA ĐẾN 14h30 ) không xuất hóa đơn", "phone": "nan", "lat": 11.152681, "lon": 106.617548, "addr": "HUỆ NGUYỄN ( TÂN ĐỊNH .12H NGHĨ TRƯA ĐẾN 14h30 ) không xuất hóa đơn  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073889", "name": "Hồng Phượng - Chợ Hoàng Gia bến cát", "phone": "nan", "lat": 11.157264, "lon": 106.613548, "addr": "Hồng Phượng - Chợ Hoàng Gia bến cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071049", "name": "Chị Huệ ( Hiếu Huệ) Kiot 04, KP2, Tân Định Bến Cát", "phone": "0389792327", "lat": 11.15596, "lon": 106.616903, "addr": "Chị Huệ ( Hiếu Huệ) Kiot 04, KP2, Tân Định Bến Cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076216", "name": "thắng duyên ( DL14 , MP3 )", "phone": "nan", "lat": 11.155331, "lon": 106.615178, "addr": "thắng duyên ( DL14 , MP3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072488", "name": "Ngọc anh ( gần út hậu , khu nhà ở becamex )", "phone": "nan", "lat": 11.153451, "lon": 106.612559, "addr": "Ngọc anh ( gần út hậu , khu nhà ở becamex ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072358", "name": "Chị Tuyền - khu phố 2 tân định", "phone": "0377116712", "lat": 11.157383, "lon": 106.617403, "addr": "Chị Tuyền - khu phố 2 tân định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074554", "name": "Tập hóa 05(nghi trưa từ 12h đến 3h ng) - kDC Thịnh Gia . Tân Định", "phone": "0961011042", "lat": 11.155799, "lon": 106.614034, "addr": "Tập hóa 05(nghi trưa từ 12h đến 3h ng) - kDC Thịnh Gia . Tân Định  - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO04548", "name": "THANH NAM", "phone": "nan", "lat": 11.154095, "lon": 106.616356, "addr": "THANH NAM - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070924", "name": "Sáu Nở (12h nghĩ trưa đến 2h30 )", "phone": "0947365597", "lat": 11.157383, "lon": 106.617323, "addr": "Sáu Nở (12h nghĩ trưa đến 2h30 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075226", "name": "thuỳ Trinh - dt744 dòng sòi", "phone": "nan", "lat": 11.14584, "lon": 106.545426, "addr": "thuỳ Trinh - dt744 dòng sòi - Đường ĐT744, Bến Cát"}, {"id": "KH000083", "name": "ĐẠI LỢI ( NGHỈ TRƯA 11-3h) GIAO Ở TIỆM DÙM", "phone": "nan", "lat": 11.152505, "lon": 106.61297, "addr": "ĐẠI LỢI ( NGHỈ TRƯA 11-3h) GIAO Ở TIỆM DÙM - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000374", "name": "THIÊN NHÂN DS 0949704378 - DT 744 Dòng Sỏi", "phone": "0949704378", "lat": 11.157391, "lon": 106.615639, "addr": "THIÊN NHÂN DS 0949704378 - DT 744 Dòng Sỏi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073667", "name": "Luôn Đạt dòng sỏi- an tây", "phone": "nan", "lat": 11.119055, "lon": 106.522609, "addr": "Luôn Đạt dòng sỏi- an tây - Xã An Tây, Bến Cát"}, {"id": "KH071822", "name": "PHƯƠNG CHI ( MP 3 )", "phone": "0822225257", "lat": 11.155981, "lon": 106.61203, "addr": "PHƯƠNG CHI ( MP 3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072851", "name": "THỦY TIÊN ( DJ5 , Mp3 )", "phone": "0978596404", "lat": 11.152965, "lon": 106.615292, "addr": "THỦY TIÊN ( DJ5 , Mp3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071836", "name": "TH Hải Huy (NL 17)", "phone": "0988841051", "lat": 11.156151, "lon": 106.615912, "addr": "TH Hải Huy (NL 17) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071819", "name": "TH Lục Dung -DJ5 Phường Thới Hòa", "phone": "0969488665", "lat": 11.153346, "lon": 106.616273, "addr": "TH Lục Dung -DJ5 Phường Thới Hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071209", "name": "Th hoàng giang nam.dk5a.mp3(nghỉ trưa 12-14h30)", "phone": "0703471111", "lat": 11.153423, "lon": 106.613952, "addr": "Th hoàng giang nam.dk5a.mp3(nghỉ trưa 12-14h30) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074696", "name": "HOÀI THU.ni4.mp3.0 ( đối diện trường học )", "phone": "nan", "lat": 11.156479, "lon": 106.615898, "addr": "HOÀI THU.ni4.mp3.0 ( đối diện trường học ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072370", "name": "Hiền đạt - kp 3 tân định bến cát", "phone": "nan", "lat": 11.157095, "lon": 106.615946, "addr": "Hiền đạt - kp 3 tân định bến cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076321", "name": "Trí Mỹ ( Đường Đx B10. kp Lồ Ô. Phường Tây Nam )", "phone": "nan", "lat": 11.15541, "lon": 106.612562, "addr": "Trí Mỹ ( Đường Đx B10. kp Lồ Ô. Phường Tây Nam ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075597", "name": "Bach hóa tiện lợi 79 - kp1, Tân Định", "phone": "nan", "lat": 11.154206, "lon": 106.613591, "addr": "Bach hóa tiện lợi 79 - kp1, Tân Định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073982", "name": "DL Tân Long Tân định - Hẻm 056 Tân định", "phone": "nan", "lat": 11.153464, "lon": 106.617838, "addr": "DL Tân Long Tân định - Hẻm 056 Tân định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072863", "name": "Vpp Ngọc Khang nghĩ trưa 12h đến 3h - A12 đường N1 KĐT Thịnh Gia", "phone": "0359793005", "lat": 11.154359, "lon": 106.617352, "addr": "Vpp Ngọc Khang nghĩ trưa 12h đến 3h - A12 đường N1 KĐT Thịnh Gia - Phường Mỹ Phước, Bến Cát"}, {"id": "TRANNGUYENTHUY", "name": "Th trần nguyên thủy (12h nghĩ trưa tới 3 h)", "phone": "nan", "lat": 11.155787, "lon": 106.616769, "addr": "Th trần nguyên thủy (12h nghĩ trưa tới 3 h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075471", "name": "thúy lụa", "phone": "nan", "lat": 11.156689, "lon": 106.568642, "addr": "thúy lụa - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH072444", "name": "Chị Phượng ( 11h30 nghĩ trưa tới 14h30 )-chợ bến lớn", "phone": "nan", "lat": 11.153381, "lon": 106.614995, "addr": "Chị Phượng ( 11h30 nghĩ trưa tới 14h30 )-chợ bến lớn - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072354", "name": "Tập hóa Diễm -chợ hoàng gia, Tân Định", "phone": "0327265761", "lat": 11.155432, "lon": 106.616611, "addr": "Tập hóa Diễm -chợ hoàng gia, Tân Định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072355", "name": "Ngọc Mai -chợ hoàng gia, Tân Định", "phone": "0938320177", "lat": 11.152262, "lon": 106.617967, "addr": "Ngọc Mai -chợ hoàng gia, Tân Định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072559", "name": "Chị tiên - chợ bến lớn giữa chợ", "phone": "nan", "lat": 11.15482, "lon": 106.613677, "addr": "Chị tiên - chợ bến lớn giữa chợ - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO04130", "name": "TH MINH NGỌC - CHỢ BẾN LỚN, Tân Định", "phone": "0966855467", "lat": 11.157301, "lon": 106.616486, "addr": "TH MINH NGỌC - CHỢ BẾN LỚN, Tân Định - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072632", "name": "Tạp hoá Phong(nhà trọ Trung Kiên, Bến Lớn) - Tân Định, Bến Cát", "phone": "0909197560", "lat": 11.157718, "lon": 106.613985, "addr": "Tạp hoá Phong(nhà trọ Trung Kiên, Bến Lớn) - Tân Định, Bến Cát - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO02238", "name": "KIM QUÝ - PHÚ THỨ - PHÚ AN", "phone": "nan", "lat": 11.155317, "lon": 106.615434, "addr": "KIM QUÝ - PHÚ THỨ - PHÚ AN - Phường Mỹ Phước, Bến Cát"}, {"id": "THDUNGLAN", "name": "TH Dũng Lan (12h nghĩ trưa đến 14h30) Bến lớn. Tân định", "phone": "nan", "lat": 11.157882, "lon": 106.612452, "addr": "TH Dũng Lan (12h nghĩ trưa đến 14h30) Bến lớn. Tân định  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073881", "name": "TH Tuấn Lan( an tây)", "phone": "nan", "lat": 11.153834, "lon": 106.613145, "addr": "TH Tuấn Lan( an tây) - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO00485", "name": "BH THÁI BÌNH DƯƠNG", "phone": "nan", "lat": 11.153611, "lon": 106.614912, "addr": "BH THÁI BÌNH DƯƠNG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076526", "name": "Mộng tuyết ( đường NJ 17 , chợ mp3 )", "phone": "nan", "lat": 11.154236, "lon": 106.614368, "addr": "Mộng tuyết ( đường NJ 17 , chợ mp3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071396", "name": "Minh Đức ( nghỉ trưa- chợ an tây)", "phone": "0644798963", "lat": 11.157065, "lon": 106.61758, "addr": "Minh Đức ( nghỉ trưa- chợ an tây) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000405", "name": "Phương thảo - chợ an tây", "phone": "0326154722", "lat": 11.152422, "lon": 106.613254, "addr": "Phương thảo - chợ an tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076379", "name": "CỬA HÀNG THẢO ( CHỢ AN TÂY)", "phone": "nan", "lat": 11.156027, "lon": 106.614152, "addr": "CỬA HÀNG THẢO ( CHỢ AN TÂY) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071900", "name": "nam hưng - An tây - bến cát", "phone": "0986947226", "lat": 11.153525, "lon": 106.613772, "addr": "nam hưng - An tây - bến cát - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO04976", "name": "TRÍ MỸ (Gần chợ thùng thơ, An Tây. đối diện cổng trường)", "phone": "nan", "lat": 11.153935, "lon": 106.617092, "addr": "TRÍ MỸ (Gần chợ thùng thơ, An Tây. đối diện cổng trường) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076650", "name": "th hương an tây 1", "phone": "nan", "lat": 11.15282, "lon": 106.616253, "addr": "th hương an tây 1 - Phường Mỹ Phước, Bến Cát"}, {"id": "TRUCPHUONG", "name": "TRÚC PHƯƠNG ( NGAY NGÃ TƯ PHÚ THỨ) - 48 ấp phú thứ phú an", "phone": "nan", "lat": 11.155317, "lon": 106.613779, "addr": "TRÚC PHƯƠNG ( NGAY NGÃ TƯ PHÚ THỨ) - 48 ấp phú thứ phú an - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073454", "name": "Cô Nga ( Không nhận hàng sau 16h30) - DT748, An Điền", "phone": "nan", "lat": 11.167759, "lon": 106.524269, "addr": "Cô Nga ( Không nhận hàng sau 16h30) - DT748, An Điền - Đường ĐT748, Bến Cát"}, {"id": "KH076538", "name": "Trúc khang ( đường D7 , mp1 )", "phone": "nan", "lat": 11.155669, "lon": 106.61249, "addr": "Trúc khang ( đường D7 , mp1 )  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072501", "name": "Phú Quý 68 ( 12h nghĩ trưa tới 2h30) - trong lòng chợ an điền ( đóng cửa thì giao tiệm gạo kế bên)", "phone": "0966422569", "lat": 11.152031, "lon": 106.615767, "addr": "Phú Quý 68 ( 12h nghĩ trưa tới 2h30) - trong lòng chợ an điền ( đóng cửa thì giao tiệm gạo kế bên) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076501", "name": "HƯƠNG BẰNG( ngã tư thùng thơ rẻ trái 300m)", "phone": "nan", "lat": 11.153166, "lon": 106.612426, "addr": "HƯƠNG BẰNG( ngã tư thùng thơ rẻ trái 300m) - Phường Mỹ Phước, Bến Cát"}, {"id": "00085166", "name": "Nhà Sách An Điền", "phone": "nan", "lat": 11.154381, "lon": 106.612305, "addr": "Nhà Sách An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "00101261", "name": "Bách Hóa Tổng Hợp Thắng Duyên", "phone": "nan", "lat": 11.15732, "lon": 106.612166, "addr": "Bách Hóa Tổng Hợp Thắng Duyên - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076189", "name": "cửa hàng tổng hợp thuỳ anh ( đường DI2 mp3 )", "phone": "nan", "lat": 11.155473, "lon": 106.614631, "addr": "cửa hàng tổng hợp thuỳ anh ( đường DI2 mp3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076149", "name": "HT mini mart kim sơn thảo", "phone": "nan", "lat": 11.156032, "lon": 106.613969, "addr": "HT mini mart kim sơn thảo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072697", "name": "Sạp 31B chợ an tây", "phone": "nan", "lat": 11.15293, "lon": 106.617891, "addr": "Sạp 31B chợ an tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000565", "name": "NGỌC MAI( PHÚ THỨ) - Ngã tư phú thứ rẻ phải 500m", "phone": "0743562298", "lat": 11.157034, "lon": 106.617162, "addr": "NGỌC MAI( PHÚ THỨ) - Ngã tư phú thứ rẻ phải 500m - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000087", "name": "Ngọc Dung( nghỉ trưa 11-2h) - DT744 ấp bến giảng, Phú An", "phone": "nan", "lat": 11.144251, "lon": 106.543617, "addr": "Ngọc Dung( nghỉ trưa 11-2h) - DT744 ấp bến giảng, Phú An - Đường ĐT744, Bến Cát"}, {"id": "KH076225", "name": "HÙNG HƯNG PHÁT ( AN TÂY) nghĩ trưa 11h-3h", "phone": "nan", "lat": 11.15382, "lon": 106.615222, "addr": "HÙNG HƯNG PHÁT ( AN TÂY) nghĩ trưa 11h-3h - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000766", "name": "TH BA HƯNG - Đừơng Hùng Vương, Ấp Kiến An ( đối diện vật tư phương bảo)", "phone": "0932155769", "lat": 11.15396, "lon": 106.616967, "addr": "TH BA HƯNG - Đừơng Hùng Vương, Ấp Kiến An ( đối diện vật tư phương bảo) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076450", "name": "MỸ NƯƠNG ( nghỉ trưa 11h30-3h) dt744- An Tây", "phone": "nan", "lat": 11.144315, "lon": 106.546396, "addr": "MỸ NƯƠNG ( nghỉ trưa 11h30-3h) dt744- An Tây - Đường ĐT744, Bến Cát"}, {"id": "KH072430", "name": "Tạp hóa Tuyền - Đường Dt7A, An Điền(bến cát, Bình Dương)", "phone": "0368029220", "lat": 11.154872, "lon": 106.576026, "addr": "Tạp hóa Tuyền - Đường Dt7A, An Điền(bến cát, Bình Dương) - Đường ĐT7A, An Điền, Bến Cát"}, {"id": "KH075538", "name": "Thanh Nhàn - Đường 478/Tổ9/ An Điền", "phone": "nan", "lat": 11.153166, "lon": 106.614468, "addr": "Thanh Nhàn - Đường 478/Tổ9/ An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070922", "name": "Ngọc Bích - DT748 Trụ 98A An Điền ( 12h nghĩ trưa đến 2h30) - (gần Kim Huê)", "phone": "0767444229", "lat": 11.168599, "lon": 106.523915, "addr": "Ngọc Bích - DT748 Trụ 98A An Điền ( 12h nghĩ trưa đến 2h30) - (gần Kim Huê) - Đường ĐT748, Bến Cát"}, {"id": "0975460440", "name": "TH THẢO VY", "phone": "0975460440", "lat": 11.152796, "lon": 106.617817, "addr": "TH THẢO VY - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075024", "name": "ĐỨC ANH - Đg Dl2 , khu mp 3", "phone": "nan", "lat": 11.156288, "lon": 106.612246, "addr": "ĐỨC ANH - Đg Dl2 , khu mp 3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000621", "name": "TÚ TÀI -107 Ấp An Sơn-DT 748, An Điền", "phone": "0909351447", "lat": 11.154393, "lon": 106.614601, "addr": "TÚ TÀI -107 Ấp An Sơn-DT 748, An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070991", "name": "THUỲ TRINH( dòng sỏi) - an tây", "phone": "nan", "lat": 11.156464, "lon": 106.613505, "addr": "THUỲ TRINH( dòng sỏi) - an tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074435", "name": "Th PHƯƠNG ANH ( trụ điện 32. Đt 748. An Điền)", "phone": "nan", "lat": 11.153106, "lon": 106.612485, "addr": "Th PHƯƠNG ANH ( trụ điện 32. Đt 748. An Điền) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075462", "name": "TH QUANG LIÊN ( Nghỉ trưa 11h-12h ) - DT748, An Điền", "phone": "0916028159", "lat": 11.167785, "lon": 106.525565, "addr": "TH QUANG LIÊN ( Nghỉ trưa 11h-12h ) - DT748, An Điền - Đường ĐT748, Bến Cát"}, {"id": "KH072329", "name": "Duy hải", "phone": "nan", "lat": 11.159152, "lon": 106.604424, "addr": "Duy hải - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH071772", "name": "Quán Nhậu Hoàng Lương ( Giao Sáng )", "phone": "0967320400", "lat": 11.153439, "lon": 106.612563, "addr": "Quán Nhậu Hoàng Lương ( Giao Sáng ) - Phường Mỹ Phước, Bến Cát"}, {"id": "0365793902", "name": "Th Quỳnh Anh, an điền", "phone": "0365793902", "lat": 11.153097, "lon": 106.617608, "addr": "Th Quỳnh Anh, an điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075204", "name": "Hoa lạc", "phone": "nan", "lat": 11.15583, "lon": 106.6151, "addr": "Hoa lạc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075233", "name": "TH Loan Thuận - DT 744 ấp bến tranh , thanh an", "phone": "0389659804", "lat": 11.155943, "lon": 106.614614, "addr": "TH Loan Thuận - DT 744 ấp bến tranh , thanh an - Phường Mỹ Phước, Bến Cát"}, {"id": "00034358", "name": "Vpp Trung Hảo", "phone": "nan", "lat": 11.15638, "lon": 106.612286, "addr": "Vpp Trung Hảo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075135", "name": "Đỗ Trùng Dương", "phone": "0379737397", "lat": 11.155396, "lon": 106.612952, "addr": "Đỗ Trùng Dương - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075811", "name": "CẨM TÚ. mp2.0", "phone": "nan", "lat": 11.152721, "lon": 106.614051, "addr": "CẨM TÚ. mp2.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000546", "name": "TRUNG THẢO( gần hoàng lớn bưng còng)", "phone": "nan", "lat": 11.152551, "lon": 106.612565, "addr": "TRUNG THẢO( gần hoàng lớn bưng còng) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073722", "name": "TH Nhật Huy.0", "phone": "nan", "lat": 11.153868, "lon": 106.617877, "addr": "TH Nhật Huy.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "00034296", "name": "Vpp Dũng Phương TL", "phone": "nan", "lat": 11.153052, "lon": 106.612103, "addr": "Vpp Dũng Phương TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075079", "name": "CÔNG GS TINGCO", "phone": "0779338333", "lat": 11.161735, "lon": 106.621732, "addr": "CÔNG GS TINGCO - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076692", "name": "CÔNG TY  TNHH PM HOME", "phone": "nan", "lat": 11.154603, "lon": 106.614391, "addr": "CÔNG TY  TNHH PM HOME - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076649", "name": "Siêu Thị An Nhiên .Thanh An .Dầu Tiếng .0", "phone": "nan", "lat": 11.155695, "lon": 106.615811, "addr": "Siêu Thị An Nhiên .Thanh An .Dầu Tiếng .0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076101", "name": "thảo. dầu tiếng. kế bé bảy", "phone": "nan", "lat": 11.152272, "lon": 106.614248, "addr": "thảo. dầu tiếng. kế bé bảy  - Phường Mỹ Phước, Bến Cát"}, {"id": "DANKO03478", "name": "SIÊU THỊ BIGMART-DA 1-1 KCN MỸ PHƯỚC 2.mới", "phone": "nan", "lat": 11.155755, "lon": 106.615019, "addr": "SIÊU THỊ BIGMART-DA 1-1 KCN MỸ PHƯỚC 2.mới - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075689", "name": "ốc tèo ( ốc tý)", "phone": "nan", "lat": 11.157139, "lon": 106.615952, "addr": "ốc tèo ( ốc tý) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071127", "name": "hà hương. dầu tiếng.0", "phone": "nan", "lat": 11.152978, "lon": 106.612423, "addr": "hà hương. dầu tiếng.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076405", "name": "ngọc châu. thanh an .kế npp loan phượng. 0", "phone": "nan", "lat": 11.165672, "lon": 106.613364, "addr": "ngọc châu. thanh an .kế npp loan phượng. 0 - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076074", "name": "kim chiến. dt 0", "phone": "nan", "lat": 11.146882, "lon": 106.566433, "addr": "kim chiến. dt 0 - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH000624", "name": "BẢO KHANG - DT 7A,ấp rạch bắp", "phone": "0971793116", "lat": 11.15475, "lon": 106.615274, "addr": "BẢO KHANG - DT 7A,ấp rạch bắp - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076102", "name": "cô tư. cmt8 dầu tiếng. 0", "phone": "nan", "lat": 11.157649, "lon": 106.614317, "addr": "cô tư. cmt8 dầu tiếng. 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076701", "name": "Ngọc Duyên", "phone": "nan", "lat": 11.157767, "lon": 106.617432, "addr": "Ngọc Duyên - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073828", "name": "Kim ngân.0. đối diện npp loan phượng", "phone": "nan", "lat": 11.153175, "lon": 106.612416, "addr": "Kim ngân.0. đối diện npp loan phượng  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076313", "name": "tám trung. dầu tiếng 0", "phone": "nan", "lat": 11.152605, "lon": 106.612109, "addr": "tám trung. dầu tiếng 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076349", "name": "Sơn huyền.mp2.db3.0 như huyền cũ", "phone": "nan", "lat": 11.152567, "lon": 106.616098, "addr": "Sơn huyền.mp2.db3.0 như huyền cũ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076139", "name": "hoàng hương .db8.0", "phone": "nan", "lat": 11.163714, "lon": 106.604457, "addr": "hoàng hương .db8.0 - Đường DB8, KCN Mỹ Phước 2"}, {"id": "KH076033", "name": "cô bình.tt dầu tiếng.chợ chiều (gần cô thành.cô lan)", "phone": "nan", "lat": 11.157069, "lon": 106.61214, "addr": "cô bình.tt dầu tiếng.chợ chiều (gần cô thành.cô lan) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075596", "name": "TH Phương - D10/MP1", "phone": "nan", "lat": 11.156887, "lon": 106.613691, "addr": "TH Phương - D10/MP1 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071612", "name": "PHƯƠNG ĐÔNG ( Dj9 . Mp3 ) nghĩ trua 11h30 ₫ến 3h", "phone": "0967927579", "lat": 11.136854, "lon": 106.62859, "addr": "PHƯƠNG ĐÔNG ( Dj9 . Mp3 ) nghĩ trua 11h30 ₫ến 3h - Đường DJ9, KCN Mỹ Phước 3"}, {"id": "KH071501", "name": "TH 05 (không nhận hàng sau 15h30)", "phone": "0971017955", "lat": 11.261775, "lon": 106.630351, "addr": "TH 05 (không nhận hàng sau 15h30) - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH071966", "name": "ANH PHÁT ( BÍCH TRÂM- BẾN SÚC)", "phone": "0938157272", "lat": 11.156821, "lon": 106.613692, "addr": "ANH PHÁT ( BÍCH TRÂM- BẾN SÚC) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000266", "name": "thống đào. bến súc", "phone": "0919810935", "lat": 11.153065, "lon": 106.616504, "addr": "thống đào. bến súc - Phường Mỹ Phước, Bến Cát"}, {"id": "00034624", "name": "Vpp Đức Tính", "phone": "nan", "lat": 11.156841, "lon": 106.617943, "addr": "Vpp Đức Tính - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076700", "name": "bách hoá tổng hợp thanh hằng", "phone": "nan", "lat": 11.154476, "lon": 106.614232, "addr": "bách hoá tổng hợp thanh hằng  - Phường Mỹ Phước, Bến Cát"}, {"id": "CHAUNGOCPHAT", "name": "SUẤT ĂN CÔNG NGHIỆP NGỌC CHÂU PHÁT", "phone": "nan", "lat": 11.156658, "lon": 106.614045, "addr": "SUẤT ĂN CÔNG NGHIỆP NGỌC CHÂU PHÁT - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076536", "name": "hoa tươi .SONG PHƯƠNG MART.chợ bến cát (đối diện bách hóa xanh) qua tú yến 300m", "phone": "nan", "lat": 11.25729, "lon": 106.567509, "addr": "hoa tươi .SONG PHƯƠNG MART.chợ bến cát (đối diện bách hóa xanh) qua tú yến 300m - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH071487", "name": "Th Cẩm Loan - kp4, đường ba lăng xi, Tân Định", "phone": "0967687667", "lat": 11.151031, "lon": 106.632026, "addr": "Th Cẩm Loan - kp4, đường ba lăng xi, Tân Định - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "00085226", "name": "Vpp Tôm Tôm", "phone": "nan", "lat": 11.155032, "lon": 106.616959, "addr": "Vpp Tôm Tôm - Phường Mỹ Phước, Bến Cát"}, {"id": "00034389", "name": "Vpp Hoàng Trâm", "phone": "nan", "lat": 11.15392, "lon": 106.617373, "addr": "Vpp Hoàng Trâm - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076698", "name": "Cửa Hàng Tiện Lợi xi Yang Yang", "phone": "nan", "lat": 11.154335, "lon": 106.612065, "addr": "Cửa Hàng Tiện Lợi xi Yang Yang - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074771", "name": "Ăn vặt  Thu Trần", "phone": "0988352256", "lat": 11.150913, "lon": 106.626193, "addr": "Ăn vặt  Thu Trần - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "00034395", "name": "Cửa Hàng Phong Thủy", "phone": "nan", "lat": 11.1577, "lon": 106.617704, "addr": "Cửa Hàng Phong Thủy - Phường Mỹ Phước, Bến Cát"}, {"id": "00034390", "name": "Vpp Trung Nguyên", "phone": "nan", "lat": 11.155441, "lon": 106.615791, "addr": "Vpp Trung Nguyên - Phường Mỹ Phước, Bến Cát"}, {"id": "00121391", "name": "Vpp Dũng Nguyễn TL", "phone": "nan", "lat": 11.154691, "lon": 106.613759, "addr": "Vpp Dũng Nguyễn TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00034274", "name": "Nhà Sách Tú Nguyệt TL", "phone": "nan", "lat": 11.153972, "lon": 106.616035, "addr": "Nhà Sách Tú Nguyệt TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00034265", "name": "Nhà Sách Hiền Nhân TL", "phone": "nan", "lat": 11.156514, "lon": 106.616749, "addr": "Nhà Sách Hiền Nhân TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071661", "name": "Căn Tin Yazaki nghĩ trưa 11h đến 2h", "phone": "0988043169", "lat": 11.156738, "lon": 106.612547, "addr": "Căn Tin Yazaki nghĩ trưa 11h đến 2h  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074776", "name": "CHỊ TÁM - ấp thanh Tân gần MỸ châu, Thanh An", "phone": "nan", "lat": 11.154967, "lon": 106.612345, "addr": "CHỊ TÁM - ấp thanh Tân gần MỸ châu, Thanh An - Phường Mỹ Phước, Bến Cát"}, {"id": "0388697519", "name": "Th Ánh Nguyệt", "phone": "0388697519", "lat": 11.155297, "lon": 106.614649, "addr": "Th Ánh Nguyệt - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072231", "name": "YẾN NHI", "phone": "nan", "lat": 11.260058, "lon": 106.632687, "addr": "YẾN NHI - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH000603", "name": "THANH SƠN - Ngã 3 rạch kiến, Thanh Tuyền", "phone": "0983767771", "lat": 11.156128, "lon": 106.617022, "addr": "THANH SƠN - Ngã 3 rạch kiến, Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075433", "name": "TH TƯ BIẾU - Ấp Xóm Lãnh,bến súc", "phone": "0845711599", "lat": 11.157201, "lon": 106.617031, "addr": "TH TƯ BIẾU - Ấp Xóm Lãnh,bến súc - Phường Mỹ Phước, Bến Cát"}, {"id": "THIENANDE2", "name": "Thiên Ân (đệ 2)", "phone": "0834823373", "lat": 11.154557, "lon": 106.613335, "addr": "Thiên Ân (đệ 2) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076184", "name": "BÌNH HIỀN (RẠCH KIẾN-THANH TUYỀN)", "phone": "nan", "lat": 11.15438, "lon": 106.617351, "addr": "BÌNH HIỀN (RẠCH KIẾN-THANH TUYỀN) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071172", "name": "MỸ CHÂU - Ấp thanh tân- thanh an", "phone": "0843416719", "lat": 11.162133, "lon": 106.622332, "addr": "MỸ CHÂU - Ấp thanh tân- thanh an - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "1100002120", "name": "HUNG TRANG ( DJ 9 ) MP3", "phone": "nan", "lat": 11.155488, "lon": 106.617179, "addr": "HUNG TRANG ( DJ 9 ) MP3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076072", "name": "be bảy. dầu tiếng 0", "phone": "nan", "lat": 11.157282, "lon": 106.61342, "addr": "be bảy. dầu tiếng 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076075", "name": "cô Lan. dt 0", "phone": "nan", "lat": 11.157446, "lon": 106.615551, "addr": "cô Lan. dt 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071123", "name": "Minh anh. dầu tiếng 0 11/30 đến 1/30 ko nhận hàng", "phone": "nan", "lat": 11.154101, "lon": 106.616249, "addr": "Minh anh. dầu tiếng 0 11/30 đến 1/30 ko nhận hàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076315", "name": "th 271. dầu tiếng 0", "phone": "nan", "lat": 11.15489, "lon": 106.614268, "addr": "th 271. dầu tiếng 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076106", "name": "thảo vy. de4.mp3 đối điện cty mo to", "phone": "nan", "lat": 11.156231, "lon": 106.613492, "addr": "thảo vy. de4.mp3 đối điện cty mo to - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076358", "name": "Cô Ba .( NB16. Mỹ Phước 2 )", "phone": "nan", "lat": 11.153982, "lon": 106.614607, "addr": "Cô Ba .( NB16. Mỹ Phước 2 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000051", "name": "Thu trâm không xuất hđ", "phone": "nan", "lat": 11.153522, "lon": 106.614431, "addr": "Thu trâm không xuất hđ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076273", "name": "cô 10", "phone": "nan", "lat": 11.155429, "lon": 106.616446, "addr": "cô 10 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075667", "name": "Bia Sệt 123 (Giao chiều 3h, nghỉ trưa từ 12h -- 3h)", "phone": "nan", "lat": 11.156603, "lon": 106.616937, "addr": "Bia Sệt 123 (Giao chiều 3h, nghỉ trưa từ 12h -- 3h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076639", "name": "Tâm Quán D12.8", "phone": "0337676895", "lat": 11.156465, "lon": 106.616086, "addr": "Tâm Quán D12.8 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076527", "name": "Nhà Sách Huy Khánh - CS2", "phone": "nan", "lat": 11.153425, "lon": 106.614401, "addr": "Nhà Sách Huy Khánh - CS2 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076182", "name": "hữu lượm. Long Tân 0", "phone": "nan", "lat": 11.154866, "lon": 106.612497, "addr": "hữu lượm. Long Tân 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072689", "name": "DÊ NÚI BÌNH DÂN - An Điền (Cầu Đò)", "phone": "nan", "lat": 11.15517, "lon": 106.614618, "addr": "DÊ NÚI BÌNH DÂN - An Điền (Cầu Đò) - Phường Mỹ Phước, Bến Cát"}, {"id": "0365372560", "name": "TRUNG TÂM MUA SẮM TRÍ MỸ,11H-3H", "phone": "0365372560", "lat": 11.156813, "lon": 106.617867, "addr": "TRUNG TÂM MUA SẮM TRÍ MỸ,11H-3H - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076519", "name": "Cty Thực phẩm số Một", "phone": "nan", "lat": 11.256227, "lon": 106.620434, "addr": "Cty Thực phẩm số Một - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH074827", "name": "Cô phượng( minh hoà)", "phone": "0362305340", "lat": 11.157548, "lon": 106.617515, "addr": "Cô phượng( minh hoà) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000091", "name": "thảo hiền. long hoà", "phone": "0358706970", "lat": 11.153518, "lon": 106.616172, "addr": "thảo hiền. long hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074127", "name": "TH Tiến Liên - DT749, Long Hòa", "phone": "0374371771", "lat": 11.183726, "lon": 106.563999, "addr": "TH Tiến Liên - DT749, Long Hòa - Đường ĐT749, Long Nguyên, Bàu Bàng"}, {"id": "KH076190", "name": "phương đông DJ9 mp3", "phone": "nan", "lat": 11.13715, "lon": 106.627383, "addr": "phương đông DJ9 mp3 - Đường DJ9, KCN Mỹ Phước 3"}, {"id": "DANKO03908", "name": "TH CÔ XUYẾN - B6-1-109- NHÀ Ở XH ĐỊNH HÒA ( NGHỈ TRƯA 11H30 - 2H30 )", "phone": "nan", "lat": 11.157975, "lon": 106.616182, "addr": "TH CÔ XUYẾN - B6-1-109- NHÀ Ở XH ĐỊNH HÒA ( NGHỈ TRƯA 11H30 - 2H30 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075206", "name": "Kim dung", "phone": "nan", "lat": 11.154305, "lon": 106.616423, "addr": "Kim dung - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072489", "name": "Ngọc quý ( đường N14 ) - đường n14 p hòa phú, hòa Lợi", "phone": "nan", "lat": 11.157492, "lon": 106.617752, "addr": "Ngọc quý ( đường N14 ) - đường n14 p hòa phú, hòa Lợi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072315", "name": "CÔ PHƯỢNG CHÁNH LƯU - Chợ chánh lưu, CPH", "phone": "0908571218", "lat": 11.152347, "lon": 106.614367, "addr": "CÔ PHƯỢNG CHÁNH LƯU - Chợ chánh lưu, CPH - Phường Mỹ Phước, Bến Cát"}, {"id": "0813493805", "name": "Th thúy vân", "phone": "0813493805", "lat": 11.152641, "lon": 106.614014, "addr": "Th thúy vân  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076217", "name": "Cô Trinh ( chợ chánh lưu. chánh Phú Hòa)", "phone": "nan", "lat": 11.153018, "lon": 106.615881, "addr": "Cô Trinh ( chợ chánh lưu. chánh Phú Hòa) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070945", "name": "THANH NGÂN", "phone": "0962871721", "lat": 11.15433, "lon": 106.613376, "addr": "THANH NGÂN - Phường Mỹ Phước, Bến Cát"}, {"id": "HIENHAU", "name": "Hiền Hậu - LONG HÒA", "phone": "nan", "lat": 11.153596, "lon": 106.614162, "addr": "Hiền Hậu - LONG HÒA - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076371", "name": "huy hoàng ( đường DH3 , CPH )0", "phone": "nan", "lat": 11.15356, "lon": 106.614719, "addr": "huy hoàng ( đường DH3 , CPH )0 - Phường Mỹ Phước, Bến Cát"}, {"id": "THANHTHAO", "name": "thuốc thú y thanh thảo ( Long Hoà )", "phone": "nan", "lat": 11.152194, "lon": 106.613679, "addr": "thuốc thú y thanh thảo ( Long Hoà ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076514", "name": "yến nhi Long Tân 0", "phone": "nan", "lat": 11.154467, "lon": 106.615617, "addr": "yến nhi Long Tân 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075583", "name": "Chiến Thắng ( Đường DG3 . Chánh phú hòa)0", "phone": "nan", "lat": 11.153626, "lon": 106.612799, "addr": "Chiến Thắng ( Đường DG3 . Chánh phú hòa)0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076671", "name": "Quán Cầy Tơ Thanh Hoá (nghỉ trưa 13h-15h)", "phone": "0968600345", "lat": 11.152457, "lon": 106.617643, "addr": "Quán Cầy Tơ Thanh Hoá (nghỉ trưa 13h-15h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071162", "name": "BH hồng tiên ( nghĩ trưa 11h30-14h30) - dt741 .hoà lợi.bến cát", "phone": "0949396767", "lat": 11.11475, "lon": 106.675243, "addr": "BH hồng tiên ( nghĩ trưa 11h30-14h30) - dt741 .hoà lợi.bến cát - Đường ĐT741, Hòa Lợi / Bến Cát"}, {"id": "00034558", "name": "Tạp Hóa Thủy Hoàng", "phone": "nan", "lat": 11.157515, "lon": 106.612496, "addr": "Tạp Hóa Thủy Hoàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071739", "name": "Bình Hiền - Nguyễn Văn Thành", "phone": "0326247747", "lat": 11.15726, "lon": 106.61531, "addr": "Bình Hiền - Nguyễn Văn Thành - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074218", "name": "Giải khác phố mới - n14 Hoà lợi bến cát", "phone": "nan", "lat": 11.152989, "lon": 106.614468, "addr": "Giải khác phố mới - n14 Hoà lợi bến cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074443", "name": "Nhà sách vương nguyệt - ấp suối tre, Long Nguyên", "phone": "nan", "lat": 11.156666, "lon": 106.614882, "addr": "Nhà sách vương nguyệt - ấp suối tre, Long Nguyên - Phường Mỹ Phước, Bến Cát"}, {"id": "00034283", "name": "Tạp Hóa Hưng Phát", "phone": "nan", "lat": 11.157912, "lon": 106.61426, "addr": "Tạp Hóa Hưng Phát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073232", "name": "TH Đông ý ( Nghỉ trưa 12h-14h30 ) - đối diện cây xăng Long nguyên út bi da lên 200m bên trái", "phone": "0961889837", "lat": 11.206497, "lon": 106.534358, "addr": "TH Đông ý ( Nghỉ trưa 12h-14h30 ) - đối diện cây xăng Long nguyên út bi da lên 200m bên trái - Xã Long Nguyên, Bàu Bàng"}, {"id": "KH073403", "name": "Quỳnh Như Chợ CPH DG 3", "phone": "nan", "lat": 11.156975, "lon": 106.615414, "addr": "Quỳnh Như Chợ CPH DG 3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073364", "name": "Tạp hoá phượng", "phone": "nan", "lat": 11.152381, "lon": 106.612221, "addr": "Tạp hoá phượng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071733", "name": "TH Phương Dung Chợ Chánh Phú Hòa 0", "phone": "0352395743", "lat": 11.152803, "lon": 106.612082, "addr": "TH Phương Dung Chợ Chánh Phú Hòa 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075601", "name": "Nhật Huy", "phone": "nan", "lat": 11.152452, "lon": 106.61615, "addr": "Nhật Huy - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000107", "name": "Ánh tuyết. long hoà", "phone": "0336213395", "lat": 11.155206, "lon": 106.616499, "addr": "Ánh tuyết. long hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000315", "name": "thu Vân.long hoà", "phone": "0979003011", "lat": 11.157479, "lon": 106.615511, "addr": "thu Vân.long hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075253", "name": "cô xâm - 138 dt471, Hòa Lợi giao trước 12h", "phone": "nan", "lat": 11.156357, "lon": 106.616542, "addr": "cô xâm - 138 dt471, Hòa Lợi giao trước 12h - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000746", "name": "cô linh. long Tân. Dt", "phone": "0337040624", "lat": 11.154267, "lon": 106.613447, "addr": "cô linh. long Tân. Dt - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074428", "name": "Th minh hương. cph.0", "phone": "nan", "lat": 11.15323, "lon": 106.613509, "addr": "Th minh hương. cph.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076699", "name": "ánh tuyết . long hoà 2", "phone": "0379108300", "lat": 11.153648, "lon": 106.613243, "addr": "ánh tuyết . long hoà 2 - Phường Mỹ Phước, Bến Cát"}, {"id": "00543516", "name": "Tạp Hóa Tổng Hợp A+", "phone": "nan", "lat": 11.157269, "lon": 106.616542, "addr": "Tạp Hóa Tổng Hợp A+ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075624", "name": "Tạp hóa Hương ( Anh Tiên)( Nhà ơ xã hội Định Hòa)", "phone": "0973073637", "lat": 11.152281, "lon": 106.613612, "addr": "Tạp hóa Hương ( Anh Tiên)( Nhà ơ xã hội Định Hòa) - Phường Mỹ Phước, Bến Cát"}, {"id": "110000000151", "name": "LAN PHUONG ( nhà ơ xã hội định hòa) - gần Băng Nhi. nhà ơ xã hội định hòa", "phone": "0947366578", "lat": 11.152133, "lon": 106.614989, "addr": "LAN PHUONG ( nhà ơ xã hội định hòa) - gần Băng Nhi. nhà ơ xã hội định hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000090", "name": "HÙNG PHÁT( NGHỈ TRƯA 12h-1h30) - Ấp suối tre Long Nguyên", "phone": "0384955102", "lat": 11.154857, "lon": 106.616988, "addr": "HÙNG PHÁT( NGHỈ TRƯA 12h-1h30) - Ấp suối tre Long Nguyên - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074758", "name": "Giá trị thật - nl13 mỹ phước 3", "phone": "nan", "lat": 11.153847, "lon": 106.616898, "addr": "Giá trị thật - nl13 mỹ phước 3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075574", "name": "Mịnh Khôi - Đường Dt741 kp phú hòa. phường Hòa Lợi", "phone": "0356509581", "lat": 11.116404, "lon": 106.673765, "addr": "Mịnh Khôi - Đường Dt741 kp phú hòa. phường Hòa Lợi - Đường ĐT741, Hòa Lợi / Bến Cát"}, {"id": "KH076130", "name": "long hương. long hòa 0", "phone": "nan", "lat": 11.156751, "lon": 106.61554, "addr": "long hương. long hòa 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "00034612", "name": "Tạp Hóa Út Bôi", "phone": "nan", "lat": 11.15488, "lon": 106.614523, "addr": "Tạp Hóa Út Bôi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075642", "name": "Duy Khoa", "phone": "nan", "lat": 11.156708, "lon": 106.615836, "addr": "Duy Khoa - Phường Mỹ Phước, Bến Cát"}, {"id": "00120937", "name": "Siêu Thị An Mart", "phone": "nan", "lat": 11.15683, "lon": 106.617419, "addr": "Siêu Thị An Mart - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072418", "name": "Băng Nhi (11h30 nghĩ trưa tới 3h) - khu nhà ơ xã hội định hòa", "phone": "098944953", "lat": 11.155704, "lon": 106.617883, "addr": "Băng Nhi (11h30 nghĩ trưa tới 3h) - khu nhà ơ xã hội định hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "00107390", "name": "Nhà Sách Db8 - MP2", "phone": "nan", "lat": 11.165324, "lon": 106.60541, "addr": "Nhà Sách Db8 - MP2 - Đường DB8, KCN Mỹ Phước 2"}, {"id": "KH076422", "name": "xuân mai 2", "phone": "nan", "lat": 11.155329, "lon": 106.612546, "addr": "xuân mai 2 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076309", "name": "gấm trực. Long Tân", "phone": "nan", "lat": 11.162474, "lon": 106.564509, "addr": "gấm trực. Long Tân  - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076410", "name": "Sales Nhật Anh", "phone": "0961463723", "lat": 11.157463, "lon": 106.613788, "addr": "Sales Nhật Anh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075430", "name": "Đông Ý 2 Long Tân(Đối diện Trường học long tân)", "phone": "0961889837", "lat": 11.155142, "lon": 106.616186, "addr": "Đông Ý 2 Long Tân(Đối diện Trường học long tân) - Phường Mỹ Phước, Bến Cát"}, {"id": "00034562", "name": "Vpp Tuyết Sương", "phone": "nan", "lat": 11.156779, "lon": 106.614756, "addr": "Vpp Tuyết Sương - Phường Mỹ Phước, Bến Cát"}, {"id": "00120636", "name": "Nhà Sách Vương Nguyệt", "phone": "nan", "lat": 11.157053, "lon": 106.616614, "addr": "Nhà Sách Vương Nguyệt - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076390", "name": "thảo Long hòa. cầu thị tính", "phone": "nan", "lat": 11.152397, "lon": 106.612275, "addr": "thảo Long hòa. cầu thị tính  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000229", "name": "THỦY HOÀNG - ngã ba long tân_ ấp long chiểu", "phone": "0969000937", "lat": 11.155725, "lon": 106.614084, "addr": "THỦY HOÀNG - ngã ba long tân_ ấp long chiểu - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076301", "name": "Sale Ty", "phone": "0933024634", "lat": 11.153255, "lon": 106.615478, "addr": "Sale Ty - Phường Mỹ Phước, Bến Cát"}, {"id": "00034368", "name": "Vpp Hồng Như", "phone": "nan", "lat": 11.154049, "lon": 106.615224, "addr": "Vpp Hồng Như - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076499", "name": "Nhà Sách Gia Hân 3", "phone": "0833399798", "lat": 11.154761, "lon": 106.615509, "addr": "Nhà Sách Gia Hân 3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076296", "name": "sale Thái Thiên Long", "phone": "0946030239", "lat": 11.154402, "lon": 106.616186, "addr": "sale Thái Thiên Long - Phường Mỹ Phước, Bến Cát"}, {"id": "00121339", "name": "Vpp Hồng Gia Phát", "phone": "nan", "lat": 11.15308, "lon": 106.616179, "addr": "Vpp Hồng Gia Phát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000203", "name": "Tư Kiều", "phone": "nan", "lat": 11.15447, "lon": 106.617246, "addr": "Tư Kiều - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075469", "name": "Hoài Trâm", "phone": "nan", "lat": 11.155091, "lon": 106.617839, "addr": "Hoài Trâm - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076396", "name": "Công ty TNHH MTV SUẤT ĂN CÔNG NGHIỆP THANH HÀ", "phone": "nan", "lat": 11.155612, "lon": 106.613343, "addr": "Công ty TNHH MTV SUẤT ĂN CÔNG NGHIỆP THANH HÀ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076442", "name": "Công ty TNHH TM Thôn Tuyền Trúc", "phone": "nan", "lat": 11.156931, "lon": 106.61407, "addr": "Công ty TNHH TM Thôn Tuyền Trúc - Phường Mỹ Phước, Bến Cát"}, {"id": "00034254", "name": "Nhà Sách Thy Thy TL", "phone": "nan", "lat": 11.154086, "lon": 106.612191, "addr": "Nhà Sách Thy Thy TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076127", "name": "Cô Tám ( An bình. Phú Giáo)", "phone": "nan", "lat": 11.155292, "lon": 106.615207, "addr": "Cô Tám ( An bình. Phú Giáo)  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076212", "name": "ánh nguyệt ( ngọc vân tân bình chạy lại ) đóng cửa 11h đến 15h alo 0944779829", "phone": "nan", "lat": 11.151942, "lon": 106.601287, "addr": "ánh nguyệt ( ngọc vân tân bình chạy lại ) đóng cửa 11h đến 15h alo 0944779829 - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076429", "name": "AN NHIÊN ( gần cô vân chơn thành)", "phone": "nan", "lat": 11.153981, "lon": 106.613929, "addr": "AN NHIÊN ( gần cô vân chơn thành) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072838", "name": "Minh Hương dh3 - chánh phú hoà", "phone": "0938001990", "lat": 11.152554, "lon": 106.614887, "addr": "Minh Hương dh3 - chánh phú hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075465", "name": "HOÀNG HƯƠNG QUÁN", "phone": "0334140649", "lat": 11.156127, "lon": 106.61507, "addr": "HOÀNG HƯƠNG QUÁN - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073235", "name": "Cô mai( nghỉ trưa 11h30-3h) - 749B, Minh Thạnh", "phone": "0743545497", "lat": 11.152942, "lon": 106.614264, "addr": "Cô mai( nghỉ trưa 11h30-3h) - 749B, Minh Thạnh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075933", "name": "Hải Đăng (Đường trần hưng đạo nối dài. vĩnh ăn.vĩnh hòa. Phú Giáo", "phone": "0703233473", "lat": 11.152016, "lon": 106.61721, "addr": "Hải Đăng (Đường trần hưng đạo nối dài. vĩnh ăn.vĩnh hòa. Phú Giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071336", "name": "Th Tuấn Anh ( 12h nghĩ trưa tới 14h ) Đường Độc lập. phú giáo", "phone": "0344213619", "lat": 11.152507, "lon": 106.615584, "addr": "Th Tuấn Anh ( 12h nghĩ trưa tới 14h ) Đường Độc lập. phú giáo  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072305", "name": "My my - đường bùi thị xuân, phước vĩnh", "phone": "0333334114", "lat": 11.157918, "lon": 106.61522, "addr": "My my - đường bùi thị xuân, phước vĩnh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072301", "name": "Pé Năm - Đường Độc Lập , phước vĩnh, Pg", "phone": "0988438312", "lat": 11.157544, "lon": 106.613417, "addr": "Pé Năm - Đường Độc Lập , phước vĩnh, Pg - Phường Mỹ Phước, Bến Cát"}, {"id": "00612350", "name": "BHTH Phong Nga ( xuất hđ )", "phone": "nan", "lat": 11.15656, "lon": 106.615188, "addr": "BHTH Phong Nga ( xuất hđ ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076696", "name": "TẠP HÓA CHÁNH HÀ", "phone": "nan", "lat": 11.156323, "lon": 106.612374, "addr": "TẠP HÓA CHÁNH HÀ - Phường Mỹ Phước, Bến Cát"}, {"id": "110000000320", "name": "ĐỒNG XANH ( Bùi thị xuân. phước vĩnh. phú giáo)", "phone": "0983738994", "lat": 11.152886, "lon": 106.612799, "addr": "ĐỒNG XANH ( Bùi thị xuân. phước vĩnh. phú giáo) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076178", "name": "Hải ngọc ( chợ phước hoà ) phú giáo", "phone": "nan", "lat": 11.156123, "lon": 106.617067, "addr": "Hải ngọc ( chợ phước hoà ) phú giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "00624226", "name": "Tạp hóa Ứng Phú", "phone": "nan", "lat": 11.156498, "lon": 106.612183, "addr": "Tạp hóa Ứng Phú - Phường Mỹ Phước, Bến Cát"}, {"id": "00633618", "name": "VPP Huyền Mai - Hưng Hòa BB", "phone": "nan", "lat": 11.157203, "lon": 106.614125, "addr": "VPP Huyền Mai - Hưng Hòa BB - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076335", "name": "CÔ SEN  ( NGÃ 4 MINH HOÀ)", "phone": "nan", "lat": 11.154383, "lon": 106.612629, "addr": "CÔ SEN  ( NGÃ 4 MINH HOÀ) - Phường Mỹ Phước, Bến Cát"}, {"id": "00034253", "name": "Vpp Phước Vĩnh TL", "phone": "nan", "lat": 11.156424, "lon": 106.613094, "addr": "Vpp Phước Vĩnh TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00119635", "name": "Công Ty An Nhiên Global", "phone": "nan", "lat": 11.155384, "lon": 106.617044, "addr": "Công Ty An Nhiên Global - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076304", "name": "VPP Thy Thy 1 KXHD TL", "phone": "0977131243", "lat": 11.152535, "lon": 106.615212, "addr": "VPP Thy Thy 1 KXHD TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076363", "name": "cô sen. minh tân 12/1:30", "phone": "nan", "lat": 11.153429, "lon": 106.61174, "addr": "cô sen. minh tân 12/1:30 - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH000035", "name": "CÔ SEN( NGHỈ TRƯA 12h-2h) - Ngã tư Minh Hòa", "phone": "0916263296", "lat": 11.154131, "lon": 106.615893, "addr": "CÔ SEN( NGHỈ TRƯA 12h-2h) - Ngã tư Minh Hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000048", "name": "Cô Hương minh Tân", "phone": "0392090426", "lat": 11.154877, "lon": 106.615505, "addr": "Cô Hương minh Tân - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076694", "name": "TẠP HÓA CÔ CHANH (KẾ 7 MẮM)", "phone": "nan", "lat": 11.162645, "lon": 106.610788, "addr": "TẠP HÓA CÔ CHANH (KẾ 7 MẮM) - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH072299", "name": "Nhân Hậu - bãi giữ xe sau chợ phước vĩnh", "phone": "0973873468", "lat": 11.154025, "lon": 106.617398, "addr": "Nhân Hậu - bãi giữ xe sau chợ phước vĩnh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074869", "name": "Tấn lợi ( minh hoà)", "phone": "0834610690", "lat": 11.155645, "lon": 106.613466, "addr": "Tấn lợi ( minh hoà) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000423", "name": "ANH MART( nghỉ trưa từ 12h-14h - Ngã tư minh hoà gần PHONG NGA", "phone": "0941369850", "lat": 11.154989, "lon": 106.613982, "addr": "ANH MART( nghỉ trưa từ 12h-14h - Ngã tư minh hoà gần PHONG NGA  - Phường Mỹ Phước, Bến Cát"}, {"id": "00114678", "name": "124 Mart - Phú Giáo", "phone": "nan", "lat": 11.157602, "lon": 106.612045, "addr": "124 Mart - Phú Giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074871", "name": "Hùng Liên (0333802681) - Minh tân, Dầu Tiếng", "phone": "0333802681", "lat": 11.153352, "lon": 106.614192, "addr": "Hùng Liên (0333802681) - Minh tân, Dầu Tiếng - Phường Mỹ Phước, Bến Cát"}, {"id": "00034554", "name": "Vpp Hồng Huyền", "phone": "nan", "lat": 11.154927, "lon": 106.617105, "addr": "Vpp Hồng Huyền - Phường Mỹ Phước, Bến Cát"}, {"id": "00034540", "name": "Nhà Sách Quang Tuấn. ( ko hđ)", "phone": "nan", "lat": 11.152527, "lon": 106.616835, "addr": "Nhà Sách Quang Tuấn. ( ko hđ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075367", "name": "Trần thị Tâm ( giao hàng trước 14h chiều) - đường độc lập. phước vĩnh phú giáo", "phone": "0356855473", "lat": 11.152334, "lon": 106.617054, "addr": "Trần thị Tâm ( giao hàng trước 14h chiều) - đường độc lập. phước vĩnh phú giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072931", "name": "Anh tèo - chợ nước vàng, An Bình, Phú Giáo", "phone": "nan", "lat": 11.15231, "lon": 106.612109, "addr": "Anh tèo - chợ nước vàng, An Bình, Phú Giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072928", "name": "Sang sang - ngã 3 nhà thờ nước vàng, An Bình, PG", "phone": "nan", "lat": 11.156182, "lon": 106.617984, "addr": "Sang sang - ngã 3 nhà thờ nước vàng, An Bình, PG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073602", "name": "Huy trang - 19 tháng 5 phú giáo, Phước Vĩnh", "phone": "nan", "lat": 11.15738, "lon": 106.615456, "addr": "Huy trang - 19 tháng 5 phú giáo, Phước Vĩnh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072253", "name": "Thanh Hoa", "phone": "0396865537", "lat": 11.157504, "lon": 106.612032, "addr": "Thanh Hoa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075716", "name": "Thanh Hà", "phone": "nan", "lat": 11.15785, "lon": 106.614944, "addr": "Thanh Hà - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071863", "name": "Tạp Hoá Nguyên dương - 84/5 tổ 5A. ấp 1a , phước hoà", "phone": "0986225598", "lat": 11.156337, "lon": 106.616925, "addr": "Tạp Hoá Nguyên dương - 84/5 tổ 5A. ấp 1a , phước hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "1100001901", "name": "TAP HOA MINH CHÂU - DT 741 Ấp Búng Riêng, Phước Vĩnh", "phone": "nan", "lat": 11.156311, "lon": 106.61521, "addr": "TAP HOA MINH CHÂU - DT 741 Ấp Búng Riêng, Phước Vĩnh - Phường Mỹ Phước, Bến Cát"}, {"id": "00034460", "name": "Tạp Hóa Bảy Mắm", "phone": "nan", "lat": 11.15486, "lon": 106.617031, "addr": "Tạp Hóa Bảy Mắm - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076046", "name": "TH Lan", "phone": "0853942500", "lat": 11.15323, "lon": 106.617808, "addr": "TH Lan - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072258", "name": "Minh duyên -ấp kĩnh nhượng. vĩnh hòa", "phone": "0345305409", "lat": 11.156266, "lon": 106.613197, "addr": "Minh duyên -ấp kĩnh nhượng. vĩnh hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "00034252", "name": "Văn Hóa Phẩm Yến Nhi TL", "phone": "nan", "lat": 11.156417, "lon": 106.615179, "addr": "Văn Hóa Phẩm Yến Nhi TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00121221", "name": "Bhth Anh Mart ( xuất hđ)", "phone": "nan", "lat": 11.156243, "lon": 106.616607, "addr": "Bhth Anh Mart ( xuất hđ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071044", "name": "TH Tuyết Trinh 2 - Phú Giáo - DT741 - Vĩnh Hoà", "phone": "nan", "lat": 11.113762, "lon": 106.675018, "addr": "TH Tuyết Trinh 2 - Phú Giáo - DT741 - Vĩnh Hoà - Đường ĐT741, Hòa Lợi / Bến Cát"}, {"id": "KH071489", "name": "CÔ THƠM (Qua Cầu S Bé) - Trụ điện 34 , đt 741 , ngã 3 đai Loan , Vĩnh hòa, phu giáo", "phone": "0368645108", "lat": 11.157592, "lon": 106.613924, "addr": "CÔ THƠM (Qua Cầu S Bé) - Trụ điện 34 , đt 741 , ngã 3 đai Loan , Vĩnh hòa, phu giáo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000207", "name": "TH TRÂM( chợ minh hoà)", "phone": "0338357300", "lat": 11.155563, "lon": 106.614215, "addr": "TH TRÂM( chợ minh hoà) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076249", "name": "CÔ VÂN ( chơn thành)", "phone": "nan", "lat": 11.154726, "lon": 106.615292, "addr": "CÔ VÂN ( chơn thành) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076299", "name": "TH LÂM( chơn thành)đống cửa thì gọi 0977479787", "phone": "0977479787", "lat": 11.155294, "lon": 106.61321, "addr": "TH LÂM( chơn thành)đống cửa thì gọi 0977479787 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074909", "name": "ÚT DUYÊN", "phone": "0369675051", "lat": 11.156107, "lon": 106.612527, "addr": "ÚT DUYÊN  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076298", "name": "MINH ĐỨC ( gần cô vân chơn thành)", "phone": "nan", "lat": 11.152833, "lon": 106.612016, "addr": "MINH ĐỨC ( gần cô vân chơn thành) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076300", "name": "CÔ HẰNG( NGỌC BẢO- GẦN HỒNG NGỌC MINH THẠNH)", "phone": "nan", "lat": 11.1527, "lon": 106.614839, "addr": "CÔ HẰNG( NGỌC BẢO- GẦN HỒNG NGỌC MINH THẠNH) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076610", "name": "Ốc Suken 2/9 (Giao 16h)", "phone": "0332663881", "lat": 11.155637, "lon": 106.616766, "addr": "Ốc Suken 2/9 (Giao 16h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076248", "name": "SANG PHẠM( chơn thành- gần cô hằng)", "phone": "nan", "lat": 11.15264, "lon": 106.617104, "addr": "SANG PHẠM( chơn thành- gần cô hằng) - Phường Mỹ Phước, Bến Cát"}, {"id": "00102189", "name": "Vpp Tố Uyên", "phone": "nan", "lat": 11.156476, "lon": 106.614451, "addr": "Vpp Tố Uyên - Phường Mỹ Phước, Bến Cát"}, {"id": "00034535", "name": "Vpp Khai Trí TL", "phone": "nan", "lat": 11.157598, "lon": 106.617946, "addr": "Vpp Khai Trí TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00034446", "name": "Vpp Ánh Tuyết", "phone": "nan", "lat": 11.15323, "lon": 106.614275, "addr": "Vpp Ánh Tuyết - Phường Mỹ Phước, Bến Cát"}, {"id": "00073441", "name": "Vpp Thảo My", "phone": "nan", "lat": 11.157559, "lon": 106.61633, "addr": "Vpp Thảo My - Phường Mỹ Phước, Bến Cát"}, {"id": "00108691", "name": "Vpp Trường Lĩnh TL", "phone": "nan", "lat": 11.144398, "lon": 106.627953, "addr": "Vpp Trường Lĩnh TL - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "00034464", "name": "VPP Trâm Anh ( xuất hđ)", "phone": "nan", "lat": 11.15321, "lon": 106.612982, "addr": "VPP Trâm Anh ( xuất hđ)  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076330", "name": "Kiên đạt ( D7 mp1 )", "phone": "nan", "lat": 11.152986, "lon": 106.616887, "addr": "Kiên đạt ( D7 mp1 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075284", "name": "Kinh Đô GS Lương", "phone": "nan", "lat": 11.142079, "lon": 106.603162, "addr": "Kinh Đô GS Lương - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076472", "name": "dung thực. cph .0", "phone": "nan", "lat": 11.15553, "lon": 106.616098, "addr": "dung thực. cph .0 - Phường Mỹ Phước, Bến Cát"}, {"id": "SACNDK", "name": "SUẤT ĂN CÔNG NGHIỆP ĐĂNG KHÔI", "phone": "nan", "lat": 11.154712, "lon": 106.616283, "addr": "SUẤT ĂN CÔNG NGHIỆP ĐĂNG KHÔI - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071286", "name": "THANH TÂM ( CHỢ TÂN LONG) 0 12h đóng 2:30 mở", "phone": "nan", "lat": 11.157398, "lon": 106.615745, "addr": "THANH TÂM ( CHỢ TÂN LONG) 0 12h đóng 2:30 mở  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076457", "name": "Cty TNHH PHÁT TRIỂN DỊCH VỤ CÁT TƯỜNG", "phone": "nan", "lat": 11.155239, "lon": 106.614632, "addr": "Cty TNHH PHÁT TRIỂN DỊCH VỤ CÁT TƯỜNG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076403", "name": "thu ba. Hưng hòa", "phone": "0339709458", "lat": 11.155465, "lon": 106.614132, "addr": "thu ba. Hưng hòa  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076087", "name": "Quỳnh như.1 cây trường 0", "phone": "nan", "lat": 11.154349, "lon": 106.615191, "addr": "Quỳnh như.1 cây trường 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076293", "name": "kim ngân .ngô quyền. chợ bc.0", "phone": "nan", "lat": 11.1524, "lon": 106.613374, "addr": "kim ngân .ngô quyền. chợ bc.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "QUYNHANH", "name": "Quỳnh Anh Gần cây Xăng Thới Hòa Mỹ phước 3", "phone": "nan", "lat": 11.155257, "lon": 106.614589, "addr": "Quỳnh Anh Gần cây Xăng Thới Hòa Mỹ phước 3 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076167", "name": "Bích tuyền. bố lá . Phước hòa", "phone": "nan", "lat": 11.153997, "lon": 106.616383, "addr": "Bích tuyền. bố lá . Phước hòa  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076297", "name": "88888888", "phone": "nan", "lat": 11.156162, "lon": 106.613, "addr": "88888888 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073000", "name": "Phương thủy ( chợ Hưng hoà kế bình an )", "phone": "0865875153", "lat": 11.157272, "lon": 106.614973, "addr": "Phương thủy ( chợ Hưng hoà kế bình an ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075910", "name": "TUG", "phone": "nan", "lat": 11.156449, "lon": 106.615439, "addr": "TUG - Phường Mỹ Phước, Bến Cát"}, {"id": "00108402", "name": "Vpp Kcb - Lai Uyên, BB TL", "phone": "nan", "lat": 11.157986, "lon": 106.616514, "addr": "Vpp Kcb - Lai Uyên, BB TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072246", "name": "BÌNH BẮC - chợ tân long", "phone": "0344796798", "lat": 11.156242, "lon": 106.616671, "addr": "BÌNH BẮC - chợ tân long - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071549", "name": "Tạp Hoá Xuân ( 11h30 nghĩ trưa tới 3h) - Đường lô B - chợ bến cát 139/2 kp2", "phone": "0917268600", "lat": 11.152859, "lon": 106.613227, "addr": "Tạp Hoá Xuân ( 11h30 nghĩ trưa tới 3h) - Đường lô B - chợ bến cát 139/2 kp2 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075485", "name": "phương thảo ( D13 Mp1 )", "phone": "nan", "lat": 11.156284, "lon": 106.614964, "addr": "phương thảo ( D13 Mp1 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "1100000840", "name": "TAP HOA TÚ YẾN - Kp 2, đường hùng vương.", "phone": "0393681313", "lat": 11.156528, "lon": 106.612617, "addr": "TAP HOA TÚ YẾN - Kp 2, đường hùng vương. - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071090", "name": "Th trang.chợ bến cát.bến cát", "phone": "0385226456", "lat": 11.155219, "lon": 106.614273, "addr": "Th trang.chợ bến cát.bến cát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071153", "name": "Th Mỹ Lan.chợ bến cát.0382438852", "phone": "038243885", "lat": 11.154742, "lon": 106.615624, "addr": "Th Mỹ Lan.chợ bến cát.0382438852 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076328", "name": "Nguyễn hà. quốc lộ13. 0", "phone": "nan", "lat": 11.155014, "lon": 106.615239, "addr": "Nguyễn hà. quốc lộ13. 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072240", "name": "Tạp hóa hằng - đường 30/4", "phone": "0933073970", "lat": 11.154918, "lon": 106.614454, "addr": "Tạp hóa hằng - đường 30/4 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072244", "name": "Cô khanh ( lô A ,chợ bến cát )", "phone": "0907338904", "lat": 11.156631, "lon": 106.612073, "addr": "Cô khanh ( lô A ,chợ bến cát ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073912", "name": "DL Lan Anh - Bến Tượng, Lai Hưng", "phone": "0834576747", "lat": 11.155591, "lon": 106.615393, "addr": "DL Lan Anh - Bến Tượng, Lai Hưng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075711", "name": "CTY VIỆT BILL", "phone": "nan", "lat": 11.156297, "lon": 106.615594, "addr": "CTY VIỆT BILL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076116", "name": "Loan vy. tr v thố(đóng cửa 12h đến 2h", "phone": "nan", "lat": 11.156961, "lon": 106.617754, "addr": "Loan vy. tr v thố(đóng cửa 12h đến 2h - Phường Mỹ Phước, Bến Cát"}, {"id": "00034356", "name": "Tạp Hóa Tám Vàng", "phone": "nan", "lat": 11.154055, "lon": 106.613364, "addr": "Tạp Hóa Tám Vàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076153", "name": "phi hậu. Tân Long 0", "phone": "nan", "lat": 11.154542, "lon": 106.613728, "addr": "phi hậu. Tân Long 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "00034364", "name": "Vpp Hoa Trúc", "phone": "nan", "lat": 11.15569, "lon": 106.617471, "addr": "Vpp Hoa Trúc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076223", "name": "đại phú. đầu đường 2/9.da1 0", "phone": "nan", "lat": 11.153917, "lon": 106.609802, "addr": "đại phú. đầu đường 2/9.da1 0 - Đường DA1, Mỹ Phước 2"}, {"id": "KH076090", "name": "Lê Minh. ql13. trừ v thố", "phone": "nan", "lat": 11.161268, "lon": 106.612678, "addr": "Lê Minh. ql13. trừ v thố - Quốc lộ 13, Bến Cát"}, {"id": "KH071548", "name": "Tú Yến 0", "phone": "0393681314", "lat": 11.155558, "lon": 106.612613, "addr": "Tú Yến 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076119", "name": "út quý. tr v thố0", "phone": "nan", "lat": 11.157513, "lon": 106.616741, "addr": "út quý. tr v thố0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073644", "name": "Bách Hoá Hoàng Hà TL", "phone": "nan", "lat": 11.260712, "lon": 106.603744, "addr": "Bách Hoá Hoàng Hà TL - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH074510", "name": "Hằng. 0", "phone": "nan", "lat": 11.152414, "lon": 106.612464, "addr": "Hằng. 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072476", "name": "Siêu thị Zo! Martket Bàu Bàng - 79-81 , KDT BÀU BÀNG", "phone": "nan", "lat": 11.152625, "lon": 106.617043, "addr": "Siêu thị Zo! Martket Bàu Bàng - 79-81 , KDT BÀU BÀNG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000166", "name": "THÀNH ĐẠT", "phone": "0989945779", "lat": 11.157464, "lon": 106.612737, "addr": "THÀNH ĐẠT - Phường Mỹ Phước, Bến Cát"}, {"id": "00074340", "name": "Tạp Hóa Anh Hải", "phone": "nan", "lat": 11.153415, "lon": 106.612993, "addr": "Tạp Hóa Anh Hải - Phường Mỹ Phước, Bến Cát"}, {"id": "00605241", "name": "Tạp hóa Huy Hoàng", "phone": "nan", "lat": 11.153118, "lon": 106.617025, "addr": "Tạp hóa Huy Hoàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071631", "name": "Hương Hải (Ql13 Lai uyên)", "phone": "0919629739", "lat": 11.161496, "lon": 106.611434, "addr": "Hương Hải (Ql13 Lai uyên) - Quốc lộ 13, Bến Cát"}, {"id": "00108393", "name": "Photo Gia Hưng TL", "phone": "nan", "lat": 11.153364, "lon": 106.615647, "addr": "Photo Gia Hưng TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000050", "name": "PHÁT ĐẠT ( Đạt Thuỷ) - Đường D6_5A khu chợ bàu bàng", "phone": "0981945915", "lat": 11.154276, "lon": 106.616465, "addr": "PHÁT ĐẠT ( Đạt Thuỷ) - Đường D6_5A khu chợ bàu bàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071099", "name": "Th kỳ uyên.0382377069.", "phone": "0382377069", "lat": 11.153233, "lon": 106.616727, "addr": "Th kỳ uyên.0382377069. - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074009", "name": "Diệu Thy (nghỉ trưa 12-14h)", "phone": "DiệuThy", "lat": 11.155622, "lon": 106.612686, "addr": "Diệu Thy (nghỉ trưa 12-14h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074669", "name": "Thịnh Phát chợ Bàu Bàng", "phone": "0971423819", "lat": 11.154487, "lon": 106.617181, "addr": "Thịnh Phát chợ Bàu Bàng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075569", "name": "toàn thuận -61 đường 2/9, mỹ phước", "phone": "nan", "lat": 11.157538, "lon": 106.614794, "addr": "toàn thuận -61 đường 2/9, mỹ phước - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076632", "name": "TH Tuấn Phượng", "phone": "0382449662", "lat": 11.154885, "lon": 106.617511, "addr": "TH Tuấn Phượng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073645", "name": "TH Ánh", "phone": "nan", "lat": 11.155522, "lon": 106.612197, "addr": "TH Ánh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072709", "name": "Th Thủy", "phone": "nan", "lat": 11.157476, "lon": 106.613489, "addr": "Th Thủy - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076163", "name": "thành Tân. cây trường", "phone": "nan", "lat": 11.155466, "lon": 106.612993, "addr": "thành Tân. cây trường  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072710", "name": "Chth Thanh Quyên - kp Xà Mách,tt Lai Uyên", "phone": "nan", "lat": 11.152203, "lon": 106.613869, "addr": "Chth Thanh Quyên - kp Xà Mách,tt Lai Uyên - Phường Mỹ Phước, Bến Cát"}, {"id": "00116843", "name": "Vpp Tâm An", "phone": "nan", "lat": 11.156683, "lon": 106.613666, "addr": "Vpp Tâm An - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076173", "name": "dương Hải. Tân Hưng", "phone": "nan", "lat": 11.153321, "lon": 106.613276, "addr": "dương Hải. Tân Hưng  - Phường Mỹ Phước, Bến Cát"}, {"id": "00108405", "name": "Vpp Lam Giang TL", "phone": "nan", "lat": 11.155091, "lon": 106.617853, "addr": "Vpp Lam Giang TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00556084", "name": "Nhà Sách Ngọc Mai TL", "phone": "nan", "lat": 11.155573, "lon": 106.615606, "addr": "Nhà Sách Ngọc Mai TL - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "00089333", "name": "Điện Nước Mỹ Vy", "phone": "nan", "lat": 11.15521, "lon": 106.613107, "addr": "Điện Nước Mỹ Vy - Phường Mỹ Phước, Bến Cát"}, {"id": "00089457", "name": "Tạp Hóa Loan Vy", "phone": "nan", "lat": 11.153798, "lon": 106.61386, "addr": "Tạp Hóa Loan Vy - Phường Mỹ Phước, Bến Cát"}, {"id": "00108391", "name": "Vpp Út Công TL", "phone": "nan", "lat": 11.154384, "lon": 106.614561, "addr": "Vpp Út Công TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00610402", "name": "Tạp Hóa Chị Phương TL", "phone": "nan", "lat": 11.156799, "lon": 106.614096, "addr": "Tạp Hóa Chị Phương TL - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073450", "name": "Vân Quyết (bàu bàng)", "phone": "0968316845", "lat": 11.154809, "lon": 106.61575, "addr": "Vân Quyết (bàu bàng) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000358", "name": "Duy Hải. trừ v thố", "phone": "0867079789", "lat": 11.154266, "lon": 106.617019, "addr": "Duy Hải. trừ v thố - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076088", "name": "huy hoàng. tr v thố 0", "phone": "nan", "lat": 11.155525, "lon": 106.613764, "addr": "huy hoàng. tr v thố 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076458", "name": "CHỊ TUYẾT ( CHỢ BÀU BÀNG)", "phone": "nan", "lat": 11.156284, "lon": 106.615166, "addr": "CHỊ TUYẾT ( CHỢ BÀU BÀNG) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076436", "name": "khánh chi .DB4 .My Phước 2. ( 12h nghĩ trưa đến 14h30)", "phone": "nan", "lat": 11.155207, "lon": 106.614887, "addr": "khánh chi .DB4 .My Phước 2. ( 12h nghĩ trưa đến 14h30) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075691", "name": "TH Mộng Tuyết", "phone": "0968239517", "lat": 11.154982, "lon": 106.616592, "addr": "TH Mộng Tuyết - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076120", "name": "thu tuyết . ql13, bầu bàng", "phone": "nan", "lat": 11.160809, "lon": 106.611503, "addr": "thu tuyết . ql13, bầu bàng  - Quốc lộ 13, Bến Cát"}, {"id": "KH074251", "name": "Nguyệt Quý - Bến Tượng", "phone": "0763394959", "lat": 11.152453, "lon": 106.616519, "addr": "Nguyệt Quý - Bến Tượng - Phường Mỹ Phước, Bến Cát"}, {"id": "00034683", "name": "Tạp Hóa Triệu Long", "phone": "nan", "lat": 11.153634, "lon": 106.617385, "addr": "Tạp Hóa Triệu Long - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076592", "name": "TH DƯƠNG HẰNG( kim long củ-D6-5A bàu bàng) KXHĐ", "phone": "nan", "lat": 11.155159, "lon": 106.616804, "addr": "TH DƯƠNG HẰNG( kim long củ-D6-5A bàu bàng) KXHĐ - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075679", "name": "CẨM NHUNG", "phone": "0978046063", "lat": 11.157874, "lon": 106.617039, "addr": "CẨM NHUNG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076082", "name": "Lan thành ( tân an , đường phan đăng lưu )", "phone": "nan", "lat": 11.157202, "lon": 106.614448, "addr": "Lan thành ( tân an , đường phan đăng lưu ) - Phường Mỹ Phước, Bến Cát"}, {"id": "00034270", "name": "Vpp Tú Ngọc", "phone": "nan", "lat": 11.15531, "lon": 106.613523, "addr": "Vpp Tú Ngọc - Phường Mỹ Phước, Bến Cát"}, {"id": "00034272", "name": "Vpp Thuận Thành", "phone": "nan", "lat": 11.153177, "lon": 106.615033, "addr": "Vpp Thuận Thành - Phường Mỹ Phước, Bến Cát"}, {"id": "00034338", "name": "Vpp Thiên Long", "phone": "nan", "lat": 11.15557, "lon": 106.614036, "addr": "Vpp Thiên Long - Phường Mỹ Phước, Bến Cát"}, {"id": "00112570", "name": "Thuốc Tây Thanh Lĩnh", "phone": "nan", "lat": 11.155417, "lon": 106.617325, "addr": "Thuốc Tây Thanh Lĩnh - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075000", "name": "TH phương Linh NH7 kp7 Chánh phú hoà", "phone": "nan", "lat": 11.15534, "lon": 106.616325, "addr": "TH phương Linh NH7 kp7 Chánh phú hoà - Phường Mỹ Phước, Bến Cát"}, {"id": "00636376", "name": "Nhà Sách Huy Khánh 4", "phone": "nan", "lat": 11.156832, "lon": 106.617932, "addr": "Nhà Sách Huy Khánh 4 - Phường Mỹ Phước, Bến Cát"}, {"id": "APL", "name": "Cty TNHH An Phú Long", "phone": "0827776638", "lat": 11.155619, "lon": 106.616841, "addr": "Cty TNHH An Phú Long - Phường Mỹ Phước, Bến Cát"}, {"id": "VINHBINHPHUOC", "name": "SUẤT ĂN CÔNG NGHIỆP VINH BÌNH PHƯỚC", "phone": "nan", "lat": 11.157776, "lon": 106.617666, "addr": "SUẤT ĂN CÔNG NGHIỆP VINH BÌNH PHƯỚC - Phường Mỹ Phước, Bến Cát"}, {"id": "00605561", "name": "Tạp Hóa Quý Anh TL", "phone": "nan", "lat": 11.152846, "lon": 106.614438, "addr": "Tạp Hóa Quý Anh TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00120491", "name": "Nhà Sách Gia Hân", "phone": "nan", "lat": 11.153944, "lon": 106.612522, "addr": "Nhà Sách Gia Hân - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071338", "name": "Khánh Băng ( quốc lộ 13)0989007406 - 449 Quốc Lộ 13, Phường Mỹ Phước, Bến Cát, Bình Dương", "phone": "0989007406", "lat": 11.155799, "lon": 106.616415, "addr": "Khánh Băng ( quốc lộ 13)0989007406 - 449 Quốc Lộ 13, Phường Mỹ Phước, Bến Cát, Bình Dương - Phường Mỹ Phước, Bến Cát"}, {"id": "00608947", "name": "Tạp Hóa Thành Đạt 0969515379 TL", "phone": "nan", "lat": 11.157089, "lon": 106.612737, "addr": "Tạp Hóa Thành Đạt 0969515379 TL - Phường Mỹ Phước, Bến Cát"}, {"id": "00108389", "name": "Nhà Sách Đức Toàn", "phone": "nan", "lat": 11.157259, "lon": 106.615858, "addr": "Nhà Sách Đức Toàn - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075395", "name": "TH Chín Thơ (giao cửa hàng) - DH706, xã An Lập, Huyện Dầu Tiếng, Bình Dương", "phone": "0945172176", "lat": 11.156224, "lon": 106.617464, "addr": "TH Chín Thơ (giao cửa hàng) - DH706, xã An Lập, Huyện Dầu Tiếng, Bình Dương - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076186", "name": "Nhật Huyền. Đường DB3. my phước 2.0", "phone": "nan", "lat": 11.155749, "lon": 106.614015, "addr": "Nhật Huyền. Đường DB3. my phước 2.0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076603", "name": "Phương chi ( đường DJ9 , mp3 , thới hoà )", "phone": "nan", "lat": 11.138975, "lon": 106.627589, "addr": "Phương chi ( đường DJ9 , mp3 , thới hoà ) - Đường DJ9, KCN Mỹ Phước 3"}, {"id": "KH000135", "name": "Tuấn Hằng. trong chợ bến súc", "phone": "nan", "lat": 11.149241, "lon": 106.564094, "addr": "Tuấn Hằng. trong chợ bến súc - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH070984", "name": "BẢO ANH( gần thuỳ trang xóm bưng)", "phone": "0987539016", "lat": 11.155312, "lon": 106.614617, "addr": "BẢO ANH( gần thuỳ trang xóm bưng) - Phường Mỹ Phước, Bến Cát"}, {"id": "00034572", "name": "Vpp Thịnh Phát", "phone": "nan", "lat": 11.153767, "lon": 106.617691, "addr": "Vpp Thịnh Phát - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076083", "name": "huy nhung . an lập 0", "phone": "nan", "lat": 11.156582, "lon": 106.612841, "addr": "huy nhung . an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "00092184", "name": "Tạp Hóa Bảo Ngọc", "phone": "nan", "lat": 11.157211, "lon": 106.614925, "addr": "Tạp Hóa Bảo Ngọc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH071191", "name": "Th ba hưng.an điền", "phone": "0964627960", "lat": 11.157367, "lon": 106.616799, "addr": "Th ba hưng.an điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075996", "name": "Th Tuyền", "phone": "nan", "lat": 11.154551, "lon": 106.612135, "addr": "Th Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076276", "name": "VIỆT DŨNG AN TÂY( KẾ BÊN SƠN MINH)", "phone": "nan", "lat": 11.153612, "lon": 106.61525, "addr": "VIỆT DŨNG AN TÂY( KẾ BÊN SƠN MINH) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076641", "name": "ĐL Tấn Minh( giao sáng)", "phone": "0973644658", "lat": 11.155801, "lon": 106.613547, "addr": "ĐL Tấn Minh( giao sáng) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073041", "name": "Tám Lăng - Bưng Còng", "phone": "0916599439", "lat": 11.152836, "lon": 106.61701, "addr": "Tám Lăng - Bưng Còng - Phường Mỹ Phước, Bến Cát"}, {"id": "00084812", "name": "Nhà Sách An Tây", "phone": "nan", "lat": 11.157906, "lon": 106.615154, "addr": "Nhà Sách An Tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075546", "name": "Đạt Phát DB8", "phone": "nan", "lat": 11.164015, "lon": 106.604317, "addr": "Đạt Phát DB8 - Đường DB8, KCN Mỹ Phước 2"}, {"id": "KH076161", "name": "cô hạnh trong chợ bến súc", "phone": "nan", "lat": 11.15211, "lon": 106.617486, "addr": "cô hạnh trong chợ bến súc  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076283", "name": "KIM THUÝ ( RẠCH BẮP)", "phone": "nan", "lat": 11.152707, "lon": 106.615459, "addr": "KIM THUÝ ( RẠCH BẮP) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073576", "name": "Trường ngân - đường nguyễn chí thanh, Hiệp An( 13h nghĩ trưa tới 15h)", "phone": "0933129723", "lat": 11.153644, "lon": 106.615325, "addr": "Trường ngân - đường nguyễn chí thanh, Hiệp An( 13h nghĩ trưa tới 15h) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072213", "name": "Tiến Đạt - phan đăng lưu, hiệp an", "phone": "0856445660", "lat": 11.155909, "lon": 106.616978, "addr": "Tiến Đạt - phan đăng lưu, hiệp an - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076277", "name": "Hoà lan ( Dj 9 , mp 3 )", "phone": "nan", "lat": 11.153239, "lon": 106.612066, "addr": "Hoà lan ( Dj 9 , mp 3 ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072222", "name": "Cafe mỹ tiên ( kế tạp hóa Trang ) -phan đăng lưu", "phone": "0966745856", "lat": 11.152821, "lon": 106.6174, "addr": "Cafe mỹ tiên ( kế tạp hóa Trang ) -phan đăng lưu - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000154", "name": "tuyết Nhung. an lập", "phone": "0976449108", "lat": 11.157243, "lon": 106.615584, "addr": "tuyết Nhung. an lập - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076640", "name": "tài xế kho", "phone": "nan", "lat": 11.155603, "lon": 106.61599, "addr": "tài xế kho - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072681", "name": "QUÁN TRÂU NÚI GÀ ĐỒI ( Anh Đại)", "phone": "nan", "lat": 11.153052, "lon": 106.617486, "addr": "QUÁN TRÂU NÚI GÀ ĐỒI ( Anh Đại) - Phường Mỹ Phước, Bến Cát"}, {"id": "kh001", "name": "KHÁCH HÀNG LẺ", "phone": "nan", "lat": 11.160831, "lon": 106.625189, "addr": "KHÁCH HÀNG LẺ - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "KH076690", "name": "anh duy", "phone": "nan", "lat": 11.152282, "lon": 106.612998, "addr": "anh duy - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076334", "name": "th mai Phương. dh5. Cuối đường dj5 mỹ phước 3 .qua ngã tư đường ne2. 0", "phone": "nan", "lat": 11.156428, "lon": 106.612497, "addr": "th mai Phương. dh5. Cuối đường dj5 mỹ phước 3 .qua ngã tư đường ne2. 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "PHUCMANHUONG", "name": "SUẤT ĂN CÔNG NGHIỆP PHÚC MÃN HƯƠNG", "phone": "nan", "lat": 11.155619, "lon": 106.613472, "addr": "SUẤT ĂN CÔNG NGHIỆP PHÚC MÃN HƯƠNG - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072610", "name": "Th bắc", "phone": "nan", "lat": 11.154336, "lon": 106.613732, "addr": "Th bắc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073909", "name": "TH Hiền Đạt", "phone": "nan", "lat": 11.154134, "lon": 106.616314, "addr": "TH Hiền Đạt - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072023", "name": "bánh bao út phương( gọi chủ hoặc sale) đối diện BV Đa Khoa Sài Gòn An Tây", "phone": "nan", "lat": 11.153783, "lon": 106.615398, "addr": "bánh bao út phương( gọi chủ hoặc sale) đối diện BV Đa Khoa Sài Gòn An Tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076138", "name": "Anh Dư .tuấn chi cũ .nb16. 0", "phone": "nan", "lat": 11.154856, "lon": 106.615982, "addr": "Anh Dư .tuấn chi cũ .nb16. 0 - Phường Mỹ Phước, Bến Cát"}];
-
-    // 2. MẶC ĐỊNH GỘP ĐIỂM TRÙNG (ĐẠI PHÚ...)
     const DEFAULT_ALIASES = {"KH076223": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}, "00633982": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}, "KH075859": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}};
 
-    const STORAGE_KEY_CUSTOM_MASTER = "FMCG_CUSTOM_MASTER_EDITS_V2";
-    const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V2";
-    const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V2";
-    const STORAGE_KEY_SESSION = "FMCG_DAILY_SESSION_V2";
+    const STORAGE_KEY_CUSTOM_MASTER = "FMCG_CUSTOM_MASTER_EDITS_V3";
+    const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V3";
+    const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V3";
+    const STORAGE_KEY_SESSION = "FMCG_DAILY_SESSION_V3";
+    const STORAGE_KEY_DEPOT = "FMCG_WAREHOUSE_DEPOT_V3";
 
     let masterGpsMap = new Map();
     let storeAliasMap = new Map();
@@ -525,12 +646,16 @@
     let currentStopTab = 'route';
     let currentDetailStop = null;
     let driverAppFilter = 'all';
+    let rejectingStopCanonicalId = null;
 
-    const WAREHOUSE_DEPOT = { name: "Kho NPP Bến Cát (Mỹ Phước)", lat: 11.1550, lon: 106.6150 };
+    // Kho Bến Cát (Có thể cập nhật lưu vĩnh viễn)
+    let warehouseDepot = { name: "Kho NPP Bến Cát (Mỹ Phước)", lat: 11.1550, lon: 106.6150 };
+
     let map = null, routeLayer = null, pinsLayer = null;
+    let drvMap = null, drvRouteLayer = null, drvPinsLayer = null;
 
-    // Cross-tab real-time sync channel
-    const syncChannel = window.BroadcastChannel ? new BroadcastChannel('fmcg_live_sync') : null;
+    // Real-time broadcast sync between tabs
+    const syncChannel = window.BroadcastChannel ? new BroadcastChannel('fmcg_live_sync_v3') : null;
     if (syncChannel) {
       syncChannel.onmessage = (event) => {
         if (event.data && event.data.type === 'STATUS_UPDATE') {
@@ -540,9 +665,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      // Kiểm tra hash xem có đang mở link tài xế không (#/driver?truck=X&token=...)
       checkDriverRoutingMode();
-
       initMap();
       loadPermanentData();
       renderFleetTabs();
@@ -551,31 +674,28 @@
     });
 
     // =========================================================================
-    // MODULE 1: LINK TÀI XẾ ĐỘC LẬP & TỰ HỦY SAU 48H
+    // 1. LINK TÀI XẾ ĐỘC LẬP & TỰ HỦY SAU 48H
     // =========================================================================
     function checkDriverRoutingMode() {
       let hash = window.location.hash || '';
       if (hash.startsWith('#/driver')) {
-        // Chuyển sang App độc lập của tài xế
         document.getElementById('dispatchAppContainer').classList.add('hidden');
         document.getElementById('driverStandaloneApp').classList.remove('hidden');
 
-        // Bóc tách query params
         let urlParams = new URLSearchParams(hash.split('?')[1] || '');
         let truckId = parseInt(urlParams.get('truck') || 1);
         let token = urlParams.get('token') || '';
 
         activeTruckId = truckId;
 
-        // Kiểm tra tự hủy sau 48h
         if (token && isTokenExpired(token)) {
           document.getElementById('drvExpiredBanner').classList.remove('hidden');
           document.getElementById('driverAppCardsList').innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs">Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy.</div>';
           return;
         }
 
-        // Nạp dữ liệu xe và render cho tài xế
         loadPermanentData();
+        initDriverMiniMap();
         renderDriverAppCards();
       }
     }
@@ -598,33 +718,89 @@
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
 
-      // Tạo token chứa timestamp tạo và danh sách đơn
       let tokenPayload = {
         truckId: truck.id,
         createdAt: Date.now()
       };
       let token = btoa(unescape(encodeURIComponent(JSON.stringify(tokenPayload))));
-
       let baseUrl = window.location.origin + window.location.pathname;
       let driverUrl = `${baseUrl}#/driver?truck=${truck.id}&token=${token}`;
 
-      let text = `🚛 TUYẾN GIAO HÀNG - ${truck.name} (${truck.plate})\n`;
-      text += `Tài xế: ${truck.driver} • SĐT: ${truck.phone}\n`;
-      text += `Tổng đơn: ${truck.stops.length} điểm • Tải trọng: ${Math.round(truck.stops.reduce((a, b) => a + b.totalQty, 0))} Thùng\n\n`;
-      text += `👉 LINK MOBILE ĐI TUYẾN (Bấm vào xem đơn & tick giao hàng):\n${driverUrl}\n\n`;
-      text += `(Lưu ý: Link có hiệu lực trong 48h để thực hiện giao hàng)\n\n`;
+      // CHỈ COPY ĐÚNG 1 LINK DUY NHẤT GỬI CHO TÀI XẾ
+      navigator.clipboard.writeText(driverUrl).then(() => {
+        alert(`ĐÃ COPY LINK ĐI TUYẾN RIÊNG CHO ${truck.name}!\n\n${driverUrl}\n\nAnh chỉ cần dán (Paste) link này qua Zalo cho tài xế ${truck.driver} là xong.`);
+      });
+    }
 
-      truck.stops.forEach(s => {
-        text += `#${s.stopSeq}. ${s.custName} (${s.totalQty} Thùng) - COD: ${formatMoney(s.totalCod)}\n`;
-        text += `   Đ/C: ${s.addr}\n`;
-        text += `   SĐT: ${s.phone}\n`;
-        if (s.isMapped) text += `   Map: https://maps.google.com/?q=${s.lat},${s.lon}\n`;
-        text += `\n`;
+    // =========================================================================
+    // 2. MINI-MAP LỘ TRÌNH VÀ DOCK CỐ ĐỊNH CHO TÀI XẾ
+    // =========================================================================
+    function initDriverMiniMap() {
+      if (drvMap) return;
+      drvMap = L.map('drvMiniMap', {
+        center: [warehouseDepot.lat, warehouseDepot.lon],
+        zoom: 13,
+        zoomControl: false,
+        preferCanvas: true
       });
 
-      navigator.clipboard.writeText(text).then(() => {
-        alert(`ĐÃ TẠO VÀ COPY LINK RIÊNG CHO ${truck.name}!\n\nAnh chỉ cần mở Zalo của tài xế ${truck.driver} và bấm DÁN (Paste) gửi là xong.`);
+      L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '&copy; Google Road Maps'
+      }).addTo(drvMap);
+
+      drvRouteLayer = L.layerGroup().addTo(drvMap);
+      drvPinsLayer = L.layerGroup().addTo(drvMap);
+
+      setTimeout(() => drvMap.invalidateSize(), 300);
+    }
+
+    function toggleDriverMiniMap() {
+      let container = document.getElementById('drvMiniMapContainer');
+      let text = document.getElementById('textToggleMiniMap');
+      if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        text.innerText = "Ẩn Map";
+        if (drvMap) setTimeout(() => drvMap.invalidateSize(), 200);
+      } else {
+        container.classList.add('hidden');
+        text.innerText = "Hiện Map";
+      }
+    }
+
+    function renderDriverMiniMapRoute(stops) {
+      if (!drvMap) return;
+      drvRouteLayer.clearLayers();
+      drvPinsLayer.clearLayers();
+
+      let mapped = stops.filter(s => s.isMapped);
+      if (mapped.length === 0) return;
+
+      let latlngs = [[warehouseDepot.lat, warehouseDepot.lon]];
+
+      mapped.forEach(s => {
+        latlngs.push([s.lat, s.lon]);
+
+        // Màu sắc ghim: Xanh lá = Đã xong, Đỏ = Thất bại, Xanh dương = Chưa giao
+        let pinBg = s.status === 'success' ? 'bg-emerald-600' : (s.status === 'failed' ? 'bg-rose-600' : 'bg-blue-600');
+
+        let pinIcon = L.divIcon({
+          className: 'drv-stop-pin',
+          html: `<div class="w-6 h-6 rounded-full ${pinBg} border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-extrabold">${s.stopSeq}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        L.marker([s.lat, s.lon], { icon: pinIcon })
+          .bindPopup(`<b>#${s.stopSeq} • ${s.custName}</b><br>${s.addr}<br>COD: <b>${formatMoney(s.totalCod)}</b>`)
+          .addTo(drvPinsLayer);
       });
+
+      // Vẽ vòng khép kín quay về kho
+      latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
+
+      let poly = L.polyline(latlngs, { color: '#2563eb', weight: 3, opacity: 0.8, dashArray: '4, 4' }).addTo(drvRouteLayer);
+      drvMap.fitBounds(poly.getBounds(), { padding: [25, 25] });
     }
 
     function renderDriverAppCards() {
@@ -638,7 +814,11 @@
       document.getElementById('drvAppTruckTitle').innerText = `${truck.name} (${truck.plate}) • ${truck.driver}`;
       let successCount = truck.stops.filter(s => s.status === 'success').length;
       let totalCodCollected = truck.stops.filter(s => s.status === 'success').reduce((sum, s) => sum + s.totalCod, 0);
-      document.getElementById('drvAppProgressText').innerText = `Đã giao: ${successCount}/${truck.stops.length} đơn • Đã thu COD: ${formatMoney(totalCodCollected)}`;
+
+      document.getElementById('drvAppProgressText').innerText = `Đã giao: ${successCount}/${truck.stops.length} đơn • Thu COD: ${formatMoney(totalCodCollected)}`;
+      document.getElementById('drvDockCodCollected').innerText = formatMoney(totalCodCollected);
+
+      renderDriverMiniMapRoute(truck.stops);
 
       let list = [...truck.stops];
       if (driverAppFilter === 'pending') list = list.filter(s => s.status === 'pending');
@@ -678,14 +858,14 @@
               ${s.items.map(it => `• <strong>${it.qty} ${it.unit}</strong> ${it.itemName}`).join('<br>')}
             </div>
 
-            ${s.failedReason ? `<div class="p-1.5 bg-rose-50 text-rose-700 rounded text-[10px] font-semibold">Lý do thất bại: ${s.failedReason}</div>` : ''}
+            ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do thất bại: ${s.failedReason}</div>` : ''}
 
             <!-- Actions: Tick Thành công / Thất bại -->
             <div class="flex items-center gap-2 pt-1 border-t">
-              <button onclick="driverUpdateStatus('${s.canonicalId}', 'success')" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+              <button onclick="driverMarkSuccess('${s.canonicalId}')" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
                 <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã Giao & Thu Tiền
               </button>
-              <button onclick="driverUpdateStatus('${s.canonicalId}', 'failed')" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+              <button onclick="openDriverRejectPicker('${s.canonicalId}')" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
                 <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Không Giao Được
               </button>
             </div>
@@ -696,33 +876,71 @@
       lucide.createIcons();
     }
 
-    function driverUpdateStatus(canonicalId, newStatus) {
+    function driverMarkSuccess(canonicalId) {
       let truck = fleet.find(t => t.id === activeTruckId);
       let s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
 
-      if (newStatus === 'failed') {
-        let reason = prompt("Nhập lý do không giao được (Ví dụ: Quán đóng cửa, dời ngày, chủ đi vắng):");
-        if (!reason) return;
-        s.status = 'failed';
-        s.failedReason = reason;
-      } else {
-        s.status = 'success';
-        s.failedReason = '';
-      }
+      s.status = 'success';
+      s.failedReason = '';
 
       savePermanentEdits();
       renderDriverAppCards();
 
-      // Bắn tín hiệu đồng bộ về màn hình kế toán
       if (syncChannel) {
         syncChannel.postMessage({
           type: 'STATUS_UPDATE',
           truckId: activeTruckId,
           canonicalId: canonicalId,
-          status: s.status,
-          failedReason: s.failedReason
+          status: 'success',
+          failedReason: ''
         });
+      }
+    }
+
+    function openDriverRejectPicker(canonicalId) {
+      rejectingStopCanonicalId = canonicalId;
+      document.getElementById('driverRejectModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeDriverRejectModal() {
+      document.getElementById('driverRejectModal').classList.add('hidden');
+      rejectingStopCanonicalId = null;
+    }
+
+    function submitDriverRejectReason(reason) {
+      if (!rejectingStopCanonicalId) return;
+      let truck = fleet.find(t => t.id === activeTruckId);
+      let s = truck ? truck.stops.find(x => x.canonicalId === rejectingStopCanonicalId) : null;
+      if (!s) return;
+
+      s.status = 'failed';
+      s.failedReason = reason;
+
+      closeDriverRejectModal();
+      savePermanentEdits();
+      renderDriverAppCards();
+
+      if (syncChannel) {
+        syncChannel.postMessage({
+          type: 'STATUS_UPDATE',
+          truckId: activeTruckId,
+          canonicalId: s.canonicalId,
+          status: 'failed',
+          failedReason: reason
+        });
+      }
+    }
+
+    function openNextPendingStopNavigation() {
+      let truck = fleet.find(t => t.id === activeTruckId);
+      if (!truck) return;
+      let nextStop = truck.stops.find(s => s.status === 'pending' && s.isMapped);
+      if (nextStop) {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${nextStop.lat},${nextStop.lon}&travelmode=driving`, '_blank');
+      } else {
+        alert("Đã hoàn tất tất cả các điểm giao trong lộ trình!");
       }
     }
 
@@ -757,11 +975,11 @@
     }
 
     // =========================================================================
-    // MODULE 2: KHỞI TẠO BẢN ĐỒ & QUẢN TRỊ MASTER DATA (PASS: 1111)
+    // 3. THUẬT TOÁN ROUND-TRIP TSP: KHÉP KÍN ĐI VÀ VỀ KHO
     // =========================================================================
     function initMap() {
       map = L.map('map', {
-        center: [WAREHOUSE_DEPOT.lat, WAREHOUSE_DEPOT.lon],
+        center: [warehouseDepot.lat, warehouseDepot.lon],
         zoom: 13,
         preferCanvas: true
       });
@@ -774,17 +992,9 @@
       routeLayer = L.layerGroup().addTo(map);
       pinsLayer = L.layerGroup().addTo(map);
 
-      let depotIcon = L.divIcon({
-        className: 'depot-pin',
-        html: `<div class="w-7 h-7 rounded-full bg-slate-900 border-2 border-white shadow-xl flex items-center justify-center text-white text-[10px] font-bold">KHO</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-      L.marker([WAREHOUSE_DEPOT.lat, WAREHOUSE_DEPOT.lon], { icon: depotIcon })
-        .bindPopup("<b>" + WAREHOUSE_DEPOT.name + "</b><br>Kho xuất phát giao hàng.")
-        .addTo(map);
+      drawDepotPin();
 
-      // CƠ CHẾ CLICK-TO-PIN GẮN TỌA ĐỘ TRỰC TIẾP
+      // Click ghim tọa độ trực tiếp
       map.on('click', function(e) {
         if (currentDetailStop) {
           let lat = parseFloat(e.latlng.lat.toFixed(6));
@@ -796,17 +1006,60 @@
       });
     }
 
+    function drawDepotPin() {
+      let depotIcon = L.divIcon({
+        className: 'depot-pin',
+        html: `<div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-white shadow-xl flex items-center justify-center text-white text-[10px] font-bold">KHO</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+      L.marker([warehouseDepot.lat, warehouseDepot.lon], { icon: depotIcon })
+        .bindPopup(`<b>${warehouseDepot.name}</b><br>Mốc xuất phát & quay về kho.<br>Tọa độ: ${warehouseDepot.lat}, ${warehouseDepot.lon}`)
+        .addTo(map);
+    }
+
+    function openDepotUpdateModal() {
+      document.getElementById('inputDepotName').value = warehouseDepot.name;
+      document.getElementById('inputDepotCoords').value = `${warehouseDepot.lat}, ${warehouseDepot.lon}`;
+      document.getElementById('depotModal').classList.remove('hidden');
+    }
+
+    function closeDepotModal() {
+      document.getElementById('depotModal').classList.add('hidden');
+    }
+
+    function saveDepotCoordinates() {
+      let name = (document.getElementById('inputDepotName').value || '').trim();
+      let coordsStr = (document.getElementById('inputDepotCoords').value || '').trim();
+      let coords = parseCoords(coordsStr);
+      if (!coords) return alert("Tọa độ không hợp lệ!");
+
+      warehouseDepot = { name: name || "Kho NPP", lat: coords.lat, lon: coords.lon };
+      localStorage.setItem(STORAGE_KEY_DEPOT, JSON.stringify(warehouseDepot));
+
+      map.setView([warehouseDepot.lat, warehouseDepot.lon], 13);
+      drawDepotPin();
+      closeDepotModal();
+      alert(`ĐÃ LƯU VĨNH VIỄN VỊ TRÍ KHO:\n\n[${coords.lat}, ${coords.lon}]!`);
+    }
+
     function loadPermanentData() {
+      // Nạp mốc kho
+      try {
+        let savedDepot = JSON.parse(localStorage.getItem(STORAGE_KEY_DEPOT) || "null");
+        if (savedDepot && savedDepot.lat && savedDepot.lon) warehouseDepot = savedDepot;
+      } catch (e) {}
+
       // Nạp 624 gốc
       EMBEDDED_MASTER_DATA.forEach(m => masterGpsMap.set(m.id, m));
 
-      // Nạp các điểm đã chỉnh sửa hoặc thêm mới
+      // Nạp điểm sửa
       try {
         let edits = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_MASTER) || "{}");
         Object.values(edits).forEach(m => masterGpsMap.set(m.id, m));
       } catch (e) {}
 
-      // Nạp bảng gộp mã trùng
+      // Nạp gộp điểm trùng
       Object.entries(DEFAULT_ALIASES).forEach(([k, v]) => storeAliasMap.set(k, v));
       try {
         let aliases = JSON.parse(localStorage.getItem(STORAGE_KEY_ALIASES) || "{}");
@@ -853,7 +1106,9 @@
       }
     }
 
-    // XÁC THỰC MẬT KHẨU 1111 ĐỂ VÀO QUẢN TRỊ MASTER DATA
+    // =========================================================================
+    // 4. QUẢN TRỊ MASTER DATA (PASSWORD 1111 NGẦM)
+    // =========================================================================
     function promptMasterAdmin() {
       let pass = prompt("Nhập mật khẩu Quản Trị Master Data GPS:");
       if (pass === "1111") {
@@ -868,7 +1123,6 @@
       document.getElementById('masterAdminModal').classList.add('hidden');
     }
 
-    // GHI ĐÈ FILE MASTER EXCEL MỚI (CẦN MẬT KHẨU 1111)
     document.getElementById('fileOverwriteMaster').addEventListener('change', function(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -957,7 +1211,7 @@
     }
 
     // =========================================================================
-    // MODULE 3: ĐỌC HÓA ĐƠN & BẢO TOÀN ĐƠN CHƯA CÓ MAP (ĐIỂM MỚI)
+    // 5. THUẬT TOÁN ĐIỀU PHỐI ĐỘI XE & TỐI ƯU CUNG ĐƯỜNG KHÉP KÍN (KHO -> ĐƠN -> KHO)
     // =========================================================================
     document.getElementById('fileInvoice').addEventListener('change', function(e) {
       let file = e.target.files[0];
@@ -1009,7 +1263,7 @@
         let unit = row['ĐVT'] || 'Thùng';
         let lineAmount = parseFloat(row['Thành tiền'] || 0);
 
-        // GỘP MÃ TRÙNG (ALIAS CHECK - ĐẠI PHÚ...)
+        // GỘP MÃ TRÙNG (ĐẠI PHÚ...)
         let canonicalId = rawCustId;
         let aliasTarget = storeAliasMap.get(rawCustId);
         if (aliasTarget) canonicalId = aliasTarget.targetId;
@@ -1055,11 +1309,9 @@
 
       allMergedStops = Array.from(physicalStopsMap.values());
       
-      // TÁCH BIỆT RÕ RÀNG: ĐÃ CÓ MAP vs CHƯA CÓ MAP (ĐIỂM MỚI)
       let mappedStops = allMergedStops.filter(s => s.isMapped);
       unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
-      // Cập nhật banner cảnh báo điểm mới chưa có map
       let warnPanel = document.getElementById('unmappedWarningPanel');
       if (unmappedStops.length > 0) {
         warnPanel.classList.remove('hidden');
@@ -1068,13 +1320,14 @@
         warnPanel.classList.add('hidden');
       }
 
-      // Đổ hàng vào các xe theo tải trọng & cung đường
+      // Đổ hàng vào các xe theo tải trọng & Vòng tuyến khép kín (Round-trip TSP)
       fleet.forEach(t => t.stops = []);
 
+      // Sắp xếp các điểm theo góc cực (Polar angle) quanh Kho Bến Cát để xe quét theo vòng cung, không zig-zag
       mappedStops.sort((a, b) => {
-        let da = calcDistanceKm(WAREHOUSE_DEPOT.lat, WAREHOUSE_DEPOT.lon, a.lat, a.lon);
-        let db = calcDistanceKm(WAREHOUSE_DEPOT.lat, WAREHOUSE_DEPOT.lon, b.lat, b.lon);
-        return da - db;
+        let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
+        let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
+        return angleA - angleB;
       });
 
       let curTruckIdx = 0;
@@ -1086,7 +1339,7 @@
 
         let lastPos = truck.stops.length > 0
           ? { lat: truck.stops[truck.stops.length - 1].lat, lon: truck.stops[truck.stops.length - 1].lon }
-          : { lat: WAREHOUSE_DEPOT.lat, lon: WAREHOUSE_DEPOT.lon };
+          : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
 
         let candidateIdx = -1;
         let minDist = Infinity;
@@ -1110,7 +1363,6 @@
         }
       }
 
-      // Phân bổ nốt các điểm dư
       remaining.forEach(s => {
         let bestTruck = fleet.reduce((prev, curr) => {
           let prevLoad = prev.stops.reduce((sum, x) => sum + x.totalQty, 0);
@@ -1120,7 +1372,6 @@
         bestTruck.stops.push(s);
       });
 
-      // Đánh số thứ tự
       fleet.forEach(t => {
         t.stops.forEach((s, idx) => {
           s.stopSeq = idx + 1;
@@ -1137,17 +1388,18 @@
       checkButtonsState();
       savePermanentEdits();
 
-      alert(`ĐÃ XẾP XONG ĐỘI XE!\n\nCó ${mappedStops.length} điểm đã có map được tối ưu vào ${fleet.length} xe.\n${unmappedStops.length > 0 ? '⚠️ CÓ ' + unmappedStops.length + ' ĐƠN CHƯA CÓ MAP CẦN GẮN MỐC BÊN DƯỚI!' : ''}`);
+      alert(`ĐÃ XẾP XONG ĐỘI XE!\n\nCó ${mappedStops.length} điểm đã có map được tối ưu vòng khép kín vào ${fleet.length} xe.\n${unmappedStops.length > 0 ? '⚠️ CÓ ' + unmappedStops.length + ' ĐƠN CHƯA CÓ MAP CẦN GẮN MỐC BÊN DƯỚI!' : ''}`);
     }
 
     // =========================================================================
-    // MODULE 4: EXECUTIVE DASHBOARD BÁO CÁO TÀI CHÍNH & TIẾN ĐỘ XE
+    // 6. DASHBOARD BÁO CÁO TOÀN DIỆN & PHÂN TÍCH LÝ DO HỦY ĐƠN
     // =========================================================================
     function updateDashboardReport() {
       let totalQty = allMergedStops.reduce((sum, s) => sum + s.totalQty, 0);
       let totalCod = allMergedStops.reduce((sum, s) => sum + s.totalCod, 0);
 
       let successStops = allMergedStops.filter(s => s.status === 'success');
+      let failedStops = allMergedStops.filter(s => s.status === 'failed');
       let collectedCod = successStops.reduce((sum, s) => sum + s.totalCod, 0);
 
       let activeTrucks = fleet.filter(t => t.stops.length > 0);
@@ -1166,7 +1418,38 @@
       document.getElementById('dashDeliveryProgress').innerText = `${progressPct}%`;
       document.getElementById('dashDeliveryRatio').innerText = `${successStops.length} / ${allMergedStops.length} điểm thành công`;
 
-      // Render bảng theo dõi đội xe bên dưới bản đồ
+      // BÁO CÁO PHÂN TÍCH LÝ DO HỦY ĐƠN
+      let reasonCounts = {};
+      failedStops.forEach(s => {
+        let r = s.failedReason || 'Khác / Chưa ghi nhận';
+        reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+      });
+
+      let totalFailed = failedStops.length;
+      document.getElementById('totalFailedCountText').innerText = `${totalFailed} đơn không giao được`;
+
+      let failureContainer = document.getElementById('failureReasonsBarList');
+      if (totalFailed === 0) {
+        failureContainer.innerHTML = '<div class="text-slate-400 text-[11px] italic">Chưa có đơn nào bị hủy hoặc không giao được.</div>';
+      } else {
+        let sortedReasons = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]);
+        failureContainer.innerHTML = sortedReasons.map(([reason, count]) => {
+          let pct = Math.round((count / totalFailed) * 100);
+          return `
+            <div class="space-y-0.5">
+              <div class="flex justify-between text-[11px]">
+                <span class="font-medium text-slate-800">${reason}</span>
+                <span class="font-bold text-rose-700">${count} đơn (${pct}%)</span>
+              </div>
+              <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div class="bg-rose-500 h-full rounded-full transition-all" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Bảng đội xe
       let tbody = document.getElementById('dashFleetTableBody');
       tbody.innerHTML = fleet.map(t => {
         let truckLoad = t.stops.reduce((sum, s) => sum + s.totalQty, 0);
@@ -1192,7 +1475,7 @@
             <td class="p-2 text-center">${statusText}</td>
             <td class="p-2 text-center">
               <button onclick="event.stopPropagation(); selectTruck(${t.id}); generateStandaloneDriverLink();" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px] border border-indigo-200">
-                Link Xe
+                Lấy Link
               </button>
             </td>
           </tr>
@@ -1201,7 +1484,7 @@
     }
 
     // =========================================================================
-    // MODULE 5: GIAO DIỆN FLEET TABS & DANH SÁCH ĐƠN HÀNG
+    // 7. GIAO DIỆN FLEET TABS & DANH SÁCH ĐƠN HÀNG
     // =========================================================================
     function renderFleetTabs() {
       let container = document.getElementById('fleetTabsContainer');
@@ -1252,8 +1535,8 @@
       bar.style.width = pct + '%';
       bar.className = totalLoad > truck.maxCapacity ? "h-full bg-rose-600 rounded-full" : "h-full bg-blue-600 rounded-full";
 
-      document.getElementById('mapRouteHeader').innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm`;
-      document.getElementById('btnDriverLinkText').innerText = `Tạo Link Riêng Cho ${truck.name}`;
+      document.getElementById('mapRouteHeader').innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm (Vòng khép kín kho)`;
+      document.getElementById('btnDriverLinkText').innerText = `Tạo Link Riêng Cho ${truck.name} (Copy Zalo)`;
     }
 
     function setStopTab(tab) {
@@ -1278,7 +1561,6 @@
     function renderStopsList() {
       let container = document.getElementById('stopsListView');
 
-      // NẾU ĐANG CHỌN TAB "ĐIỂM MỚI CHƯA CÓ MAP"
       if (currentStopTab === 'unmapped') {
         if (unmappedStops.length === 0) {
           container.innerHTML = '<div class="p-8 text-center text-emerald-600 font-bold text-xs"><i data-lucide="check-circle-2" class="w-8 h-8 mx-auto mb-1"></i>Tuyệt vời! 100% đơn hàng đã có tọa độ chuẩn.</div>';
@@ -1311,7 +1593,6 @@
         return;
       }
 
-      // RENDER THEO XE HIỆN TẠI
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck || truck.stops.length === 0) {
         container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Xe này chưa có đơn hàng nào được xếp.</div>';
@@ -1359,7 +1640,7 @@
                 <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
               </div>
               <div class="text-[10px] text-slate-400 truncate mt-0.5">${s.addr || 'Chưa có địa chỉ'}</div>
-              <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+              <div class="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-100">
                 <div class="flex items-center gap-1.5">${statusBadge} ${mapStatus}</div>
                 <button onclick="reassignStopToAnotherTruck(event, '${s.canonicalId}')" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium">Chuyển xe</button>
               </div>
@@ -1382,7 +1663,7 @@
       let validStops = truck.stops.filter(s => s.isMapped);
       if (validStops.length === 0) return;
 
-      let latlngs = [[WAREHOUSE_DEPOT.lat, WAREHOUSE_DEPOT.lon]];
+      let latlngs = [[warehouseDepot.lat, warehouseDepot.lon]];
 
       validStops.forEach(s => {
         latlngs.push([s.lat, s.lon]);
@@ -1407,6 +1688,9 @@
         pinsLayer.addLayer(marker);
       });
 
+      // Vẽ vòng lặp khép kín quay về kho
+      latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
+
       let polyline = L.polyline(latlngs, {
         color: '#2563eb',
         weight: 3.5,
@@ -1414,11 +1698,12 @@
         dashArray: '4, 4'
       });
       routeLayer.addLayer(polyline);
+
       map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
     }
 
     // =========================================================================
-    // MODULE 5: GẮN TỌA ĐỘ VĨNH VIỄN & BẢO MẬT
+    // 8. CHI TIẾT ĐƠN HÀNG & GẮN TỌA ĐỘ VĨNH VIỄN
     // =========================================================================
     function openStopDetail(canonicalId) {
       let stop = allMergedStops.find(s => s.canonicalId === canonicalId);
@@ -1483,7 +1768,6 @@
       stop.lon = lon;
       stop.isMapped = true;
 
-      // Cập nhật vĩnh viễn vào Master GPS Map
       masterGpsMap.set(canonicalId, {
         id: canonicalId,
         name: stop.custName,
@@ -1493,7 +1777,6 @@
         addr: stop.addr
       });
 
-      // Cập nhật lại danh sách chưa map
       unmappedStops = allMergedStops.filter(s => !s.isMapped);
       if (unmappedStops.length > 0) {
         document.getElementById('unmappedCountBadge').innerText = unmappedStops.length;
@@ -1518,7 +1801,7 @@
     }
 
     // =========================================================================
-    // MODULE 6: QUẢN LÝ GỘP ĐIỂM TRÙNG (ALIAS MANAGER)
+    // 9. BẢNG GỘP ĐIỂM TRÙNG (ALIAS MANAGER)
     // =========================================================================
     function openAliasModal() {
       let container = document.getElementById('aliasListContainer');
@@ -1575,7 +1858,7 @@
     }
 
     // =========================================================================
-    // MODULE 7: TIỆN ÍCH FLEET, IN PHIẾU LIFO & GOOGLE NAVIGATION
+    // 10. TIỆN ÍCH FLEET, IN PHIẾU LIFO & NAVIGATION
     // =========================================================================
     function openFleetConfigModal() {
       let container = document.getElementById('fleetListContainer');
@@ -1664,6 +1947,7 @@
 
     function copySyncDataToClipboard() {
       let payload = {
+        depot: warehouseDepot,
         customEdits: Array.from(masterGpsMap.values()),
         aliases: Object.fromEntries(storeAliasMap),
         fleet: fleet,
@@ -1681,6 +1965,7 @@
       if (!raw) return alert("Vui lòng dán mã đồng bộ vào ô trước!");
       try {
         let payload = JSON.parse(raw);
+        if (payload.depot) warehouseDepot = payload.depot;
         if (payload.customEdits) payload.customEdits.forEach(m => masterGpsMap.set(m.id, m));
         if (payload.aliases) Object.entries(payload.aliases).forEach(([k, v]) => storeAliasMap.set(k, v));
         if (payload.fleet) fleet = payload.fleet;
@@ -1702,10 +1987,10 @@
       let mapped = truck.stops.filter(s => s.isMapped);
       if (mapped.length === 0) return alert("Chưa có điểm giao có tọa độ!");
 
-      let origin = `${WAREHOUSE_DEPOT.lat},${WAREHOUSE_DEPOT.lon}`;
-      let firstBatch = mapped.slice(0, 9);
-      let destination = `${firstBatch[firstBatch.length - 1].lat},${firstBatch[firstBatch.length - 1].lon}`;
-      let waypoints = firstBatch.slice(0, -1).map(s => `${s.lat},${s.lon}`).join('|');
+      let origin = `${warehouseDepot.lat},${warehouseDepot.lon}`;
+      let firstBatch = mapped.slice(0, 8);
+      let destination = `${warehouseDepot.lat},${warehouseDepot.lon}`; // Quay về kho
+      let waypoints = firstBatch.map(s => `${s.lat},${s.lon}`).join('|');
 
       let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`;
       window.open(url, '_blank');
