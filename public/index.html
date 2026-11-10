@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Điều Phối Tuyến NPP & Bốc Kho</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS đọc Excel trực tiếp -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/xlsx-0.20.1.full.min.js"></script>
+  <!-- LZ-String nén link Zalo -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: white; color: black; }
+    }
+    .print-only { display: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen">
+
+  <!-- ================= GIAO DIỆN TÀI XẾ (ZALO MOBILE) ================= -->
+  <div id="driverView" class="hidden max-w-lg mx-auto pb-12">
+    <div class="sticky top-0 z-20 bg-blue-700 text-white p-4 shadow-md">
+      <div class="flex justify-between items-center text-xs opacity-90 mb-1">
+        <span>LỘ TRÌNH GIAO HÀNG</span>
+        <span id="driverDate" class="font-mono bg-blue-800 px-2 py-0.5 rounded"></span>
+      </div>
+      <div class="flex justify-between items-baseline">
+        <h1 class="text-xl font-black" id="driverProgressText">Tiến độ: 0/0</h1>
+        <span class="text-xs" id="driverPercent">0%</span>
+      </div>
+      <div class="w-full bg-blue-950 h-2 rounded-full mt-2 overflow-hidden">
+        <div id="driverProgressBar" class="bg-emerald-400 h-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+    </div>
+    <div id="driverCards" class="p-3 space-y-3"></div>
+  </div>
+
+  <!-- ================= GIAO DIỆN ĐIỀU PHỐI (KẾ TOÁN & KHO) ================= -->
+  <div id="adminView" class="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+    <!-- Header -->
+    <div class="no-print flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+      <div>
+        <h1 class="text-2xl font-black text-slate-900 tracking-tight">Hệ Thống Điều Phối Tuyến NPP</h1>
+        <p class="text-sm text-slate-500">Khớp tọa độ KiotViet • Xếp tuyến LIFO cho Kho • Bắn link qua Zalo</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <label class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 cursor-pointer shadow-sm">
+          📁 Nạp Master Data GPS
+          <input type="file" id="masterFileInput" accept=".xlsx,.xls" class="hidden">
+        </label>
+        <label class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 cursor-pointer shadow-sm">
+          📥 Kéo File Hóa Đơn KiotViet
+          <input type="file" id="kiotFileInput" accept=".xlsx,.xls" class="hidden">
+        </label>
+        <button id="btnPrint" onclick="window.print()" class="hidden px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 shadow-sm">
+          🖨️ In Phiếu Bốc Hàng
+        </button>
+      </div>
+    </div>
+
+    <!-- Tọa độ Kho Gốc -->
+    <div class="no-print bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3 text-sm">
+      <div>
+        <span class="font-bold text-slate-800">Kho Xuất Phát:</span>
+        <span class="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs ml-1" id="depotText">11.1465, 106.5962 (Bến Cát)</span>
+      </div>
+      <div class="text-xs text-slate-500">
+        Master Data đã nhớ: <b id="masterCount" class="text-blue-600">0</b> điểm quán
+      </div>
+    </div>
+
+    <!-- Cảnh báo quán chưa có GPS -->
+    <div id="missingGpsBox" class="no-print hidden bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+      <div class="text-amber-800 font-bold text-sm">⚠️ Phát hiện điểm giao chưa có tọa độ GPS:</div>
+      <p class="text-xs text-amber-700">Dán link Google Maps (do Sale gửi từ Zalo) vào ô tương ứng để lưu tự động:</p>
+      <div id="missingList" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto"></div>
+    </div>
+
+    <!-- Hộp Link gửi Zalo cho Tài xế -->
+    <div id="shareBox" class="no-print hidden bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div>
+        <h4 class="font-bold text-emerald-950 text-sm">Đã tối ưu xong lộ trình!</h4>
+        <p class="text-xs text-emerald-700">Bấm nút bên cạnh để lấy đường link gửi thẳng vào nhóm Zalo cho Tài xế.</p>
+      </div>
+      <button id="btnCopyLink" class="w-full md:w-auto px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow text-sm">
+        📋 Copy Link Gửi Zalo Tài Xế
+      </button>
+    </div>
+
+    <!-- Bảng xem trước thứ tự giao (No Print) -->
+    <div id="previewTableBox" class="no-print hidden bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      <div class="px-5 py-3 border-b bg-slate-50 font-bold text-slate-800 text-sm">
+        Thứ Tự Giao Hàng Dự Kiến (Từ Gần Đến Xa)
+      </div>
+      <div id="previewList" class="divide-y divide-slate-100"></div>
+    </div>
+
+    <!-- PHIẾU BỐC HÀNG LÊN XE DÀNH CHO KHO (IN ẤN LIFO - ĐẢO NGƯỢC) -->
+    <div id="printSheet" class="print-only p-4 max-w-4xl mx-auto">
+      <div class="border-b-2 border-black pb-3 mb-4 flex justify-between items-end">
+        <div>
+          <h1 class="text-2xl font-black uppercase">Phiếu Bốc Hàng Lên Xe (Đảo Ngược LIFO)</h1>
+          <p class="text-xs text-gray-700">Nguyên tắc: Điểm cuối bốc vào đáy xe trước, Điểm 1 bốc ngoài cửa xe</p>
+        </div>
+        <div class="text-right text-xs">
+          <p>Ngày in: <span id="printDate"></span></p>
+          <p>Tổng điểm: <b id="printTotalPoints"></b></p>
+        </div>
+      </div>
+
+      <div class="mb-5">
+        <h3 class="font-bold text-xs uppercase mb-1">1. Tổng hợp số lượng cần xuất kho:</h3>
+        <div id="printSummaryGrid" class="grid grid-cols-2 gap-x-4 border p-2 text-xs bg-gray-50"></div>
+      </div>
+
+      <h3 class="font-bold text-xs uppercase mb-1">2. Thứ tự bốc hàng lên xe (Từ Điểm Cuối ➔ Điểm 1):</h3>
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="border-b border-black bg-gray-100">
+            <th class="p-1.5">Thứ tự bốc</th>
+            <th class="p-1.5">Giao điểm</th>
+            <th class="p-1.5">Tên Quán</th>
+            <th class="p-1.5">Chi tiết thùng/két bốc</th>
+            <th class="p-1.5 text-center">Kiểm</th>
+          </tr>
+        </thead>
+        <tbody id="printTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // Tọa độ kho Bến Cát mặc định
+    const DEPOT = { lat: 11.1465, lng: 106.5962, name: 'Kho Bến Cát' };
+    let masterData = JSON.parse(localStorage.getItem('NPP_MASTER_GPS') || '{}');
+    let currentOrders = [];
+    let optimizedRoute = [];
+
+    // Kiểm tra nếu là link tài xế mở từ Zalo (?d=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const driverParam = urlParams.get('d');
+
+    if (driverParam) {
+      document.getElementById('adminView').classList.add('hidden');
+      document.getElementById('driverView').classList.remove('hidden');
+      renderDriverView(driverParam);
+    } else {
+      updateMasterCount();
+    }
+
+    function updateMasterCount() {
+      document.getElementById('masterCount').innerText = Object.keys(masterData).length;
+    }
+
+    // Nạp file Master Data GPS
+    document.getElementById('masterFileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+
+        rows.forEach(r => {
+          const code = String(r['Mã khách hàng'] || r['Mã KH'] || r['Code'] || '').trim();
+          const lat = parseFloat(r['Lat'] || r['Tọa độ Lat'] || r['Latitude']);
+          const lng = parseFloat(r['Long'] || r['Tọa độ Long'] || r['Longitude']);
+          const name = String(r['Tên quán'] || r['Tên KH'] || '').trim();
+          const phone = String(r['SĐT'] || r['Điện thoại'] || '').trim();
+          if (code && !isNaN(lat) && !isNaN(lng)) {
+            masterData[code] = { code, name, phone, lat, lng };
+          }
+        });
+        localStorage.setItem('NPP_MASTER_GPS', JSON.stringify(masterData));
+        updateMasterCount();
+        alert('Đã cập nhật Master Data thành công!');
+      };
+      reader.readAsBinaryString(file);
+    });
+
+    // Nạp file KiotViet
+    document.getElementById('kiotFileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+
+        const groups = {};
+        rows.forEach(r => {
+          const invoice = String(r['Mã hóa đơn'] || '').trim();
+          const code = String(r['Mã khách hàng'] || '').trim();
+          const name = String(r['Tên khách hàng'] || '').trim();
+          const phone = String(r['Điện thoại'] || '').trim();
+          const product = String(r['Tên hàng'] || '').trim();
+          const qty = parseFloat(r['Số lượng'] || 0);
+          const cod = parseFloat(r['Khách còn nợ'] || r['Còn nợ'] || 0);
+
+          if (!invoice && !code) return;
+          const key = invoice || code;
+
+          if (!groups[key]) {
+            groups[key] = {
+              id: key,
+              code,
+              name,
+              phone,
+              items: {},
+              totalQty: 0,
+              cod: cod,
+              lat: null,
+              lng: null
+            };
+          }
+          if (product) {
+            groups[key].items[product] = (groups[key].items[product] || 0) + qty;
+            groups[key].totalQty += qty;
+          }
+        });
+
+        currentOrders = Object.values(groups).map(ord => {
+          const m = masterData[ord.code];
+          if (m && m.lat && m.lng) {
+            return { ...ord, name: m.name || ord.name, phone: m.phone || ord.phone, lat: m.lat, lng: m.lng };
+          }
+          return ord;
+        });
+
+        processRouting();
+      };
+      reader.readAsBinaryString(file);
+    });
+
+    // Haversine tính khoảng cách
+    function haversine(lat1, lon1, lat2, lon2) {
+      const toRad = x => x * Math.PI / 180;
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Xếp tuyến Nearest Neighbor
+    function processRouting() {
+      const missing = currentOrders.filter(o => !o.lat || !o.lng);
+      renderMissing(missing);
+
+      const ready = currentOrders.filter(o => o.lat && o.lng);
+      if (ready.length === 0) return;
+
+      let unvisited = [...ready];
+      let current = { lat: DEPOT.lat, lng: DEPOT.lng };
+      optimizedRoute = [];
+
+      while (unvisited.length > 0) {
+        let bestIdx = 0;
+        let minDist = Infinity;
+        for (let i = 0; i < unvisited.length; i++) {
+          const d = haversine(current.lat, current.lng, unvisited[i].lat, unvisited[i].lng);
+          if (d < minDist) {
+            minDist = d;
+            bestIdx = i;
+          }
+        }
+        const nextPoint = unvisited[bestIdx];
+        optimizedRoute.push({
+          ...nextPoint,
+          step: optimizedRoute.length + 1,
+          dist: minDist.toFixed(1)
+        });
+        current = { lat: nextPoint.lat, lng: nextPoint.lng };
+        unvisited.splice(bestIdx, 1);
+      }
+
+      renderPreviewAndPrint();
+    }
+
+    // Hiển thị quán thiếu GPS & bung link maps
+    function renderMissing(list) {
+      const box = document.getElementById('missingGpsBox');
+      const container = document.getElementById('missingList');
+      if (list.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.classList.remove('hidden');
+      container.innerHTML = list.map(m => `
+        <div class="bg-white p-2.5 rounded border border-amber-200 text-xs flex flex-col gap-1.5">
+          <div class="flex justify-between font-bold">
+            <span>${m.name || m.code}</span>
+            <span class="font-mono text-amber-700">${m.code}</span>
+          </div>
+          <div class="flex gap-1.5">
+            <input type="text" id="link_${m.code}" placeholder="Dán link maps.app.goo.gl/..." class="flex-1 p-1 border rounded">
+            <button onclick="resolveLink('${m.code}')" class="px-2.5 py-1 bg-amber-600 text-white rounded font-medium">Lưu</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function resolveLink(code) {
+      const input = document.getElementById(`link_${code}`);
+      const url = input.value.trim();
+      if (!url) return;
+
+      try {
+        const res = await fetch('/api/unshorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (data.lat && data.lng) {
+          masterData[code] = { ...(masterData[code] || {}), code, lat: data.lat, lng: data.lng };
+          localStorage.setItem('NPP_MASTER_GPS', JSON.stringify(masterData));
+          updateMasterCount();
+
+          currentOrders = currentOrders.map(o => {
+            if (o.code === code) return { ...o, lat: data.lat, lng: data.lng };
+            return o;
+          });
+          processRouting();
+        } else {
+          alert('Không bóc được tọa độ: ' + (data.error || ''));
+        }
+      } catch (e) {
+        alert('Lỗi kết nối bung link');
+      }
+    }
+
+    // Hiển thị xem trước & chuẩn bị phiếu in
+    function renderPreviewAndPrint() {
+      document.getElementById('btnPrint').classList.remove('hidden');
+      document.getElementById('shareBox').classList.remove('hidden');
+      document.getElementById('previewTableBox').classList.remove('hidden');
+
+      // 1. Preview
+      document.getElementById('previewList').innerHTML = optimizedRoute.map(o => `
+        <div class="p-3.5 flex justify-between items-center text-sm">
+          <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs">${o.step}</span>
+            <div>
+              <div class="font-bold">${o.name} <span class="text-xs font-normal text-slate-400">(${o.code})</span></div>
+              <div class="text-xs text-slate-500">${Object.entries(o.items).map(([n, q]) => `${q} ${n}`).join(' • ')}</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-red-600">${o.cod.toLocaleString('vi-VN')} đ</div>
+            <div class="text-[11px] text-slate-400">Cách điểm trước ~${o.dist} km</div>
+          </div>
+        </div>
+      `).join('');
+
+      // 2. Link Zalo
+      const payload = {
+        date: new Date().toLocaleDateString('vi-VN'),
+        orders: optimizedRoute.map(o => ({
+          idx: o.step, code: o.code, name: o.name, phone: o.phone,
+          lat: o.lat, lng: o.lng, cod: o.cod, items: o.items
+        }))
+      };
+      const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
+      const fullLink = `${window.location.origin}/?d=${compressed}`;
+
+      document.getElementById('btnCopyLink').onclick = function() {
+        navigator.clipboard.writeText(fullLink);
+        alert('Đã copy link! Hãy paste vào nhóm Zalo gửi Tài Xế.');
+      };
+
+      // 3. Phiếu bốc hàng LIFO
+      document.getElementById('printDate').innerText = new Date().toLocaleDateString('vi-VN');
+      document.getElementById('printTotalPoints').innerText = optimizedRoute.length;
+
+      const summary = {};
+      optimizedRoute.forEach(o => {
+        Object.entries(o.items).forEach(([n, q]) => summary[n] = (summary[n] || 0) + q);
+      });
+      document.getElementById('printSummaryGrid').innerHTML = Object.entries(summary).map(([n, q]) => `
+        <div class="flex justify-between border-b py-0.5">
+          <span>${n}</span><b>${q} Thùng/Két</b>
+        </div>
+      `).join('');
+
+      // Đảo ngược thứ tự
+      const lifo = [...optimizedRoute].reverse();
+      document.getElementById('printTableBody').innerHTML = lifo.map((o, idx) => `
+        <tr class="border-b">
+          <td class="p-1.5 font-black text-sm">#${idx + 1}</td>
+          <td class="p-1.5 font-bold text-red-600">Điểm số ${o.step}</td>
+          <td class="p-1.5 font-medium">${o.name} <span class="text-[10px] text-gray-500">(${o.code})</span></td>
+          <td class="p-1.5">${Object.entries(o.items).map(([n, q]) => `${q} ${n}`).join(', ')}</td>
+          <td class="p-1.5 text-center"><div class="w-4 h-4 border border-black inline-block"></div></td>
+        </tr>
+      `).join('');
+    }
+
+    // Giao diện Mobile cho Tài xế qua Zalo
+    function renderDriverView(compressedData) {
+      try {
+        const json = LZString.decompressFromEncodedURIComponent(compressedData);
+        const data = JSON.parse(json);
+        document.getElementById('driverDate').innerText = data.date;
+
+        const storageKey = `DRIVER_DONE_${data.date}`;
+        let doneMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
+
+        function refreshProgress() {
+          const total = data.orders.length;
+          const doneCount = Object.values(doneMap).filter(Boolean).length;
+          document.getElementById('driverProgressText').innerText = `Tiến độ: ${doneCount}/${total}`;
+          const pct = Math.round((doneCount / total) * 100) || 0;
+          document.getElementById('driverPercent').innerText = `${pct}%`;
+          document.getElementById('driverProgressBar').style.width = `${pct}%`;
+        }
+
+        function renderCards() {
+          refreshProgress();
+          document.getElementById('driverCards').innerHTML = data.orders.map(o => {
+            const isDone = !!doneMap[o.idx];
+            return `
+              <div class="p-3.5 rounded-xl border ${isDone ? 'bg-slate-200 opacity-60' : 'bg-white'} shadow-sm">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full ${isDone ? 'bg-slate-400' : 'bg-blue-600'} text-white font-bold text-xs flex items-center justify-center">${o.idx}</span>
+                    <div>
+                      <div class="font-bold text-sm ${isDone ? 'line-through' : ''}">${o.name}</div>
+                      <div class="text-[10px] text-slate-500 font-mono">${o.code}</div>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="font-black text-red-600 text-sm">${o.cod ? o.cod.toLocaleString('vi-VN') + ' đ' : 'Đã TT'}</div>
+                    <span class="text-[9px] text-slate-400">COD</span>
+                  </div>
+                </div>
+
+                <div class="bg-slate-50 p-2 rounded text-xs mb-3 border">
+                  ${Object.entries(o.items).map(([n, q]) => `<div>• <b>${q}</b> ${n}</div>`).join('')}
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 text-xs font-bold">
+                  <a href="https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}" target="_blank" class="py-2 text-center bg-blue-50 text-blue-700 rounded-lg">📍 Chỉ đường</a>
+                  <a href="${o.phone ? 'tel:' + o.phone : '#'}" class="py-2 text-center bg-slate-100 rounded-lg ${o.phone ? 'text-slate-800' : 'opacity-40'}">📞 Gọi quán</a>
+                  <button onclick="toggleCardDone(${o.idx})" class="py-2 text-center ${isDone ? 'bg-slate-500' : 'bg-emerald-600'} text-white rounded-lg">${isDone ? 'Giao lại' : '✅ Đã xong'}</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        window.toggleCardDone = function(idx) {
+          doneMap[idx] = !doneMap[idx];
+          localStorage.setItem(storageKey, JSON.stringify(doneMap));
+          renderCards();
+        };
+
+        renderCards();
+      } catch (e) {
+        document.getElementById('driverCards').innerHTML = '<div class="p-4 text-center text-red-500">Đường link lộ trình không hợp lệ hoặc bị lỗi.</div>';
+      }
+    }
+  </script>
+</body>
+</html>
