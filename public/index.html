@@ -666,15 +666,15 @@
     // -------------------------------------------------------------------------
     const SUPABASE_URL = "https://akjmqbmqjqyzjadzokwx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_JMCaJ-K3W-meXRTPPfrpFg_QHG8JUr2";
-    let supabase = null;
     try {
       if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      } else {
+        var supabase = null;
       }
     } catch (e) {
-      console.warn("Khởi tạo Supabase không thành công (chế độ dự phòng offline):", e);
+      var supabase = null;
     }
-
     // Tra cứu nhanh danh mục gốc 624 khách hàng
     const staticMasterLookup = new Map();
     if (typeof EMBEDDED_MASTER_DATA !== 'undefined' && Array.isArray(EMBEDDED_MASTER_DATA)) {
