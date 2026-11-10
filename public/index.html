@@ -8,7 +8,7 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- SheetJS CDN Dự Phòng 3 Lớp -->
+  <!-- SheetJS CDN Dự Phòng Đa Tầng -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     if (typeof XLSX === 'undefined') {
@@ -16,21 +16,21 @@
     }
   </script>
 
-  <!-- Leaflet CSS & JS Dự Phòng 3 Lớp (Chống chặn mạng Brave/Vietnam ISP) -->
+  <!-- Leaflet CSS & JS CDN Dự Phòng Kép (Chống chặn mạng Brave/Mobile) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
   <script>
     if (typeof L === 'undefined') {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');
       document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />');
+      document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');
     }
   </script>
 
-  <!-- Lucide Icons Dự Phòng 2 Lớp -->
+  <!-- Lucide Icons CDN Dự Phòng -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
   <script>
     if (typeof lucide === 'undefined') {
-      document.write('<script src="https://unpkg.com/lucide@latest"><\/script>');
+      document.write('<script src="https://cdn.jsdelivr.net/npm/lucide@latest"><\/script>');
     }
   </script>
 
@@ -174,7 +174,7 @@
           <div class="flex items-center gap-1 text-xs">
             <select id="selectTargetTruckManual" class="p-1 border rounded bg-white text-xs font-bold text-slate-700"></select>
             <button onclick="applyManualTruckAssignment()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold shadow flex items-center gap-1">
-              <i data-lucide="check" class="w-3 h-3"></i> Gán & Tối Ưu Tuyến
+              <i data-lucide="check" class="w-3.5 h-3.5"></i> Gán & Tối Ưu Tuyến
             </button>
             <button onclick="unassignSelectedStops()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-semibold text-[11px]">
               Gỡ đơn
@@ -557,7 +557,7 @@
           <strong id="modalStopGpsText" class="font-mono text-blue-600">Chưa có</strong>
         </div>
         <button onclick="promptEditStopCoordinates()" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shrink-0">
-          <i data-lucide="map-pin" class="w-3 h-3"></i> Đổi Map & Lưu Vĩnh Viễn
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Đổi Map & Lưu Vĩnh Viễn
         </button>
       </div>
 
@@ -655,11 +655,15 @@
   <!-- JAVASCRIPT LOGIC ENGINE -->
   <!-- ========================================================================= -->
   <script>
-    // 624 Master Data GPS tĩnh
-    const EMBEDDED_MASTER_DATA = [{"id": "KH071691", "name": "TH Thuận Hương ( 12h nghĩ trưa tới 14h30) - đường đt 7A ấp tân lập", "phone": "363815606", "lat": 11.141548, "lon": 106.569525, "addr": "100b ĐT7A, Hung Vuong Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000564", "name": "THẢO ANH - D2- KDC rạch bắp- Tổ 18, ấp kiến an( kế Thiên Phúc)", "phone": "963367347", "lat": 11.143875, "lon": 106.553512, "addr": "Kp1 D2 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071914", "name": "Cày Tơ Quán(Vòng Xoay An Điền, DT7A, An Điền, Bến Cát, Bình Dương)", "phone": "988913193", "lat": 11.147507, "lon": 106.582436, "addr": "0 DT7A Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071564", "name": "Hoi ngo d11 - mỹ phước 1, Thới Hòa", "phone": "973154551", "lat": 11.124799, "lon": 106.605027, "addr": "My Phuoc 1 D11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH076660", "name": "Hoà hương ( D7 , mp1 ) bến cát", "phone": "nan", "lat": 11.126986, "lon": 106.603686, "addr": "Kp6 d7 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000158", "name": "MINH HƯNG.nghỉ trưa 12-15h - D3 ấp kiến an- rạch bắp (11.142491, 106.554654)", "phone": "984618016", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072648", "name": "ĐẠI TUẤN PHÁT - đường D8 An điền rạch bắp", "phone": "973014496", "lat": 11.140048, "lon": 106.557409, "addr": "0 d8 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000145", "name": "TH BÌNH HIẾU k xuất hđ ( nghỉ trưa 1h-3 rưỡi) - Đường D8, KCN rạch bắp (11.133058, 106.533433), An Điền", "phone": "975502105", "lat": 11.133058, "lon": 106.533433, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072451", "name": "THÚY AN - Đường bùi ngọc thu, Hiệp An", "phone": "362474457", "lat": 11.021497, "lon": 106.642746, "addr": "220 Bui Ngoc Thu Phuong Hiep An TP Thu Dau Mot Binh Duong"}, {"id": "KH072448", "name": "Cô Út - quốc lộ 13 ( gần chợ bưng cầu) - hiệp An", "phone": "984776605", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000542", "name": "HỒNG THẮM - Ấp Xóm Bến, ngã 3 bến súc rẻ trái 300m", "phone": "743562449", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072814", "name": "ĐẠI lý Nguyễn Tùng", "phone": "908301349", "lat": 11.025904, "lon": 106.631109, "addr": "593 Nguyen Chi Thanh Phuong Tan An TP Thu Dau Mot Binh Duong"}, {"id": "KH073176", "name": "Khánh Phương  ( mới đổi thành Huy Phát )- D6 rạch bắp", "phone": "nan", "lat": 11.145821, "lon": 106.555521, "addr": "d6 rạch bắp Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000160", "name": "XUÂN MAI 2 - KDC rạch bắp( gần minh hưng) (11.142491, 106.554654)", "phone": "366275883", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH070916", "name": "BHTH MINH TÂM( nghỉ trưa 12h-3h30) -D8 KCN Rạch Bắp ( gần Bình Hiếu), An Tây", "phone": "973961465", "lat": 11.134329, "lon": 106.537309, "addr": "tổ 11,ấp rạch bắp  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH075565", "name": "ANH THƯ - đội 2,rạch bắp", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075205", "name": "quang minh - N6, Phường Mỹ Phước, Bến Cát BD", "phone": "nan", "lat": 11.113782, "lon": 106.601081, "addr": "N6.tc1 kp6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH072096", "name": "TH NHƯ THIỆN", "phone": "901015079", "lat": 11.071861, "lon": 106.660147, "addr": "00 ĐT741, To 10, Khu Pho Phu Nghi Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH072017", "name": "Tùng Dương Quán ( GIAO BUỔI SÁNG) - H6, Thới Hòa, Bến Cát, Bình Dương", "phone": "987963185", "lat": 11.122362, "lon": 106.602851, "addr": "0 D14 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075300", "name": "th anh thư DB5/NB8 -  mỹ phuoc 2", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072069", "name": "TH NGỌC SANG ( đường N14 )", "phone": "907682978", "lat": 11.096556, "lon": 106.665448, "addr": "N14 Khu phố An Hòa Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "1100000926", "name": "TAP HOA TUYET DAO(nghỉ trưa 12-15h) - Quốc Lộ 13, Mỹ Phước", "phone": "916838554", "lat": 11.158517, "lon": 106.594118, "addr": "0 Ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071734", "name": "TH HÀ PHƯƠNG ANH - Hòa Lợi", "phone": "387075370", "lat": 11.104019, "lon": 106.662878, "addr": "1875 ĐT741 Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH071339", "name": "Đại lí kim phụng (nhận hàng sau 13h)", "phone": "989620937", "lat": 11.151779, "lon": 106.620741, "addr": "7b 9-Feb Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071579", "name": "Quán Khói (Giao Sáng) - NI7A - Thới Hòa", "phone": "362200668", "lat": 11.118567, "lon": 106.649239, "addr": "7a NI7A Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075940", "name": "Bia Sệt Phố Đêm( GIAO SÁNG)", "phone": "375035847", "lat": 11.134285, "lon": 106.612954, "addr": "XC2 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072754", "name": "Quán Tư Địa ( giao Sáng ) - Đường Phú Chánh 39, Phú Chánh", "phone": "971716849", "lat": 11.076468, "lon": 106.695658, "addr": "0 Phu Chanh 39 Phuong Phu Chanh TX Tan Uyen Binh Duong"}, {"id": "KH074050", "name": "th tố uyên ( th ngọc cũ)", "phone": "388255548", "lat": 11.114648, "lon": 106.600827, "addr": "My Phuoc 1 N6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075582", "name": "QUÁN NHẬU GIÓCHIỀU- Đường D8, KCN RẠCH BẮP, An Điền", "phone": "906260758", "lat": 11.132915, "lon": 106.532468, "addr": "D8 KCN Rạch Bắp Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "0983405385", "name": "QUÁN CƠM HỒNG NHUNG", "phone": "983405385", "lat": 11.138194, "lon": 106.556791, "addr": "DT7A Tân Lập Xa An Dien TX Ben Cat Binh Duong"}];
-    const DEFAULT_ALIASES = {"KH076223": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}, "00633982": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}, "KH075859": {"targetId": "KH075859", "name": "ĐẠI PHÚ Mp2 (Đầu đường DA1-1 + 2/9)", "lat": 11.154231, "lon": 106.611054}};
-
-    // Khởi tạo Supabase Client an toàn
+    // 1. MẢNG MASTER DATA 624 KHÁCH HÀNG
+    const EMBEDDED_MASTER_DATA = [{"id": "KH071691", "name": "TH Thuận Hương ( 12h nghĩ trưa tới 14h30) - đường đt 7A ấp tân lập", "phone": "363815606", "lat": 11.141548, "lon": 106.569525, "addr": "100b ĐT7A, Hung Vuong Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000564", "name": "THẢO ANH - D2- KDC rạch bắp- Tổ 18, ấp kiến an( kế Thiên Phúc)", "phone": "963367347", "lat": 11.143875, "lon": 106.553512, "addr": "Kp1 D2 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071914", "name": "Cày Tơ Quán(Vòng Xoay An Điền, DT7A, An Điền, Bến Cát, Bình Dương)", "phone": "988913193", "lat": 11.147507, "lon": 106.582436, "addr": "0 DT7A Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071564", "name": "Hoi ngo d11 - mỹ phước 1, Thới Hòa", "phone": "973154551", "lat": 11.124799, "lon": 106.605027, "addr": "My Phuoc 1 D11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH076660", "name": "Hoà hương ( D7 , mp1 ) bến cát", "phone": "nan", "lat": 11.126986, "lon": 106.603686, "addr": "Kp6 d7 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000158", "name": "MINH HƯNG.nghỉ trưa 12-15h - D3 ấp kiến an- rạch bắp (11.142491, 106.554654)", "phone": "984618016", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072648", "name": "ĐẠI TUẤN PHÁT - đường D8 An điền rạch bắp", "phone": "973014496", "lat": 11.140048, "lon": 106.557409, "addr": "0 d8 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000145", "name": "TH BÌNH HIẾU k xuất hđ ( nghỉ trưa 1h-3 rưỡi) - Đường D8, KCN rạch bắp (11.133058, 106.533433), An Điền", "phone": "975502105", "lat": 11.133058, "lon": 106.533433, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH072451", "name": "THÚY AN - Đường bùi ngọc thu, Hiệp An", "phone": "362474457", "lat": 11.021497, "lon": 106.642746, "addr": "220 Bui Ngoc Thu Phuong Hiep An TP Thu Dau Mot Binh Duong"}, {"id": "KH072448", "name": "Cô Út - quốc lộ 13 ( gần chợ bưng cầu) - hiệp An", "phone": "984776605", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000542", "name": "HỒNG THẮM - Ấp Xóm Bến, ngã 3 bến súc rẻ trái 300m", "phone": "743562449", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072814", "name": "ĐẠI lý Nguyễn Tùng", "phone": "908301349", "lat": 11.025904, "lon": 106.631109, "addr": "593 Nguyen Chi Thanh Phuong Tan An TP Thu Dau Mot Binh Duong"}, {"id": "KH073176", "name": "Khánh Phương  ( mới đổi thành Huy Phát )- D6 rạch bắp", "phone": "nan", "lat": 11.145821, "lon": 106.555521, "addr": "d6 rạch bắp Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH000160", "name": "XUÂN MAI 2 - KDC rạch bắp( gần minh hưng) (11.142491, 106.554654)", "phone": "366275883", "lat": 11.142491, "lon": 106.554654, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH070916", "name": "BHTH MINH TÂM( nghỉ trưa 12h-3h30) -D8 KCN Rạch Bắp ( gần Bình Hiếu), An Tây", "phone": "973961465", "lat": 11.134329, "lon": 106.537309, "addr": "tổ 11,ấp rạch bắp  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH075565", "name": "ANH THƯ - đội 2,rạch bắp", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075205", "name": "quang minh - N6, Phường Mỹ Phước, Bến Cát BD", "phone": "nan", "lat": 11.113782, "lon": 106.601081, "addr": "N6.tc1 kp6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH072096", "name": "TH NHƯ THIỆN", "phone": "901015079", "lat": 11.071861, "lon": 106.660147, "addr": "00 ĐT741, To 10, Khu Pho Phu Nghi Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH072017", "name": "Tùng Dương Quán ( GIAO BUỔI SÁNG) - H6, Thới Hòa, Bến Cát, Bình Dương", "phone": "987963185", "lat": 11.122362, "lon": 106.602851, "addr": "0 D14 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075300", "name": "th anh thư DB5/NB8 -  mỹ phuoc 2", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072069", "name": "TH NGỌC SANG ( đường N14 )", "phone": "907682978", "lat": 11.096556, "lon": 106.665448, "addr": "N14 Khu phố An Hòa Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "1100000926", "name": "TAP HOA TUYET DAO(nghỉ trưa 12-15h) - Quốc Lộ 13, Mỹ Phước", "phone": "916838554", "lat": 11.158517, "lon": 106.594118, "addr": "0 Ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071734", "name": "TH HÀ PHƯƠNG ANH - Hòa Lợi", "phone": "387075370", "lat": 11.104019, "lon": 106.662878, "addr": "1875 ĐT741 Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH071339", "name": "Đại lí kim phụng (nhận hàng sau 13h)", "phone": "989620937", "lat": 11.151779, "lon": 106.620741, "addr": "7b 9-Feb Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071579", "name": "Quán Khói (Giao Sáng) - NI7A - Thới Hòa", "phone": "362200668", "lat": 11.118567, "lon": 106.649239, "addr": "7a NI7A Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075940", "name": "Bia Sệt Phố Đêm( GIAO SÁNG)", "phone": "375035847", "lat": 11.134285, "lon": 106.612954, "addr": "XC2 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072754", "name": "Quán Tư Địa ( giao Sáng ) - Đường Phú Chánh 39, Phú Chánh", "phone": "971716849", "lat": 11.076468, "lon": 106.695658, "addr": "0 Phu Chanh 39 Phuong Phu Chanh TX Tan Uyen Binh Duong"}, {"id": "KH074050", "name": "th tố uyên ( th ngọc cũ)", "phone": "388255548", "lat": 11.114648, "lon": 106.600827, "addr": "My Phuoc 1 N6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075582", "name": "QUÁN NHẬU GIÓCHIỀU- Đường D8, KCN RẠCH BẮP, An Điền", "phone": "906260758", "lat": 11.132915, "lon": 106.532468, "addr": "D8 KCN Rạch Bắp Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "0983405385", "name": "QUÁN CƠM HỒNG NHUNG", "phone": "983405385", "lat": 11.138194, "lon": 106.556791, "addr": "DT7A Tân Lập Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH072780", "name": "Quỳnh nga ( 13h nghĩ trưa đến 16h ) - ngã 3 chú lường rẽ phải 500m. an  điền", "phone": "373185712", "lat": 11.084657, "lon": 106.583699, "addr": "hl 608 ngã ba chú lường Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH000157", "name": "LƯƠNG NGUYÊN - Đường D3-KCN Rạch Bắp", "phone": "979930820", "lat": 11.14036, "lon": 106.555134, "addr": "D3 Ấp Tân Lập Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH070925", "name": "Công Biên (Vòng xoay An Điền)", "phone": "962722137", "lat": 11.147371, "lon": 106.582351, "addr": "0 7a Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH076272", "name": "Hồng Lanh ( Đt 748. An Điền. bến cát)", "phone": "911480117", "lat": 11.12728, "lon": 106.577614, "addr": "61 To2 dt748 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071581", "name": "Quang Hưng (đường dk5a, p.thới hòa)", "phone": "975810806", "lat": 11.09023, "lon": 106.637261, "addr": "DK5 KP3A Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071523", "name": "THIỆN PHÁT Minimart - qua Chợ bến lớn có ngã 3 rẽ phải vào 300m.tân định", "phone": "972330431", "lat": 11.057595, "lon": 106.626525, "addr": "Kp1 Ben Lon Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH073888", "name": "cô út QL13 thới hoà", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073178", "name": "Thu Hà -hẻm 056 .kp2. gần đại lý Tân long - KHU PHỐ 2, P. TÂN ĐỊNH", "phone": "398413739", "lat": 11.052588, "lon": 106.634166, "addr": "Kp2 Hoang Gia Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "00121035", "name": "Bách Hóa Hoàng Yến 2", "phone": "nan", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072357", "name": "HOÀNG YẾN 2 ( 12h nghĩ trưa tới 2h30) - chợ hoàng gia", "phone": "936148121", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072356", "name": "Linh Thư - khu phố 1 tân định", "phone": "358225588", "lat": 11.044754, "lon": 106.641848, "addr": "Kp1 Hoang Gia Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH076231", "name": "Tuấn Anh ( QL13. cổng kdc Thịnh Gia. Tân Định)", "phone": "nan", "lat": 11.069992, "lon": 106.627556, "addr": "Kp4 Ql13 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH071569", "name": "Cô Út - qua Chợ bến lớn có ngã 3 rẽ phải  vào 300m. tân định", "phone": "908445277", "lat": 11.057435, "lon": 106.62665, "addr": "To 13 kp3 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH074173", "name": "Thăng Long.0", "phone": "nan", "lat": 11.155346, "lon": 106.584642, "addr": "67 749A Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075829", "name": "Hồng Thắm", "phone": "nan", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075683", "name": "Phát Dạt 9(gần chợ an tây) - An Tây/ BD", "phone": "nan", "lat": 11.14529, "lon": 106.608362, "addr": "93 DB8 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000674", "name": "LUÔN ĐẠT 2(giao hàng trước 12h nghĩ trưa đến 3 h) - ẤP DÒNG SỎI AN TÂY", "phone": "975358789", "lat": 11.106614, "lon": 106.534906, "addr": "168 DT744 , DONG SOI Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072834", "name": "Cô Út (Chợ Bến Lớn)", "phone": "987465444", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076661", "name": "Khánh vy ( đường NA3 + đường ĐF2 , CPH ) Mp2 ( 0982374646 )", "phone": "nan", "lat": 11.150092, "lon": 106.609953, "addr": "04,đường TC4 KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076269", "name": "anh đức ( kho đạn 0367315377 ) thới hoà , bến cát", "phone": "nan", "lat": 11.118096, "lon": 106.643565, "addr": "DI2 Di2 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH073012", "name": "Cẩm Tú ( nghỉ trưa -gọi sđt 0917681482) - 173,Tổ 8 Dòng sỏi,An Tây", "phone": "917681482", "lat": 11.141774, "lon": 106.611097, "addr": "24 NB16 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076452", "name": "TH NINH PHƯƠNG(ngã 4 thùng thơ rẻ trái 500m bên phải)", "phone": "nan", "lat": 11.134598, "lon": 106.608989, "addr": "Tc2 mỹ phước Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076377", "name": "HỒNG THẮM( PHÚ THỨ -AN TÂY)", "phone": "nan", "lat": 11.133808, "lon": 106.607696, "addr": "Đường XC9B KP4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071536", "name": "Anh Thư An Tây", "phone": "392138691", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075131", "name": "Phú Yên Quán - H6 mỹ phước 1 bến cát bình dương", "phone": "945419519", "lat": 11.123234, "lon": 106.602501, "addr": "0 H6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071558", "name": "TH Thanh Xuân giao trước 12h - góc ni7/di2 KCN MP3", "phone": "392826367", "lat": 11.118599, "lon": 106.643561, "addr": "Ni 7 DI2 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075487", "name": "Quán nướng Thi 36 h6 Phường Thới Hòa", "phone": "394842232", "lat": 11.122753, "lon": 106.602484, "addr": "h6 thới hòa bến cát Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071771", "name": "QUÁN NHẬU PHƯƠNG NAM ( Giao Sáng ) -ĐT741, Khu Phố An Hòa, Hòa Lợi, Bến Cát", "phone": "374993779", "lat": 11.087966, "lon": 106.666269, "addr": "00 Khu Pho An Hoa Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH071601", "name": "duy hải", "phone": "977279736", "lat": 11.14759, "lon": 106.626992, "addr": "241 9-Feb Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074780", "name": "Dì Út - Phú an, Xã An Tây", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075280", "name": "gia bảo", "phone": "nan", "lat": 11.135685, "lon": 106.608303, "addr": "Đường XC8A KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072330", "name": "Trung thành - N6 mp1", "phone": "969258078", "lat": 11.117441, "lon": 106.600668, "addr": "My Phuoc 1 N6 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "110000000398", "name": "Khánh Băng ( mp1 , QL13 ) 0", "phone": "37895983", "lat": 11.134896, "lon": 106.604449, "addr": "quốc lộ 13 QL13 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH076408", "name": "Bách Hóa Phước Khang NB16", "phone": "368166880", "lat": 11.14176, "lon": 106.610576, "addr": "Số 30 NB16 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076137", "name": "Nhật Minh.( 12h nghĩ trưa đến 14h30 ) db4. Mỹ phước 2. 0", "phone": "nan", "lat": 11.144521, "lon": 106.605386, "addr": "89 DB4 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH071342", "name": "TH HOÀNG NAM ( nghỉ trưa 12H - 14H ) - D10 N4 mỹ phước 1", "phone": "365657987", "lat": 11.125418, "lon": 106.604382, "addr": "My Phuoc 1 D10 N5 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071346", "name": "Thanh nguyên -  xc2, MP2", "phone": "345115828", "lat": 11.027869, "lon": 106.653719, "addr": "37/28 My Phuoc Tan Van Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH071048", "name": "BH Hoàng Yến 2, KP2, Tân Định", "phone": "nan", "lat": 11.159461, "lon": 106.594412, "addr": "0 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "01234567", "name": "quán nướng 37 An ĐIỀN", "phone": "398228869", "lat": 11.143618, "lon": 106.558446, "addr": "đường d16B,kp kiến an, an điền, bến cát, b  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH075651", "name": "KIM NGÂN( ĐỐI DIỆN CHỊ ĐÈO BƯNG CÒNG)", "phone": "nan", "lat": 11.134441, "lon": 106.614391, "addr": "Xc2 XC2, Khu Pho 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072750", "name": "Quán Má Heo 368 (Ko nhận hàng 1h ~ 3h trưa) - NE2, Thới Hòa, Bến Cát, Bình Dương", "phone": "974361948", "lat": 11.117076, "lon": 106.649762, "addr": "DA4 Thoi Hoa Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH074692", "name": "KHÁNH HUYỀN ( kế ngọc hân củ) - Lai Uyên, Bàu Bàng", "phone": "905275515", "lat": 11.242758, "lon": 106.634216, "addr": "N5-5A 0 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH071341", "name": "DL Kim Long (Cầu Đò) - Đường Hùng Vương ( chân cầu Đò ),Phường An Điền", "phone": "908375408", "lat": 11.150816, "lon": 106.587335, "addr": "413 Hung Vuong Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH071952", "name": "Quán Nướng D9 ( Giao Bia Buổi Sáng ) - D9, Thới Hòa, Bến Cát, Bình Dương", "phone": "908186826", "lat": 11.126431, "lon": 106.607204, "addr": "0 D9 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "123456", "name": "th khánh lâm", "phone": "985447025", "lat": 11.144771, "lon": 106.559802, "addr": "d16B,tổ 18 khu phố kiến an,an điền  0 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072029", "name": "Quán Tùng Nướng Lu (Giao buổi sáng) 74,DA1-1", "phone": "388856718", "lat": 11.144632, "lon": 106.611915, "addr": "0 DA1,1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "0985561684", "name": "QUÁN NHẬU THU GIANG", "phone": "985561684", "lat": 11.093127, "lon": 106.53967, "addr": "ấp dòng sỏi, xã an tây, bến cát, bình dương  0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072428", "name": "QUAN OC BO 68 - Xã An Tây, Thị Xã Bến Cát, Bình Dương", "phone": "nan", "lat": 11.116541, "lon": 106.531967, "addr": "0 DT 744 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH071784", "name": "Kim Dung ( đường N 14 ) - Ngã 4 Hoà Lợi", "phone": "972708650", "lat": 11.096313, "lon": 106.664898, "addr": "00 N14 Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH072317", "name": "HẢI PHÁT chợ chánh lưu", "phone": "973970210", "lat": 11.1456, "lon": 106.668308, "addr": "70c Đuong 2/9, Khu Pho 2 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072180", "name": "TH PHƯƠNG DUNG - Đường DG3, Tổ 5, Khu Phố 5. Chánh Phú Hòa", "phone": "974188896", "lat": 11.138105, "lon": 106.657606, "addr": "00 DG3 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH071577", "name": "Tạp Hóa Phượng -Đường DG3, Chánh Phú Hòa, Bến Cát, Bình Dương", "phone": "937743823", "lat": 11.13674, "lon": 106.657723, "addr": "Dg3 KP.8 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072075", "name": "TH Phước Lộc ( Nguyễn Thành Dũng )", "phone": "918675084", "lat": 11.102762, "lon": 106.637249, "addr": "Dj5 dj5 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071682", "name": "MINH THƯ CHÁNH PHÚ HÒA - NE4, CPH", "phone": "972429251", "lat": 11.135776, "lon": 106.664506, "addr": "00 NE4, To 5, Khu Pho 9 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "0386492613", "name": "Th Cô Vinh, dòng sỏi,an tây, đói diện th cf 5 thương", "phone": "386492613", "lat": 11.100013, "lon": 106.539256, "addr": "cổng ba sang, dòng sỏi, đường đất, bến cát, bình   0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH071168", "name": "TH Diễm châu ( đường DJ 9 , MP 3 )", "phone": "941194450", "lat": 11.101151, "lon": 106.640171, "addr": "Kp3a dj9 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000381", "name": "KIM HUỆ - Ấp Bà Phái, Long Nguyên", "phone": "937030986", "lat": 11.200868, "lon": 106.570905, "addr": "Ap Ba Phai DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "KH000383", "name": "TH THỦY THẢO - 41 DT 749A Ấp Bưng Thuốc , Long nguyên", "phone": "378973827", "lat": 11.212255, "lon": 106.568121, "addr": "41 DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "110000000444", "name": "HAI HỒNG ( ĐỐI DIỆN CHỢ LONG NGUYÊN) - Ấp Long Hưng, Long Nguyên", "phone": "389488278", "lat": 11.230898, "lon": 106.562541, "addr": "Dt 749a DT 749A Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "KH072936", "name": "Bia Sệt 77 DA1.1 (giao 10h sáng) -Ngã 3 DA1-1/Đường 2/9", "phone": "389332516", "lat": 11.154132, "lon": 106.611598, "addr": "0 DA1,1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073091", "name": "Th bình phương.0", "phone": "988042227", "lat": 11.126473, "lon": 106.636283, "addr": "0 DH3 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "1100004203", "name": "TH HOANG ANH - khu nhà ở xã hội định hòa.tdm", "phone": "932559325", "lat": 11.051371, "lon": 106.659679, "addr": "NOXH Block B3 Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "DANKO04304", "name": "TH THÀNH PHÁT ( gần Băng nhi )", "phone": "nan", "lat": 11.146438, "lon": 106.609612, "addr": "0 NB9 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072417", "name": "Khánh Linh - Đường Tạo lực 5 .kp phú hòa, Hòa Lợi", "phone": "963772181", "lat": 11.152182, "lon": 106.618613, "addr": "2 tháng 9 KP 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072322", "name": "Tuấn Kiệt - đường đt 741, Hòa Lợi", "phone": "967180867", "lat": 11.070638, "lon": 106.659354, "addr": "00 ĐT741, Nguyen Van Thanh, Khu Pho Phu Nghi Phuong Hoa Loi TX Ben Cat Binh Duong"}, {"id": "KH000223", "name": "THANH THẢO - DT749, Long Nguyên", "phone": "343767422", "lat": 11.162076, "lon": 106.579744, "addr": "0 30/4 Xa Long Nguyen Huyen Bau Bang Binh Duong"}, {"id": "1100004199", "name": "TH PHÁT TÀI ( kế cô châu) 11h30 nghĩ trưa tới 2h30- Đường Nguyễn Văn Thạnh Định Hòa", "phone": "962988349", "lat": 11.050288, "lon": 106.651412, "addr": "420a Nguyen Van Thanh Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH072319", "name": "Huy Hoàng - quốc lộ 14 - Định Hòa", "phone": "968855706", "lat": 11.047433, "lon": 106.648623, "addr": "350 Nguyễn Văn Thành Kp 7 Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH072741", "name": "Quán Ốc D12.3 - An. Điền *****", "phone": "nan", "lat": 11.146845, "lon": 106.582824, "addr": "0 DT 7A Xa An Dien TX Ben Cat Binh Duong"}, {"id": "1234", "name": "quán nhậu tuấn phước- đường D8 An Điền", "phone": "868719248", "lat": 11.143061, "lon": 106.556296, "addr": "D14 KCN Rạch Bắp Xa Phu An TX Ben Cat Binh Duong"}, {"id": "KH074404", "name": "Quán Ốc 68 DB9 (Giao hàng 16h)", "phone": "964778195", "lat": 11.142544, "lon": 106.609716, "addr": "66 DB9 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073129", "name": "QUÁN BIA SỆT 79 - ĐT 744, An Tây", "phone": "nan", "lat": 11.104642, "lon": 106.535358, "addr": "ĐT 744 Ấp Dòng Sỏi Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH076693", "name": "Lương kđ", "phone": "nan", "lat": 11.145606, "lon": 106.607285, "addr": "Đường NB10 KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "0971116553", "name": "lẩu mắm miền tây", "phone": "971116553", "lat": 11.132031, "lon": 106.528718, "addr": "đường d8 0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH074130", "name": "Chị Tuyền", "phone": "375907745", "lat": 11.305902, "lon": 106.455004, "addr": "dt 748 0 Xa Dinh Hiep Huyen Dau Tieng Binh Duong"}, {"id": "KH000034", "name": "TH CÔ CHÂU - Minh thạnh( đối diện trạm y tế) (11.429525, 106.505320)", "phone": "743545801", "lat": 11.429525, "lon": 106.50532, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH000003", "name": "TRÂM ANH - TỔ 1 ẤP HOÀ CƯỜNG MINH HÒA (11.443996, 106.486612)", "phone": "743545040", "lat": 11.443996, "lon": 106.486612, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH076697", "name": "TẠP HÓA CÔ THU", "phone": "nan", "lat": 11.128793, "lon": 106.614266, "addr": "0 DC7 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000045", "name": "TH Bảy Mắm . Minh Tân - Chợ Minh Tân, Dh704, ấp Tân Đức", "phone": "982445339", "lat": 11.405455, "lon": 106.45095, "addr": "dt704 0 Xa Minh Tan Huyen Dau Tieng Binh Duong"}, {"id": "0917539392", "name": "Th Kim Anh,an tây, dòng sỏi", "phone": "917539392", "lat": 11.105386, "lon": 106.535197, "addr": "Đường ĐT 744,dòng sỏi, an tây, TX bến cát, bình   0 Xa An Tay TX Ben Cat Binh Duong"}, {"id": "KH072288", "name": "124 MART - ấp 2 Tân Hiệp - PG", "phone": "967714348", "lat": 11.332524, "lon": 106.747221, "addr": "0 To 2 Ap 4 Xa Tan Hiep Huyen Phu Giao Binh Duong"}, {"id": "KH076303", "name": "kim Ngân ( 67 Đường 19 tháng 5, Ấp 9, Xã Phú Giáo, TP Hồ Chí Minh)", "phone": "nan", "lat": 11.134441, "lon": 106.614391, "addr": "Xc2 XC2, Khu Pho 3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074655", "name": "Th 179", "phone": "905866676", "lat": 11.112049, "lon": 106.605589, "addr": "N15-D2 kdt Ngũ Tượng, P. Thới Hòa Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH076681", "name": "Giá Trị Thật ( Đường N6. mỹ phước 1 )", "phone": "nan", "lat": 11.113225, "lon": 106.601115, "addr": "n6 thới hòa Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "00034448", "name": "Vpp Yến Nhi", "phone": "nan", "lat": 11.018024, "lon": 106.659484, "addr": "635 My Phuoc Tan Van Phuong Dinh Hoa TP Thu Dau Mot Binh Duong"}, {"id": "KH073555", "name": "TH Quý Anh Na11 Phường Thới Hòa", "phone": "394960369", "lat": 11.123859, "lon": 106.618495, "addr": "52 đường DA11 kp4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071499", "name": "HIỀN PHƯỢNG - d11 mỹ phước 1, Thới Hòa", "phone": "392035829", "lat": 11.124744, "lon": 106.604421, "addr": "163/165 d11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "0339933027", "name": "An Điền Quán", "phone": "339933027", "lat": 11.139412, "lon": 106.55538, "addr": "D12.2,an điền, bến cát, bình dương  0 Xa An Dien TX Ben Cat Binh Duong"}, {"id": "KH076040", "name": "MINH QUÂN BÀU BÀNG ( gần châu anh)", "phone": "nan", "lat": 11.115818, "lon": 106.599928, "addr": "A4.1.01 kcc becamex Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH076295", "name": "cô út .( đường DA1 -1 , mp2 , bến cát )0", "phone": "nan", "lat": 11.147622, "lon": 106.611765, "addr": "0 DA1.1 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072247", "name": "TRÀ BẮC THÁI NGUYÊN - chợ tân long", "phone": "976500477", "lat": 11.327146, "lon": 106.673353, "addr": "gò bã đậu âp 2 Xa Tan Long Huyen Phu Giao Binh Duong"}, {"id": "KH000173", "name": "NHƯ THẢO( NGỈ TRƯA 12h-2h) - lô G8_Đường N13-LH- Lai Hưng", "phone": "989995807", "lat": 11.232305, "lon": 106.631056, "addr": "Lo G8 N13,LH Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH071696", "name": "GIA HOÀNG - N8 - LH , Kcn bàu bàng", "phone": "972723726", "lat": 11.226571, "lon": 106.63152, "addr": "Kdc Lh N8 Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "DANKO02900", "name": "NGỌC SƠN (Đường NB16. Mỹ phước 2) 0", "phone": "nan", "lat": 11.141777, "lon": 106.611099, "addr": "Nb16 NB16 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH073118", "name": "Vân trang", "phone": "933707679", "lat": 11.248218, "lon": 106.6338, "addr": "0 N17,5A Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH073068", "name": "Đạt phát - N10, Lai Uyên", "phone": "388056025", "lat": 11.260148, "lon": 106.597039, "addr": "0 N10 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH000710", "name": "tú linh. Dt750, ấp 2. Trừ v thố", "phone": "336676379", "lat": 11.345112, "lon": 106.626584, "addr": "0 DT 750 Xa Tru Van Tho Huyen Bau Bang Binh Duong"}, {"id": "KH072009", "name": "CẨM TÚ- Sát bên chùa Từ Huệ QL13, Lai Hưng", "phone": "972288379", "lat": 11.141774, "lon": 106.611097, "addr": "24 NB16 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "BHHOANGHA", "name": "Hoàng Hà (Gần Minh Quân) - Lai Uyên , Bàu Bàng", "phone": "nan", "lat": 11.258145, "lon": 106.626881, "addr": "0 D 18 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH075315", "name": "TH Tuấn Sinh - Đường N3-5B, kp Bàu Bàng, Lai Uyên", "phone": "328486487", "lat": 11.2593, "lon": 106.624707, "addr": "0 N3,5B Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH073265", "name": "THẢO HIỀN - Góc D11-N36, Lai Uyên", "phone": "972419268", "lat": 11.274833, "lon": 106.58919, "addr": "D14 D14 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH000807", "name": "Bình Minh. bàu bàng - Ql13 . Lai Uyên bầu bàng", "phone": "365375731", "lat": 11.338852, "lon": 106.637836, "addr": "272 Quoc lo 13 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH076205", "name": "kim ánh. ql13. lai Uyên", "phone": "nan", "lat": 11.320172, "lon": 106.633039, "addr": "0 Quoc  lo  13 Thi tran Lai Uyen Huyen Bau Bang Binh Duong"}, {"id": "KH075243", "name": "NHƯ HUỲNH KHO", "phone": "nan", "lat": 11.119607, "lon": 106.604603, "addr": "Đường D16,Mỹ Phước,Bến Cát,Bình Dương KP3 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000069", "name": "QUẾ MÁC - 183_Đường cầu sắt _xã Lai Hưng", "phone": "379963639", "lat": 11.22573, "lon": 106.617688, "addr": "183 cau  sat Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH073918", "name": "TH Bà Tâm( đối diện quế mác)", "phone": "326909540", "lat": 11.225633, "lon": 106.617594, "addr": "180 trau  sua Xa Lai Hung Huyen Bau Bang Binh Duong"}, {"id": "KH071461", "name": "Th Quý Anh - 52 đường NA11' mỹ phước 2", "phone": "909769551", "lat": 11.123859, "lon": 106.618495, "addr": "52 đường DA11 kp4 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071465", "name": "Th Nhật Minh mp2 - 89 đường db4, kp3 (11.144461, 106.605417)", "phone": "914678867", "lat": 11.144461, "lon": 106.605417, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "KH071975", "name": "Th trình liên - 21 D11 mỹ phước 1", "phone": "399733250", "lat": 11.125361, "lon": 106.610408, "addr": "21 d11 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "110000000917", "name": "TAP HOA PHUONG ANH", "phone": "948320123", "lat": 11.075423, "lon": 106.571422, "addr": "0 Ap An Thuan , Xa Phu An TX Ben Cat Binh Duong"}, {"id": "KH071694", "name": "TH Thế Anh", "phone": "985031676", "lat": 11.143499, "lon": 106.609001, "addr": "64 DB13 Phuong Chanh Phu Hoa TX Ben Cat Binh Duong"}, {"id": "KH072016", "name": "Quán Nướng A Hào - 08 DB8 ( cách Ốc Duyên 100m), Mỹ Phước", "phone": "978137353", "lat": 11.15126, "lon": 106.607686, "addr": "08 DB8 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH074325", "name": "Lẩu Dê Trường Giang - Dj4, Mp3", "phone": "356719118", "lat": 11.105995, "lon": 106.63663, "addr": "Dj4 My Phuoc 3 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH000270", "name": "TỔNG HỢP KHOA VÂN - 514 đội 2,ấp rạch bắp (11.132270, 106.529886)", "phone": "974271244", "lat": 11.13227, "lon": 106.529886, "addr": "Lồng chợ tại Khu đô thị Happy Home,, Phường Mỹ Phước,  Thị xã Bến Cát, Bình Dương  - 0938696186"}, {"id": "00121383", "name": "Tạp Hóa Nguyên Hồng TL", "phone": "nan", "lat": 11.131629, "lon": 106.612899, "addr": "26 nc2 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH000328", "name": "Bách hóa HÀ ANH( GẦN KHƯƠNG THẢO) - rạch bắp", "phone": "976253580", "lat": 11.144525, "lon": 106.611031, "addr": "15 NB12 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH072369", "name": "Cô sáu ( bán buổi sáng tới 12h. Chiều ko bán) - kế tap hóa trang. Chợ Bưng cầu", "phone": "907375239", "lat": 11.134416, "lon": 106.604537, "addr": "Kp4 ql13 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073338", "name": "TH Anh Dư - NB16 (Tuấn Chi cũ) - NB16, MỸ PHƯỚC, BẾN CÁT", "phone": "865107274", "lat": 11.141718, "lon": 106.610744, "addr": "45 NB16 0 Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH073962", "name": "Quán Nướng Tiến Thành - 22 TC2", "phone": "967339707", "lat": 11.134687, "lon": 106.609186, "addr": "22 TC2 Mỹ Phước Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH075876", "name": "SỨC HỒNG CƠ SỞ 2", "phone": "962879529", "lat": 11.124208, "lon": 106.606446, "addr": "D12 thới hòa bến cát Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH075881", "name": "Quán nướng bình dân 77 (đối diện LN Sơn Hà)", "phone": "365571656", "lat": 11.047372, "lon": 106.640018, "addr": "0 KP1 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "KH076631", "name": "TH bà Tư", "phone": "942151849", "lat": 11.152524, "lon": 106.589546, "addr": "52 Hung Vuong Phuong My Phuoc TX Ben Cat Binh Duong"}, {"id": "KH071669", "name": "Bhth luân thế.0", "phone": "902517695", "lat": 11.122005, "lon": 106.649841, "addr": "To 1 Kp 1 DE4 Phuong Thoi Hoa TX Ben Cat Binh Duong"}, {"id": "KH071500", "name": "TH Vỹ ( giao bia lúc 11-12h) - N1, KDT Thịnh Gia, Tân Định, Bến Cát, BD", "phone": "944107539", "lat": 11.070706, "lon": 106.622933, "addr": "B5,03 N1 Phuong Tan Dinh TX Ben Cat Binh Duong"}, {"id": "DANKO01496", "name": "ĐẠI LÝ PHÚ MỸ HƯNG - XC6, MỸ PHƯỚC 2, TX BẾN CÁT, BD", "phone": "nan", "lat": 11.161624, "lon": 106.603352, "addr": "ĐẠI LÝ PHÚ MỸ HƯNG - XC6, MỸ PHƯỚC 2, TX BẾN CÁT, BD - Đường XC6, KCN Mỹ Phước 2"}, {"id": "KH000163", "name": "TUẤN DŨNG( nghỉ trưa 12h-3h) - Đường Hùng Vương, Ấp Tân Lập ( đối diện Trần An), An Điền", "phone": "0378009117", "lat": 11.156392, "lon": 106.615592, "addr": "TUẤN DŨNG( nghỉ trưa 12h-3h) - Đường Hùng Vương, Ấp Tân Lập ( đối diện Trần An), An Điền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075721", "name": "ngọc mai", "phone": "nan", "lat": 11.152936, "lon": 106.612936, "addr": "ngọc mai - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075994", "name": "Đình Cường sale kinh đô", "phone": "0969479678", "lat": 11.152349, "lon": 106.617197, "addr": "Đình Cường sale kinh đô - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073002", "name": "Ngọc nhi ( gần nhà ở xã hội hoà lợi) giao hàng trước 12h hoặc sau 15h30 - Kp an hoà , hoà lợi", "phone": "0989763877", "lat": 11.155607, "lon": 106.616248, "addr": "Ngọc nhi ( gần nhà ở xã hội hoà lợi) giao hàng trước 12h hoặc sau 15h30 - Kp an hoà , hoà lợi - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076475", "name": "c Thảo", "phone": "nan", "lat": 11.152124, "lon": 106.617819, "addr": "c Thảo - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073887", "name": "Tạp hoá Vỹ- TH Thùy Dương ( 12h nghĩ trưa đến 3h )", "phone": "nan", "lat": 11.156995, "lon": 106.613274, "addr": "Tạp hoá Vỹ- TH Thùy Dương ( 12h nghĩ trưa đến 3h ) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000544", "name": "CÔ HỒNG - Ngã 3 rạch kiến( gần hồng yến), Thanh Tuyền", "phone": "0916225299", "lat": 11.153091, "lon": 106.6131, "addr": "CÔ HỒNG - Ngã 3 rạch kiến( gần hồng yến), Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000267", "name": "Mỹ anh. bến súc - Dh711, ấp chợ ,Bến súc", "phone": "0947227222", "lat": 11.153825, "lon": 106.615149, "addr": "Mỹ anh. bến súc - Dh711, ấp chợ ,Bến súc - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000097", "name": "THUỲ TRANG - Ấp Xóm Bưng-bến súc, Thanh Tuyền", "phone": "0335118206", "lat": 11.154592, "lon": 106.613747, "addr": "THUỲ TRANG - Ấp Xóm Bưng-bến súc, Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH074804", "name": "Anh Hiếu (an lập)", "phone": "0842188022", "lat": 11.155671, "lon": 106.612837, "addr": "Anh Hiếu (an lập) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075283", "name": "kim ngân bảo nhi - n6, Thới Hòa", "phone": "nan", "lat": 11.153753, "lon": 106.614198, "addr": "kim ngân bảo nhi - n6, Thới Hòa - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072143", "name": "kim Hương ( nghỉ trưa 12h-2h) - đt 744, an tây", "phone": "0908002263", "lat": 11.154736, "lon": 106.616711, "addr": "kim Hương ( nghỉ trưa 12h-2h) - đt 744, an tây - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075159", "name": "vân an dt744 - An Tây Bình Dương 12h nghỉ trưa", "phone": "nan", "lat": 11.144099, "lon": 106.545043, "addr": "vân an dt744 - An Tây Bình Dương 12h nghỉ trưa - Đường ĐT744, Bến Cát"}, {"id": "KH075982", "name": "Trần Thành Tâm", "phone": "nan", "lat": 11.155554, "lon": 106.612279, "addr": "Trần Thành Tâm - Phường Mỹ Phước, Bến Cát"}, {"id": "KH070931", "name": "HAI ĐƯỢC(NGHỈ TRƯA 12h-1h30) - Ấp suối tre( gần Hùng Phát), Long Nguyên", "phone": "0373838293", "lat": 11.155645, "lon": 106.613023, "addr": "HAI ĐƯỢC(NGHỈ TRƯA 12h-1h30) - Ấp suối tre( gần Hùng Phát), Long Nguyên - Phường Mỹ Phước, Bến Cát"}, {"id": "BHHUNGTRANG", "name": "Bách Hóa Hùng Trang DJ9 mp3 (nghỉ trưa 11h 30-14h 30", "phone": "0812871719", "lat": 11.136695, "lon": 106.629347, "addr": "Bách Hóa Hùng Trang DJ9 mp3 (nghỉ trưa 11h 30-14h 30 - Đường DJ9, KCN Mỹ Phước 3"}, {"id": "00108374", "name": "Nhà Sách Huy Khánh 2", "phone": "nan", "lat": 11.157794, "lon": 106.61685, "addr": "Nhà Sách Huy Khánh 2 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076705", "name": "Công Ty TNHH Công Nghiệp Sắt Thép Connex-Aiko", "phone": "nan", "lat": 11.153828, "lon": 106.612586, "addr": "Công Ty TNHH Công Nghiệp Sắt Thép Connex-Aiko - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076356", "name": "phương anh. an lập 0", "phone": "nan", "lat": 11.156105, "lon": 106.614641, "addr": "phương anh. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH000082", "name": "HỒNG YẾN nghĩ trưa 12h đến 3h - ngã 3 rạch kiến,bến súc, Thanh Tuyền", "phone": "0366706101", "lat": 11.152732, "lon": 106.614971, "addr": "HỒNG YẾN nghĩ trưa 12h đến 3h - ngã 3 rạch kiến,bến súc, Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH073011", "name": "HƯƠNG SEN (RẠCH BẮP)", "phone": "0382427479", "lat": 11.152206, "lon": 106.617456, "addr": "HƯƠNG SEN (RẠCH BẮP) - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076394", "name": "SACN Thảo Đình", "phone": "nan", "lat": 11.153553, "lon": 106.615975, "addr": "SACN Thảo Đình - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076112", "name": "Mỹ anh. bến súc0 cấm tải 11h đến 1h/ từ 4h đến 6h", "phone": "nan", "lat": 11.15387, "lon": 106.61512, "addr": "Mỹ anh. bến súc0 cấm tải 11h đến 1h/ từ 4h đến 6h - Phường Mỹ Phước, Bến Cát"}, {"id": "HUYNHHOA", "name": "CÔNG TY TNHH HUỲNH HOA FOOD", "phone": "nan", "lat": 11.158849, "lon": 106.569696, "addr": "CÔNG TY TNHH HUỲNH HOA FOOD - Tuyến phân phối Bến Cát - Bàu Bàng, Bình Dương"}, {"id": "THUYVY", "name": "CTY TNHH SACN THÚY VI", "phone": "nan", "lat": 11.156651, "lon": 106.617637, "addr": "CTY TNHH SACN THÚY VI - Phường Mỹ Phước, Bến Cát"}, {"id": "KH072974", "name": "Hoàng lớn - bưng còng Thanh Tuyền", "phone": "0818720666", "lat": 11.157369, "lon": 106.615587, "addr": "Hoàng lớn - bưng còng Thanh Tuyền - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076159", "name": "hạnh thắng. an lập 0", "phone": "nan", "lat": 11.157531, "lon": 106.612531, "addr": "hạnh thắng. an lập 0 - Phường Mỹ Phước, Bến Cát"}, {"id": "KH075151", "name": "ngọc mai d8 chợ rạch bắp", "phone": "nan", "lat": 11.140088, "lon": 106.540636, "addr": "ngọc mai d8 chợ rạch bắp - Đường D8, KCN Rạch Bắp, An Điền"}, {"id": "KH073879", "name": "TH Ngọc Thảo ĐT744, Bưng Còng", "phone": "0966762630", "lat": 11.153952, "lon": 106.614332, "addr": "TH Ngọc Thảo ĐT744, Bưng Còng - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076479", "name": "chị thắm. dáng hương. định hiệp", "phone": "nan", "lat": 11.153628, "lon": 106.616972, "addr": "chị thắm. dáng hương. định hiệp  - Phường Mỹ Phước, Bến Cát"}, {"id": "KH076111", "name": "mai Long. an lập 0", "phone": "nan", "lat": 11.154141, "lon": 106.613686, "addr": "mai Long. an lập 0 - Phường Mỹ Phước, Bến
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT LOGIC ENGINE (SUPABASE REALTIME & BACKGROUND PERSISTENCE) -->
+  <!-- ========================================================================= -->
+  <script>
+    // -------------------------------------------------------------------------
+    // CẤU HÌNH SUPABASE CLOUD (KẾT NỐI THEO THÔNG TIN CỦA ANH)
+    // -------------------------------------------------------------------------
     const SUPABASE_URL = "https://akjmqbmqjqyzjadzokwx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_JMCaJ-K3W-meXRTPPfrpFg_QHG8JUr2";
     let supabase = null;
@@ -668,12 +672,16 @@
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
     } catch (e) {
-      console.warn("Supabase init error:", e);
+      console.warn("Khởi tạo Supabase không thành công (chế độ dự phòng offline):", e);
     }
 
+    // Tra cứu nhanh danh mục gốc 624 khách hàng
     const staticMasterLookup = new Map();
-    EMBEDDED_MASTER_DATA.forEach(m => staticMasterLookup.set(m.id, m));
+    if (typeof EMBEDDED_MASTER_DATA !== 'undefined' && Array.isArray(EMBEDDED_MASTER_DATA)) {
+      EMBEDDED_MASTER_DATA.forEach(m => staticMasterLookup.set(m.id, m));
+    }
 
+    // Các khóa lưu trữ cục bộ dự phòng
     const STORAGE_KEY_CUSTOM_MASTER_DELTA = "FMCG_MASTER_DELTA_V4";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
     const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V4";
@@ -707,6 +715,7 @@
     let drvMap = null, drvRouteLayer = null, drvPinsLayer = null;
     let windowDepotMarker = null;
 
+    // Chuẩn hóa số điện thoại: cắt bỏ .0, lọc ký tự, chèn 0 cho đầu số VN
     function normalizePhone(raw) {
       if (!raw) return "";
       let s = String(raw).split('.')[0].trim().replace(/\D/g, '');
@@ -740,37 +749,59 @@
     }
 
     // =========================================================================
-    // KHỞI ĐỘNG GIAO DIỆN CHỐNG ĐƠ (ZERO-FREEZE)
+    // KHỞI ĐỘNG HỆ THỐNG AN TOÀN (KHÔNG CHẶN LUỒNG, CHỐNG TREO APP)
     // =========================================================================
     window.addEventListener('DOMContentLoaded', () => {
       try {
         let isDriver = checkDriverRoutingModeSync();
         if (!isDriver) {
+          // BƯỚC 1: Dựng giao diện tức thì từ cache
           loadPermanentData();
           checkMonthlyAutoReset();
-          initMap();
           renderFleetTabs();
           updateManualTruckDropdown();
           updateDashboardReport();
-          if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+          safeRenderIcons();
 
+          // BƯỚC 2: Khởi tạo bản đồ an toàn
           setTimeout(() => {
-            if (map) map.invalidateSize();
+            try {
+              initMap();
+            } catch (errMap) {
+              console.warn("Khởi tạo bản đồ lỗi (bỏ qua an toàn):", errMap);
+            }
+          }, 150);
+
+          // BƯỚC 3: Đồng bộ dữ liệu nền Supabase & Realtime (không chặn trang)
+          setTimeout(() => {
             backgroundSyncSupabase();
             setupSupabaseRealtime();
-          }, 200);
+          }, 350);
         }
       } catch (err) {
-        console.error("DOM Init Safe Catch:", err);
+        console.error("Lỗi khởi tạo tổng thể:", err);
       }
     });
 
+    function safeRenderIcons() {
+      try {
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+          lucide.createIcons();
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // 1. LINK TÀI XẾ & TRUY CẬP ĐỘC LẬP
+    // =========================================================================
     function checkDriverRoutingModeSync() {
       let hash = window.location.hash || '';
       if (!hash.startsWith('#/driver')) return false;
 
-      document.getElementById('dispatchAppContainer').classList.add('hidden');
-      document.getElementById('driverStandaloneApp').classList.remove('hidden');
+      let elDispatch = document.getElementById('dispatchAppContainer');
+      let elDriver = document.getElementById('driverStandaloneApp');
+      if (elDispatch) elDispatch.classList.add('hidden');
+      if (elDriver) elDriver.classList.remove('hidden');
 
       let urlParams = new URLSearchParams(hash.split('?')[1] || '');
       activeTruckId = parseInt(urlParams.get('truck') || 1);
@@ -778,23 +809,29 @@
       let token = urlParams.get('token') || '';
 
       let isExpired = false;
-      if (token) isExpired = isTokenExpired(token);
-      else if (orderDate) {
+      if (token) {
+        isExpired = isTokenExpired(token);
+      } else if (orderDate) {
         let orderTime = new Date(orderDate).getTime();
-        if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) isExpired = true;
+        if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) {
+          isExpired = true;
+        }
       }
 
       if (isExpired) {
-        document.getElementById('drvExpiredBanner').classList.remove('hidden');
-        document.getElementById('driverAppCardsList').innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
-        if (window.lucide) lucide.createIcons();
+        let elExp = document.getElementById('drvExpiredBanner');
+        let elCards = document.getElementById('driverAppCardsList');
+        if (elExp) elExp.classList.remove('hidden');
+        if (elCards) elCards.innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
+        safeRenderIcons();
         return true;
       }
 
       loadPermanentData();
-      initDriverMiniMap();
       renderDriverAppCards();
+      setTimeout(() => initDriverMiniMap(), 200);
 
+      // Đồng bộ từ Supabase nếu có kết nối
       if (supabase) {
         Promise.race([
           supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle(),
@@ -812,83 +849,9 @@
             truck.name = data.truck_name || truck.name;
             renderDriverAppCards();
           }
-        }).catch(e => console.warn("Driver remote fetch bypassed:", e));
+        }).catch(err => console.warn("Không tải được đơn Supabase cho tài xế:", err));
       }
       return true;
-    }
-
-    async function backgroundSyncSupabase() {
-      if (!supabase) return;
-      try {
-        let today = getTodayString();
-        let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
-        let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
-
-        let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
-        if (res && res.data && res.data.length > 0) {
-          res.data.forEach(record => {
-            let t = fleet.find(x => x.id === record.truck_id);
-            if (t) {
-              t.stops = record.stops || [];
-              t.linkIssued = true;
-              t.linkToken = today;
-            }
-          });
-          renderFleetTabs();
-          updateTruckSummary();
-          renderStopsList();
-          renderRouteOnMap();
-          updateDashboardReport();
-          checkButtonsState();
-        }
-
-        let masterRes = await Promise.race([
-          supabase.from('master_customers').select('*'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
-        ]).catch(() => null);
-
-        if (masterRes && masterRes.data && masterRes.data.length > 0) {
-          masterRes.data.forEach(m => {
-            masterGpsMap.set(m.id, {
-              id: m.id,
-              name: m.name,
-              phone: m.phone,
-              lat: parseFloat(m.lat),
-              lon: parseFloat(m.lon),
-              addr: m.addr
-            });
-          });
-        }
-      } catch (e) {
-        console.warn("Background sync error ignored:", e);
-      }
-    }
-
-    function setupSupabaseRealtime() {
-      if (!supabase) return;
-      try {
-        supabase
-          .channel('public:dispatch_sessions')
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'dispatch_sessions' }, payload => {
-            if (payload.new && payload.new.order_date === getTodayString()) {
-              applyRemoteTruckUpdate(payload.new);
-            }
-          })
-          .subscribe();
-      } catch (err) {
-        console.warn("Realtime sub error:", err);
-      }
-    }
-
-    function applyRemoteTruckUpdate(record) {
-      let truck = fleet.find(t => t.id === record.truck_id);
-      if (truck) {
-        truck.stops = record.stops || [];
-        updateDashboardReport();
-        renderStopsList();
-        renderFleetTabs();
-        if (record.truck_id === activeTruckId) renderRouteOnMap();
-      }
     }
 
     function isTokenExpired(token) {
@@ -918,7 +881,9 @@
             stops: truck.stops,
             updated_at: new Date().toISOString()
           }, { onConflict: 'order_date,truck_id' });
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Lỗi lưu đơn lên Supabase:", e);
+        }
       }
 
       let driverUrl = `${window.location.origin + window.location.pathname}#/driver?truck=${truck.id}&date=${today}`;
@@ -928,17 +893,21 @@
       renderFleetTabs();
       updateDashboardReport();
 
-      navigator.clipboard.writeText(driverUrl).then(() => {
-        alert(`ĐÃ TẠO VÀ COPY LINK CHO ${truck.name}!\n\n${driverUrl}\n\nAnh dán qua Zalo cho tài xế xem trên điện thoại.`);
-      }).catch(() => {
-        prompt("Copy link tài xế:", driverUrl);
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(driverUrl).then(() => {
+          alert(`ĐÃ TẠO VÀ COPY LINK CLOUD CHO ${truck.name}!\n\n${driverUrl}\n\nAnh chỉ cần dán (Paste) link này qua Zalo cho tài xế ${truck.driver}. Tài xế mở trên điện thoại sẽ xem được đơn ngay.`);
+        }).catch(() => {
+          prompt("Copy link tài xế dưới đây:", driverUrl);
+        });
+      } else {
+        prompt("Copy link tài xế dưới đây:", driverUrl);
+      }
     }
 
     function revokeDriverLink(truckId) {
       let truck = fleet.find(t => t.id === truckId);
       if (!truck) return;
-      if (confirm(`Thu hồi và hủy link của ${truck.name}?`)) {
+      if (confirm(`Thu hồi và hủy link của ${truck.name}? Tài xế sẽ không thể vào xem đơn nữa.`)) {
         truck.linkIssued = false;
         truck.linkToken = null;
         savePermanentEdits();
@@ -949,14 +918,19 @@
 
     function openDriverLinkDirect(truckId) {
       let truck = fleet.find(t => t.id === truckId);
-      if (!truck) return alert("Không tìm thấy xe!");
+      if (!truck) return alert("Không tìm thấy thông tin xe!");
       let today = truck.linkToken || getTodayString();
       window.open(`${window.location.origin + window.location.pathname}#/driver?truck=${truck.id}&date=${today}`, '_blank');
     }
 
+    // =========================================================================
+    // 2. GIAO DIỆN TÀI XẾ & ĐỒNG BỘ TIẾN ĐỘ THỰC TẾ
+    // =========================================================================
     function initDriverMiniMap() {
       if (drvMap || typeof L === 'undefined') return;
       try {
+        let el = document.getElementById('drvMiniMap');
+        if (!el) return;
         drvMap = L.map('drvMiniMap', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, zoomControl: false, preferCanvas: true });
         L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(drvMap);
         drvRouteLayer = L.layerGroup().addTo(drvMap);
@@ -968,13 +942,14 @@
     function toggleDriverMiniMap() {
       let box = document.getElementById('drvMiniMapContainer');
       let txt = document.getElementById('textToggleMiniMap');
+      if (!box || !txt) return;
       let hidden = box.classList.toggle('hidden');
       txt.innerText = hidden ? "Hiện Map" : "Ẩn Map";
       if (!hidden && drvMap) setTimeout(() => drvMap.invalidateSize(), 200);
     }
 
     function renderDriverMiniMapRoute(stops) {
-      if (!drvMap || typeof L === 'undefined') return;
+      if (!drvMap || typeof L === 'undefined' || !drvRouteLayer || !drvPinsLayer) return;
       drvRouteLayer.clearLayers();
       drvPinsLayer.clearLayers();
 
@@ -1002,14 +977,20 @@
     function renderDriverAppCards() {
       let truck = fleet.find(t => t.id === activeTruckId);
       let container = document.getElementById('driverAppCardsList');
+      if (!container) return;
+
       if (!truck || truck.stops.length === 0) {
         container.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">Chưa có đơn hàng nào cho xe này hôm nay.</div>';
         return;
       }
 
-      document.getElementById('drvAppTruckTitle').innerText = `${truck.name} • ${truck.driver} (${truck.plate})`;
+      let elTitle = document.getElementById('drvAppTruckTitle');
+      let elCod = document.getElementById('drvDockCodCollected');
+      if (elTitle) elTitle.innerText = `${truck.name} • ${truck.driver} (${truck.plate})`;
+      
       let totalCodCollected = truck.stops.filter(s => s.status === 'success').reduce((sum, s) => sum + s.totalCod, 0);
-      document.getElementById('drvDockCodCollected').innerText = formatMoney(totalCodCollected);
+      if (elCod) elCod.innerText = formatMoney(totalCodCollected);
+      
       renderDriverMiniMapRoute(truck.stops);
 
       let list = [...truck.stops];
@@ -1048,7 +1029,7 @@
                 ` : ''}
                 ${s.isMapped ? `
                   <a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
-                    <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Bản Đồ
+                    <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Map
                   </a>
                 ` : ''}
               </div>
@@ -1072,7 +1053,7 @@
         `;
       }).join('');
 
-      if (window.lucide) lucide.createIcons();
+      safeRenderIcons();
     }
 
     async function syncTruckStopsToCloud(truck) {
@@ -1108,12 +1089,14 @@
 
     function openDriverRejectPicker(canonicalId) {
       rejectingStopCanonicalId = canonicalId;
-      document.getElementById('driverRejectModal').classList.remove('hidden');
-      if (window.lucide) lucide.createIcons();
+      let modal = document.getElementById('driverRejectModal');
+      if (modal) modal.classList.remove('hidden');
+      safeRenderIcons();
     }
 
     function closeDriverRejectModal() {
-      document.getElementById('driverRejectModal').classList.add('hidden');
+      let modal = document.getElementById('driverRejectModal');
+      if (modal) modal.classList.add('hidden');
       rejectingStopCanonicalId = null;
     }
 
@@ -1167,15 +1150,20 @@
       alert("Đã cập nhật dữ liệu mới nhất!");
     }
 
+    // =========================================================================
+    // 3. BẢN ĐỒ KHO & LỘ TRÌNH ĐIỀU PHỐI (CHỐNG TREO LEAFLET)
+    // =========================================================================
     function initMap() {
       if (map || typeof L === 'undefined') return;
       try {
+        let el = document.getElementById('map');
+        if (!el) return;
         map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true });
         L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
         routeLayer = L.layerGroup().addTo(map);
         pinsLayer = L.layerGroup().addTo(map);
         drawDepotPin();
-        setTimeout(() => { if (map) map.invalidateSize(); }, 250);
+        setTimeout(() => { if (map) map.invalidateSize(); }, 300);
 
         map.on('click', function(e) {
           if (currentDetailStop) {
@@ -1186,7 +1174,9 @@
             }
           }
         });
-      } catch (err) {}
+      } catch (err) {
+        console.warn("Không thể tải tile bản đồ:", err);
+      }
     }
 
     function drawDepotPin() {
@@ -1229,6 +1219,9 @@
       alert(`ĐÃ LƯU VĨNH VIỄN VỊ TRÍ KHO:\n\n[${coords.lat}, ${coords.lon}]!`);
     }
 
+    // =========================================================================
+    // 4. LƯU TRỮ DELTA & QUẢN LÝ DỮ LIỆU
+    // =========================================================================
     function checkMonthlyAutoReset() {
       let curMonth = getTodayString().substring(0, 7);
       let lastMonth = localStorage.getItem("FMCG_LAST_ACTIVE_MONTH");
@@ -1274,7 +1267,9 @@
         Object.values(deltas).forEach(m => masterGpsMap.set(m.id, m));
       } catch (e) {}
 
-      Object.entries(DEFAULT_ALIASES).forEach(([k, v]) => storeAliasMap.set(k, v));
+      if (typeof DEFAULT_ALIASES !== 'undefined') {
+        Object.entries(DEFAULT_ALIASES).forEach(([k, v]) => storeAliasMap.set(k, v));
+      }
       try {
         let aliases = JSON.parse(localStorage.getItem(STORAGE_KEY_ALIASES) || "{}");
         Object.entries(aliases).forEach(([k, v]) => storeAliasMap.set(k, v));
@@ -1290,7 +1285,13 @@
         if (sess) {
           if (sess.fleet) fleet = sess.fleet;
           if (sess.activeTruckId) activeTruckId = sess.activeTruckId;
-          if (sess.allMergedStops) allMergedStops = sess.allMergedStops;
+          if (sess.allMergedStops) {
+            allMergedStops = sess.allMergedStops.map(s => {
+              s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
+              s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
+              return s;
+            });
+          }
           if (sess.unmappedStops) unmappedStops = sess.unmappedStops;
           if (sess.unassignedStops) unassignedStops = sess.unassignedStops;
         }
@@ -1313,21 +1314,101 @@
         localStorage.setItem(STORAGE_KEY_ALIASES, JSON.stringify(aliasObj));
 
         localStorage.setItem(STORAGE_KEY_FLEET, JSON.stringify(fleet));
+
+        let serializableStops = allMergedStops.map(s => ({
+          ...s,
+          rawIds: Array.from(s.rawIds || []),
+          invoices: Array.from(s.invoices || [])
+        }));
+
         localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
           fleet,
           activeTruckId,
-          allMergedStops,
+          allMergedStops: serializableStops,
           unmappedStops,
           unassignedStops
         }));
       } catch (e) {}
     }
 
+    async function backgroundSyncSupabase() {
+      if (!supabase) return;
+      try {
+        let today = getTodayString();
+        let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
+        let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+
+        let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
+        if (res && res.data && res.data.length > 0) {
+          res.data.forEach(record => {
+            let t = fleet.find(x => x.id === record.truck_id);
+            if (t) {
+              t.stops = record.stops || [];
+              t.linkIssued = true;
+              t.linkToken = today;
+            }
+          });
+          renderFleetTabs();
+          updateTruckSummary();
+          renderStopsList();
+          renderRouteOnMap();
+          updateDashboardReport();
+          checkButtonsState();
+        }
+
+        let masterRes = await Promise.race([
+          supabase.from('master_customers').select('*'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
+        ]).catch(() => null);
+
+        if (masterRes && masterRes.data && masterRes.data.length > 0) {
+          masterRes.data.forEach(m => {
+            masterGpsMap.set(m.id, {
+              id: m.id,
+              name: m.name,
+              phone: m.phone,
+              lat: parseFloat(m.lat),
+              lon: parseFloat(m.lon),
+              addr: m.addr
+            });
+          });
+        }
+      } catch (e) {}
+    }
+
+    function setupSupabaseRealtime() {
+      if (!supabase) return;
+      try {
+        supabase
+          .channel('public:dispatch_sessions')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'dispatch_sessions' }, payload => {
+            if (payload.new && payload.new.order_date === getTodayString()) {
+              applyRemoteTruckUpdate(payload.new);
+            }
+          })
+          .subscribe();
+      } catch (err) {}
+    }
+
+    function applyRemoteTruckUpdate(record) {
+      let truck = fleet.find(t => t.id === record.truck_id);
+      if (truck) {
+        truck.stops = record.stops || [];
+        updateDashboardReport();
+        renderStopsList();
+        renderFleetTabs();
+        if (record.truck_id === activeTruckId) renderRouteOnMap();
+      }
+    }
+
+    // =========================================================================
+    // 5. MASTER DATA ADMIN (PASSWORD: 1111)
+    // =========================================================================
     function promptMasterAdmin() {
       let pass = prompt("Nhập mật khẩu Quản Trị Master Data GPS:");
       if (pass === "1111") {
         document.getElementById('masterAdminModal').classList.remove('hidden');
-        if (window.lucide) lucide.createIcons();
+        safeRenderIcons();
       } else if (pass !== null) {
         alert("Mật khẩu không đúng!");
       }
@@ -1431,6 +1512,9 @@
       XLSX.writeFile(wb, "Data_KhachHang_Master_KiotViet_Final.xlsx");
     }
 
+    // =========================================================================
+    // 6. XẾP XE TỰ ĐỘNG & PHÂN TUYẾN THỦ CÔNG
+    // =========================================================================
     document.getElementById('fileInvoice').addEventListener('change', function(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -1511,6 +1595,9 @@
         }
 
         let s = physicalStopsMap.get(canonicalId);
+        if (!s.rawIds || !(s.rawIds instanceof Set)) s.rawIds = new Set();
+        if (!s.invoices || !(s.invoices instanceof Set)) s.invoices = new Set();
+
         s.rawIds.add(rawCustId);
         s.totalQty += qty;
         s.items.push({ invId, itemName, qty, unit, lineAmount });
@@ -1546,6 +1633,7 @@
       let mappedStops = allMergedStops.filter(s => s.isMapped);
       unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
+      // Quét theo góc cực quanh kho
       mappedStops.sort((a, b) => {
         let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
         let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
@@ -1607,6 +1695,7 @@
       checkButtonsState();
       savePermanentEdits();
 
+      // Lưu tự động lên Supabase
       if (supabase) {
         let today = getTodayString();
         fleet.forEach(async t => {
@@ -1683,6 +1772,7 @@
     function updateManualRoutingBarState() {
       let bar = document.getElementById('manualRoutingBar');
       let badge = document.getElementById('selectedCountBadge');
+      if (!bar || !badge) return;
       if (selectedStopIds.size > 0) {
         bar.classList.remove('hidden');
         badge.innerText = selectedStopIds.size;
@@ -1764,6 +1854,7 @@
     function toggleFailureAnalysis() {
       let list = document.getElementById('failureReasonsBarList');
       let icon = document.getElementById('iconToggleFailure');
+      if (!list || !icon) return;
       let hidden = list.classList.toggle('hidden');
       icon.classList.toggle('rotate-180', !hidden);
     }
@@ -1779,19 +1870,29 @@
       let activeTrucks = fleet.filter(t => t.stops.length > 0);
       let idleTrucks = fleet.filter(t => t.stops.length === 0);
 
-      document.getElementById('dashTotalQty').innerText = `${Math.round(totalQty)} Thùng`;
-      document.getElementById('dashTotalStops').innerText = `${allMergedStops.length} điểm giao (${unmappedStops.length} chưa map)`;
-      document.getElementById('dashTotalCod').innerText = formatMoney(totalCod);
-      document.getElementById('dashCollectedCod').innerText = `Đã thu: ${formatMoney(collectedCod)}`;
-      document.getElementById('dashActiveTrucks').innerText = `${activeTrucks.length} Xe`;
-      document.getElementById('dashIdleTrucks').innerText = `Xe trống: ${idleTrucks.length} Xe`;
+      let elTotalQty = document.getElementById('dashTotalQty');
+      let elTotalStops = document.getElementById('dashTotalStops');
+      let elTotalCod = document.getElementById('dashTotalCod');
+      let elCollectedCod = document.getElementById('dashCollectedCod');
+      let elActiveTrucks = document.getElementById('dashActiveTrucks');
+      let elIdleTrucks = document.getElementById('dashIdleTrucks');
+      let elDeliveryProgress = document.getElementById('dashDeliveryProgress');
+      let elRejectionRate = document.getElementById('dashRejectionRate');
+      let elDeliveryRatio = document.getElementById('dashDeliveryRatio');
+
+      if (elTotalQty) elTotalQty.innerText = `${Math.round(totalQty)} Thùng`;
+      if (elTotalStops) elTotalStops.innerText = `${allMergedStops.length} điểm giao (${unmappedStops.length} chưa map)`;
+      if (elTotalCod) elTotalCod.innerText = formatMoney(totalCod);
+      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod)}`;
+      if (elActiveTrucks) elActiveTrucks.innerText = `${activeTrucks.length} Xe`;
+      if (elIdleTrucks) elIdleTrucks.innerText = `Xe trống: ${idleTrucks.length} Xe`;
 
       let progressPct = allMergedStops.length > 0 ? Math.round((successStops.length / allMergedStops.length) * 100) : 0;
       let rejectPct = allMergedStops.length > 0 ? Math.round((failedStops.length / allMergedStops.length) * 100) : 0;
 
-      document.getElementById('dashDeliveryProgress').innerText = `${progressPct}%`;
-      document.getElementById('dashRejectionRate').innerText = `${rejectPct}% hủy`;
-      document.getElementById('dashDeliveryRatio').innerText = `${successStops.length} / ${allMergedStops.length} điểm thành công`;
+      if (elDeliveryProgress) elDeliveryProgress.innerText = `${progressPct}%`;
+      if (elRejectionRate) elRejectionRate.innerText = `${rejectPct}% hủy`;
+      if (elDeliveryRatio) elDeliveryRatio.innerText = `${successStops.length} / ${allMergedStops.length} điểm thành công`;
 
       let reasonCounts = {};
       failedStops.forEach(s => {
@@ -1800,74 +1901,81 @@
       });
 
       let totalFailed = failedStops.length;
-      document.getElementById('totalFailedCountText').innerText = `${totalFailed} đơn thất bại`;
+      let elFailText = document.getElementById('totalFailedCountText');
+      if (elFailText) elFailText.innerText = `${totalFailed} đơn thất bại`;
 
       let failureContainer = document.getElementById('failureReasonsBarList');
-      if (totalFailed === 0) {
-        failureContainer.innerHTML = '<div class="text-slate-400 text-[11px] italic">Chưa có đơn nào bị hủy hoặc không giao được.</div>';
-      } else {
-        let sorted = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]);
-        failureContainer.innerHTML = sorted.map(([reason, count]) => {
-          let pct = Math.round((count / totalFailed) * 100);
-          return `
-            <div class="space-y-0.5">
-              <div class="flex justify-between text-[11px]">
-                <span class="font-medium text-slate-800">${reason}</span>
-                <span class="font-bold text-rose-700">${count} đơn (${pct}%)</span>
+      if (failureContainer) {
+        if (totalFailed === 0) {
+          failureContainer.innerHTML = '<div class="text-slate-400 text-[11px] italic">Chưa có đơn nào bị hủy hoặc không giao được.</div>';
+        } else {
+          let sorted = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]);
+          failureContainer.innerHTML = sorted.map(([reason, count]) => {
+            let pct = Math.round((count / totalFailed) * 100);
+            return `
+              <div class="space-y-0.5">
+                <div class="flex justify-between text-[11px]">
+                  <span class="font-medium text-slate-800">${reason}</span>
+                  <span class="font-bold text-rose-700">${count} đơn (${pct}%)</span>
+                </div>
+                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div class="bg-rose-500 h-full rounded-full transition-all" style="width: ${pct}%"></div>
+                </div>
               </div>
-              <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <div class="bg-rose-500 h-full rounded-full transition-all" style="width: ${pct}%"></div>
-              </div>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
+        }
       }
 
       let tbody = document.getElementById('dashFleetTableBody');
-      tbody.innerHTML = fleet.map(t => {
-        let truckLoad = t.stops.reduce((sum, s) => sum + s.totalQty, 0);
-        let truckCod = t.stops.reduce((sum, s) => sum + s.totalCod, 0);
-        let doneCount = t.stops.filter(s => s.status === 'success').length;
-        let failCount = t.stops.filter(s => s.status === 'failed').length;
-        let pct = t.stops.length > 0 ? Math.round((doneCount / t.stops.length) * 100) : 0;
+      if (tbody) {
+        tbody.innerHTML = fleet.map(t => {
+          let truckLoad = t.stops.reduce((sum, s) => sum + s.totalQty, 0);
+          let truckCod = t.stops.reduce((sum, s) => sum + s.totalCod, 0);
+          let doneCount = t.stops.filter(s => s.status === 'success').length;
+          let failCount = t.stops.filter(s => s.status === 'failed').length;
+          let pct = t.stops.length > 0 ? Math.round((doneCount / t.stops.length) * 100) : 0;
 
-        let statusText = t.stops.length === 0 
-          ? '<span class="text-slate-400 font-semibold">Xe trống tại kho</span>'
-          : `<span class="font-bold text-blue-700">${doneCount}/${t.stops.length} (${pct}%)</span>${failCount > 0 ? ' • <span class="text-rose-600 font-bold">' + failCount + ' hủy</span>' : ''}`;
+          let statusText = t.stops.length === 0 
+            ? '<span class="text-slate-400 font-semibold">Xe trống tại kho</span>'
+            : `<span class="font-bold text-blue-700">${doneCount}/${t.stops.length} (${pct}%)</span>${failCount > 0 ? ' • <span class="text-rose-600 font-bold">' + failCount + ' hủy</span>' : ''}`;
 
-        let linkStatusBadge = t.linkIssued
-          ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Đã cấp link</span>'
-          : '<span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Chưa cấp</span>';
+          let linkStatusBadge = t.linkIssued
+            ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Đã cấp link</span>'
+            : '<span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Chưa cấp</span>';
 
-        let linkActions = `
-          <div class="flex items-center justify-center gap-1">
-            <button onclick="event.stopPropagation(); openDriverLinkDirect(${t.id});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-200">Mở</button>
-            <button onclick="event.stopPropagation(); selectTruck(${t.id}); generateStandaloneDriverLink();" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
-            <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
-          </div>
-        `;
+          let linkActions = `
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="event.stopPropagation(); openDriverLinkDirect(${t.id});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-200">Mở</button>
+              <button onclick="event.stopPropagation(); selectTruck(${t.id}); generateStandaloneDriverLink();" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
+              <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
+            </div>
+          `;
 
-        return `
-          <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
-            <td class="p-2">
-              <strong class="text-slate-800">${t.name}</strong>
-              <div class="text-[10px] text-slate-400 font-mono">${t.plate}</div>
-            </td>
-            <td class="p-2">${t.driver}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
-            <td class="p-2 text-center font-bold text-blue-600">${Math.round(truckLoad)}/${t.maxCapacity}</td>
-            <td class="p-2 text-center font-bold text-slate-800">${t.stops.length}</td>
-            <td class="p-2 text-right font-bold text-amber-800 font-mono">${formatMoney(truckCod)}</td>
-            <td class="p-2 text-center">${statusText}</td>
-            <td class="p-2 text-center">${linkStatusBadge}</td>
-            <td class="p-2 text-center">${linkActions}</td>
-          </tr>
-        `;
-      }).join('');
+          return `
+            <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
+              <td class="p-2">
+                <strong class="text-slate-800">${t.name}</strong>
+                <div class="text-[10px] text-slate-400 font-mono">${t.plate}</div>
+              </td>
+              <td class="p-2">${t.driver}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
+              <td class="p-2 text-center font-bold text-blue-600">${Math.round(truckLoad)}/${t.maxCapacity}</td>
+              <td class="p-2 text-center font-bold text-slate-800">${t.stops.length}</td>
+              <td class="p-2 text-right font-bold text-amber-800 font-mono">${formatMoney(truckCod)}</td>
+              <td class="p-2 text-center">${statusText}</td>
+              <td class="p-2 text-center">${linkStatusBadge}</td>
+              <td class="p-2 text-center">${linkActions}</td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
 
     function renderFleetTabs() {
       let container = document.getElementById('fleetTabsContainer');
-      document.getElementById('fleetCountBadge').innerText = fleet.length;
+      let badge = document.getElementById('fleetCountBadge');
+      if (badge) badge.innerText = fleet.length;
+      if (!container) return;
 
       container.innerHTML = fleet.map(t => {
         let totalLoad = t.stops.reduce((sum, s) => sum + s.totalQty, 0);
@@ -1906,16 +2014,22 @@
       let totalLoad = truck.stops.reduce((sum, s) => sum + s.totalQty, 0);
       let pct = Math.min(100, Math.round((totalLoad / truck.maxCapacity) * 100));
 
-      document.getElementById('curTruckName').innerText = `${truck.name} (${truck.plate})`;
-      document.getElementById('curTruckDriver').innerText = `Tài xế: ${truck.driver} • ${normalizePhone(truck.phone)}`;
-      document.getElementById('curTruckLoad').innerText = `${Math.round(totalLoad)}/${truck.maxCapacity}`;
-      
-      let bar = document.getElementById('curTruckLoadBar');
-      bar.style.width = pct + '%';
-      bar.className = totalLoad > truck.maxCapacity ? "h-full bg-rose-600 rounded-full" : "h-full bg-blue-600 rounded-full";
+      let elName = document.getElementById('curTruckName');
+      let elDriver = document.getElementById('curTruckDriver');
+      let elLoad = document.getElementById('curTruckLoad');
+      let elBar = document.getElementById('curTruckLoadBar');
+      let elHeader = document.getElementById('mapRouteHeader');
+      let elBtnText = document.getElementById('btnDriverLinkText');
 
-      document.getElementById('mapRouteHeader').innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm (Khép kín kho)`;
-      document.getElementById('btnDriverLinkText').innerText = `Tạo Link Riêng Cho ${truck.name} (Copy Zalo)`;
+      if (elName) elName.innerText = `${truck.name} (${truck.plate})`;
+      if (elDriver) elDriver.innerText = `Tài xế: ${truck.driver} • ${normalizePhone(truck.phone)}`;
+      if (elLoad) elLoad.innerText = `${Math.round(totalLoad)}/${truck.maxCapacity}`;
+      if (elBar) {
+        elBar.style.width = pct + '%';
+        elBar.className = totalLoad > truck.maxCapacity ? "h-full bg-rose-600 rounded-full" : "h-full bg-blue-600 rounded-full";
+      }
+      if (elHeader) elHeader.innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm (Khép kín kho)`;
+      if (elBtnText) elBtnText.innerText = `Tạo Link Riêng Cho ${truck.name} (Copy Zalo)`;
     }
 
     function setStopTab(tab) {
@@ -1933,12 +2047,14 @@
 
     function renderStopsList() {
       let container = document.getElementById('stopsListView');
+      let summaryText = document.getElementById('listStopsSummaryText');
+      if (!container) return;
 
       if (currentStopTab === 'unmapped') {
-        document.getElementById('listStopsSummaryText').innerText = `${unmappedStops.length} đơn chưa map`;
+        if (summaryText) summaryText.innerText = `${unmappedStops.length} đơn chưa map`;
         if (unmappedStops.length === 0) {
           container.innerHTML = '<div class="p-8 text-center text-emerald-600 font-bold text-xs"><i data-lucide="check-circle-2" class="w-8 h-8 mx-auto mb-1"></i>100% đơn hàng đã có tọa độ chuẩn.</div>';
-          if (window.lucide) lucide.createIcons();
+          safeRenderIcons();
           return;
         }
         container.innerHTML = unmappedStops.map(s => `
@@ -1961,12 +2077,12 @@
             </div>
           </div>
         `).join('');
-        if (window.lucide) lucide.createIcons();
+        safeRenderIcons();
         return;
       }
 
       if (currentStopTab === 'unassigned') {
-        document.getElementById('listStopsSummaryText').innerText = `${unassignedStops.length} đơn chưa xếp xe`;
+        if (summaryText) summaryText.innerText = `${unassignedStops.length} đơn chưa xếp xe`;
         if (unassignedStops.length === 0) {
           container.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">Tất cả đơn đã được xếp vào đội xe.</div>';
           return;
@@ -1987,25 +2103,25 @@
             </div>
           </div>
         `).join('');
-        if (window.lucide) lucide.createIcons();
+        safeRenderIcons();
         return;
       }
 
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck || truck.stops.length === 0) {
-        document.getElementById('listStopsSummaryText').innerText = "0 đơn";
+        if (summaryText) summaryText.innerText = "0 đơn";
         container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Xe này chưa có đơn hàng nào được xếp.</div>';
         return;
       }
 
-      let query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+      let query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
       let list = [...truck.stops];
       if (currentStopTab === 'lifo') list.sort((a, b) => b.stopSeq - a.stopSeq);
       else list.sort((a, b) => a.stopSeq - b.stopSeq);
 
       if (query) list = list.filter(s => s.custName.toLowerCase().includes(query) || s.canonicalId.toLowerCase().includes(query) || s.phone.includes(query));
 
-      document.getElementById('listStopsSummaryText').innerText = `${list.length} đơn`;
+      if (summaryText) summaryText.innerText = `${list.length} đơn`;
 
       container.innerHTML = list.map(s => {
         let seqBadge = currentStopTab === 'route'
@@ -2045,11 +2161,11 @@
         `;
       }).join('');
 
-      if (window.lucide) lucide.createIcons();
+      safeRenderIcons();
     }
 
     function renderRouteOnMap() {
-      if (!map || typeof L === 'undefined') return;
+      if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers();
       pinsLayer.clearLayers();
 
@@ -2085,6 +2201,9 @@
       map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
     }
 
+    // =========================================================================
+    // 7. CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ & MÃ TRÙNG
+    // =========================================================================
     function openStopDetail(canonicalId) {
       let stop = allMergedStops.find(s => s.canonicalId === canonicalId);
       if (!stop) return;
@@ -2108,7 +2227,7 @@
       `).join('');
 
       document.getElementById('stopDetailModal').classList.remove('hidden');
-      if (window.lucide) lucide.createIcons();
+      safeRenderIcons();
     }
 
     function closeStopDetailModal() {
@@ -2179,7 +2298,7 @@
 
       container.innerHTML = items.length ? items.join('') : '<p class="text-xs text-slate-400 text-center p-3">Chưa có mã trùng nào được thiết lập.</p>';
       document.getElementById('aliasModal').classList.remove('hidden');
-      if (window.lucide) lucide.createIcons();
+      safeRenderIcons();
     }
 
     function closeAliasModal() {
@@ -2208,6 +2327,9 @@
       }
     }
 
+    // =========================================================================
+    // 8. CẤU HÌNH ĐỘI XE, IN PHIẾU LIFO & TIỆN ÍCH
+    // =========================================================================
     function openFleetConfigModal() {
       let container = document.getElementById('fleetListContainer');
       container.innerHTML = fleet.map(t => `
@@ -2223,7 +2345,7 @@
         </div>
       `).join('');
       document.getElementById('fleetModal').classList.remove('hidden');
-      if (window.lucide) lucide.createIcons();
+      safeRenderIcons();
     }
 
     function closeFleetModal() {
@@ -2296,13 +2418,19 @@
         if (!orig || orig.lat !== v.lat || orig.lon !== v.lon || orig.name !== v.name || orig.phone !== v.phone) deltas[k] = v;
       });
 
+      let serializableStops = allMergedStops.map(s => ({
+        ...s,
+        rawIds: Array.from(s.rawIds || []),
+        invoices: Array.from(s.invoices || [])
+      }));
+
       let payload = {
         depot: warehouseDepot,
         deltas,
         aliases: Object.fromEntries(storeAliasMap),
         fleet,
         activeTruckId,
-        allMergedStops,
+        allMergedStops: serializableStops,
         unmappedStops,
         unassignedStops
       };
@@ -2321,7 +2449,13 @@
         if (p.aliases) Object.entries(p.aliases).forEach(([k, v]) => storeAliasMap.set(k, v));
         if (p.fleet) fleet = p.fleet;
         if (p.activeTruckId) activeTruckId = p.activeTruckId;
-        if (p.allMergedStops) allMergedStops = p.allMergedStops;
+        if (p.allMergedStops) {
+          allMergedStops = p.allMergedStops.map(s => {
+            s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
+            s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
+            return s;
+          });
+        }
         if (p.unmappedStops) unmappedStops = p.unmappedStops;
         if (p.unassignedStops) unassignedStops = p.unassignedStops;
 
@@ -2402,8 +2536,10 @@
 
     function checkButtonsState() {
       let hasData = fleet.some(t => t.stops.length > 0);
-      document.getElementById('btnGenDriverLink').disabled = !hasData;
-      document.getElementById('btnPrint').disabled = !hasData;
+      let btnDriver = document.getElementById('btnGenDriverLink');
+      let btnPrint = document.getElementById('btnPrint');
+      if (btnDriver) btnDriver.disabled = !hasData;
+      if (btnPrint) btnPrint.disabled = !hasData;
     }
 
     function resetApp() {
