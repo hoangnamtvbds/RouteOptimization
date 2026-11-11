@@ -34,11 +34,11 @@
     }
   </script>
 
-<!-- Supabase JS Client v2 CDN chuẩn Browser UMD -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- Supabase JS Client v2 CDN chuẩn Browser -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
-      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>');
+    if (typeof window.supabase === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.8/supabase.min.js"><\/script>');
     }
   </script>
 
@@ -713,18 +713,29 @@
     const SUPABASE_ANON_KEY = "sb_publishable_JMCaJ-K3W-meXRTPPfrpFg_QHG8JUr2";
     
     var supabase = null;
-    function initSupabaseClient() {
+    function getSupabase() {
+      if (supabase) return supabase;
       try {
+        let clientFactory = null;
         if (window.supabase && typeof window.supabase.createClient === 'function') {
-          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          clientFactory = window.supabase.createClient;
         } else if (window.supabaseJs && typeof window.supabaseJs.createClient === 'function') {
-          supabase = window.supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          clientFactory = window.supabaseJs.createClient;
+        } else if (typeof createClient === 'function') {
+          clientFactory = createClient;
+        }
+
+        if (clientFactory) {
+          supabase = clientFactory(SUPABASE_URL, SUPABASE_ANON_KEY);
+          return supabase;
         }
       } catch (e) {
-        console.error("Lỗi khởi tạo Supabase:", e);
+        console.error("Lỗi tạo Supabase client:", e);
       }
+      return null;
     }
-    initSupabaseClient();
+    // Khởi tạo lần đầu
+    supabase = getSupabase();
 
     const STORAGE_KEY_MASTER_CACHE = "FMCG_MASTER_CLOUD_CACHE_V4";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
@@ -942,27 +953,46 @@
 
     // HÀM ĐẨY TOÀN BỘ 624 ĐIỂM MAP HIỆN CÓ LÊN CLOUD
    async function forcePushLocalMasterToCloud() {
-      // Tự động thử kết nối lại nếu biến chưa kịp gán
-      if (!supabase && window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
-      if (!supabase) {
-        return alert("Trình duyệt chưa tải được thư viện Supabase, vui lòng kiểm tra lại kết nối mạng và F5 lại trang!");
+      let sb = getSupabase();
+      if (!sb) {
+        return alert("Trình duyệt chưa tải xong thư viện Supabase! Vui lòng kiểm tra lại đường truyền và F5 lại trang.");
       }
 
       let list = Array.from(masterGpsMap.values());
-      if (list.length === 0) return alert("Không tìm thấy dữ liệu map trong bộ nhớ máy này!");
-
-      if (!confirm(`Đẩy toàn bộ ${list.length} điểm map lên Cloud Supabase?`)) return;
-
-      for (let i = 0; i < list.length; i += 100) {
-        let chunk = list.slice(i, i + 100);
-        let { error } = await supabase.from('master_customers').upsert(chunk, { onConflict: 'id' });
-        if (error) {
-          return alert("Lỗi gửi dữ liệu lên Cloud: " + error.message);
+      if (list.length === 0) {
+        // Nếu bộ nhớ tạm rỗng, thử đọc từ cache máy
+        let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
+        if (Array.isArray(cached) && cached.length > 0) {
+          cached.forEach(m => masterGpsMap.set(m.id, m));
+          list = cached;
         }
       }
-      alert(`ĐÃ ĐẨY THÀNH CÔNG ${list.length} KHÁCH HÀNG LÊN CLOUD!`);
+
+      if (list.length === 0) {
+        return alert("Không tìm thấy dữ liệu tọa độ nào trong bộ nhớ máy này để đẩy lên Cloud!");
+      }
+
+      if (!confirm(`Tìm thấy ${list.length} điểm map trên máy này. Bắt đầu đẩy toàn bộ lên Cloud Supabase?`)) return;
+
+      let successCount = 0;
+      for (let i = 0; i < list.length; i += 100) {
+        let chunk = list.slice(i, i + 100).map(m => ({
+          id: String(m.id).trim(),
+          name: m.name || '',
+          phone: normalizePhone(m.phone || ''),
+          lat: parseFloat(m.lat),
+          lon: parseFloat(m.lon),
+          addr: m.addr || ''
+        })).filter(m => m.id && !isNaN(m.lat) && !isNaN(m.lon));
+
+        let { error } = await sb.from('master_customers').upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          return alert("Lỗi khi lưu lên Cloud: " + error.message);
+        }
+        successCount += chunk.length;
+      }
+
+      alert(`ĐÃ ĐẨY THÀNH CÔNG ${successCount} KHÁCH HÀNG LÊN CLOUD SUPABASE!\nBây giờ mọi thiết bị khác mở lên đều sẽ có chung dữ liệu.`);
       await loadMasterDataFromCloud();
     }
 
@@ -1563,7 +1593,8 @@ async function restoreMasterBackupFromCloud() {
       try {
         let isDriver = checkDriverRoutingModeSync();
         if (!isDriver) {
-          loadPermanentData(); // Tải cấu hình xe, kho, alias từ máy trước
+          // 1. Tải kho và alias cục bộ làm mặc định tạm
+          loadPermanentData();
           checkMonthlyAutoReset();
           renderFleetTabs();
           updateManualTruckDropdown();
@@ -1573,10 +1604,13 @@ async function restoreMasterBackupFromCloud() {
             try { initMap(); } catch (e) {}
           }, 150);
 
-          // TẢI DỮ LIỆU CLOUD TRƯỚC RỒI MỚI VẼ GIAO DIỆN
+          // 2. Đảm bảo Supabase Client sẵn sàng
+          getSupabase();
+
+          // 3. Kéo toàn bộ dữ liệu Cloud về đè lên dữ liệu máy trước khi bật tính năng lưu
           await loadMasterDataFromCloud();
-          await backgroundSyncSupabase(); // Kéo đơn từ Cloud về
-          setupSupabaseRealtime();        // Bật lắng nghe thay đổi
+          await backgroundSyncSupabase();
+          setupSupabaseRealtime();
         }
       } catch (err) {
         console.error("Lỗi khởi tạo tổng thể:", err);
