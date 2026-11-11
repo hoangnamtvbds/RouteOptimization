@@ -1340,41 +1340,58 @@
     }
 
     async function applyManualTruckAssignment() {
-      if (selectedStopIds.size === 0) return;
-      let targetTruckId = parseInt(document.getElementById('selectTargetTruckManual').value);
-      let targetTruck = fleet.find(t => t.id === targetTruckId);
-      if (!targetTruck) return;
+  if (selectedStopIds.size === 0) return;
+  let targetTruckId = parseInt(document.getElementById('selectTargetTruckManual').value);
+  let targetTruck = fleet.find(t => t.id === targetTruckId);
+  if (!targetTruck) return;
 
-      selectedStopIds.forEach(id => {
-        let stop = allMergedStops.find(s => s.canonicalId === id);
-        if (stop) {
-          if (stop.truckId) {
-            let oldTruck = fleet.find(t => t.id === stop.truckId);
-            if (oldTruck) oldTruck.stops = oldTruck.stops.filter(s => s.canonicalId !== id);
-          }
-          stop.truckId = targetTruckId;
-          targetTruck.stops.push(stop);
-        }
-      });
+  // Tính tổng lượng hàng của các đơn đang chọn
+  let pendingQty = 0;
+  selectedStopIds.forEach(id => {
+    let stop = allMergedStops.find(s => s.canonicalId === id);
+    if (stop) pendingQty += (parseFloat(stop.totalQty) || 0);
+  });
 
-      optimizeTruckSequence(targetTruck);
-      selectedStopIds.clear();
-      updateManualRoutingBarState();
-      unassignedStops = allMergedStops.filter(s => s.truckId === null);
-      document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+  let currentLoad = targetTruck.stops.reduce((sum, s) => sum + (parseFloat(s.totalQty) || 0), 0);
 
-      activeTruckId = targetTruckId;
-      renderFleetTabs();
-      updateTruckSummary();
-      renderStopsList();
-      renderRouteOnMap();
-      updateDashboardReport();
-      checkButtonsState();
-      savePermanentEdits();
-
-      await syncTruckStopsToCloud(targetTruck);
-      alert(`ĐÃ GÁN VÀO ${targetTruck.name} & TỐI ƯU TUYẾN THÀNH CÔNG!`);
+  // CẢNH BÁO & CHẶN NẾU QUÁ TẢI
+  if (currentLoad + pendingQty > targetTruck.maxCapacity) {
+    let msg = `CẢNH BÁO QUÁ TẢI TRỌNG!\n\n${targetTruck.name} có tải trọng tối đa: ${targetTruck.maxCapacity} Thùng.\nHiện tại xe đang chở: ${currentLoad} Thùng.\nSố lượng đơn anh vừa chọn thêm: ${pendingQty} Thùng.\nTổng cộng sẽ là: ${currentLoad + pendingQty} Thùng (QUÁ TẢI)!\n\nAnh có CHẮC CHẮN muốn ép xe này chở quá tải không?`;
+    if (!confirm(msg)) {
+      return; // Hủy bỏ ngay lập tức nếu không đồng ý
     }
+  }
+
+  selectedStopIds.forEach(id => {
+    let stop = allMergedStops.find(s => s.canonicalId === id);
+    if (stop) {
+      if (stop.truckId) {
+        let oldTruck = fleet.find(t => t.id === stop.truckId);
+        if (oldTruck) oldTruck.stops = oldTruck.stops.filter(s => s.canonicalId !== id);
+      }
+      stop.truckId = targetTruckId;
+      targetTruck.stops.push(stop);
+    }
+  });
+
+  optimizeTruckSequence(targetTruck);
+  selectedStopIds.clear();
+  updateManualRoutingBarState();
+  unassignedStops = allMergedStops.filter(s => s.truckId === null);
+  document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+  activeTruckId = targetTruckId;
+  renderFleetTabs();
+  updateTruckSummary();
+  renderStopsList();
+  renderRouteOnMap();
+  updateDashboardReport();
+  checkButtonsState();
+  savePermanentEdits();
+
+  await syncTruckStopsToCloud(targetTruck);
+  alert(`ĐÃ GÁN VÀO ${targetTruck.name.toUpperCase()} THÀNH CÔNG!`);
+}
 
     async function unassignSelectedStops() {
       if (selectedStopIds.size === 0) return;
@@ -1520,31 +1537,30 @@
   if (elDispatch) elDispatch.classList.add('hidden');
   if (elDriver) elDriver.classList.remove('hidden');
 
-  // 1. Tách chính xác ID xe từ thanh địa chỉ URL
+  // Lấy chính xác xe ID từ link URL
   let queryPart = hash.includes('?') ? hash.split('?')[1] : '';
   let urlParams = new URLSearchParams(queryPart);
   let paramTruckId = parseInt(urlParams.get('truck') || '0', 10);
   let orderDate = urlParams.get('date') || getTodayString();
 
-  // 2. Nạp dữ liệu offline nhưng KHÔNG ĐƯỢC để LocalStorage ghi đè làm mất ID xe
+  // Nạp dữ liệu nhưng tuyệt đối không để cache ép về Xe 1
   loadPermanentData();
   if (paramTruckId > 0) {
     activeTruckId = paramTruckId;
   }
 
-  // 3. Khởi tạo ngay khung bản đồ mini
+  // Khởi tạo khung bản đồ ngay
   setTimeout(() => {
     initDriverMiniMap();
-  }, 100);
+  }, 150);
 
-  // Hiển thị trạng thái đang tải dữ liệu cho tài xế
   let container = document.getElementById('driverAppCardsList');
   if (container) {
     container.innerHTML = '<div class="p-8 text-center text-blue-600 font-bold text-xs"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i>Đang tải dữ liệu chuyến xe từ Cloud...</div>';
     safeRenderIcons();
   }
 
-  // 4. Kéo dữ liệu thực từ Cloud Supabase theo đúng xe và ngày
+  // Kéo dữ liệu từ Cloud Supabase
   if (supabase) {
     supabase.from('dispatch_sessions')
       .select('*')
@@ -1552,7 +1568,6 @@
       .eq('truck_id', activeTruckId)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error) console.warn("Lỗi Supabase driver:", error);
         if (data && Array.isArray(data.stops) && data.stops.length > 0) {
           let truck = fleet.find(t => t.id === activeTruckId);
           if (!truck) {
@@ -1573,19 +1588,21 @@
           truck.name = data.truck_name || truck.name;
 
           renderDriverAppCards();
-          setTimeout(() => {
-            renderDriverMiniMapRoute(truck.stops);
-          }, 200);
+          setTimeout(() => renderDriverMiniMapRoute(truck.stops), 200);
         } else {
-          // Nếu Supabase chưa có, kiểm tra xe trong cache máy
-          renderDriverAppCards();
+          // Thử lấy từ cache máy nếu có
           let localTruck = fleet.find(t => t.id === activeTruckId);
           if (localTruck && localTruck.stops && localTruck.stops.length > 0) {
+            renderDriverAppCards();
             setTimeout(() => renderDriverMiniMapRoute(localTruck.stops), 200);
+          } else {
+            if (container) {
+              container.innerHTML = `<div class="p-8 text-center text-slate-400 text-xs">Chưa có đơn hàng nào cho Xe ${activeTruckId} hôm nay.</div>`;
+            }
           }
         }
       }).catch(err => {
-        console.warn("Lỗi fetch đơn:", err);
+        console.warn("Lỗi fetch đơn tài xế:", err);
         renderDriverAppCards();
       });
   } else {
@@ -1793,25 +1810,47 @@ function openDriverLinkDirect(truckId) {
     }
 
     async function syncTruckStopsToCloud(truck) {
-      if (!supabase || !truck) return;
-      let urlParams = new URLSearchParams((window.location.hash || '').split('?')[1] || '');
-      let orderDate = urlParams.get('date') || getTodayString();
-      try {
-        await supabase.from('dispatch_sessions').upsert({
-          order_date: orderDate,
-          truck_id: truck.id,
-          truck_name: truck.name,
-          driver_name: truck.driver,
-          driver_phone: truck.phone,
-          plate: truck.plate,
-          max_capacity: truck.maxCapacity,
-          stops: truck.stops,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'order_date,truck_id' });
-      } catch (err) {
-        console.warn("Lỗi sync phiên xe lên Cloud:", err);
-      }
-    }
+  if (!supabase || !truck) return;
+  let today = getTodayString();
+  try {
+    // CHUYỂN ĐỔI BẮT BUỘC: Biến Set() thành mảng Array thường để Supabase lưu không bị rỗng
+    let cleanStops = (truck.stops || []).map(s => ({
+      canonicalId: s.canonicalId || '',
+      custName: s.custName || '',
+      phone: s.phone || '',
+      addr: s.addr || '',
+      lat: s.lat || null,
+      lon: s.lon || null,
+      isMapped: !!s.isMapped,
+      totalQty: s.totalQty || 0,
+      totalCod: s.totalCod || 0,
+      status: s.status || 'pending',
+      failedReason: s.failedReason || '',
+      stopSeq: s.stopSeq || 1,
+      lifoSeq: s.lifoSeq || 1,
+      truckId: truck.id,
+      items: s.items || [],
+      rawIds: Array.from(s.rawIds || []),
+      invoices: Array.from(s.invoices || [])
+    }));
+
+    let { error } = await supabase.from('dispatch_sessions').upsert({
+      order_date: today,
+      truck_id: Number(truck.id),
+      truck_name: truck.name,
+      driver_name: truck.driver,
+      driver_phone: truck.phone,
+      plate: truck.plate,
+      max_capacity: truck.maxCapacity,
+      stops: cleanStops,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'order_date,truck_id' });
+
+    if (error) console.error("Lỗi Supabase khi lưu xe:", error);
+  } catch (err) {
+    console.warn("Lỗi sync phiên xe lên Cloud:", err);
+  }
+}
 
  async function driverMarkSuccess(canonicalId) {
   let truck = fleet.find(t => t.id === activeTruckId);
