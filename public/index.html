@@ -27,10 +27,10 @@
   </script>
 
   <!-- Lucide Icons CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.1/dist/umd/lucide.min.js"></script>
   <script>
     if (typeof lucide === 'undefined') {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/lucide@latest"><\/script>');
+      document.write('<script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"><\/script>');
     }
   </script>
 
@@ -752,6 +752,33 @@
       'https://unpkg.com/@supabase/supabase-js@2.57.4/dist/umd/supabase.js',
       'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
     ];
+
+    // ===== Hộp thoại tự vẽ: thay confirm()/prompt() của trình duyệt (Firefox hay chặn/ẩn => nút bị "đơ") =====
+    function _appDialog(msg, withInput, defVal, okText) {
+      return new Promise(resolve => {
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px';
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:14px;max-width:440px;width:100%;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.35);font-size:13px;color:#0f172a';
+        const t = document.createElement('div'); t.style.cssText = 'white-space:pre-wrap;line-height:1.5;margin-bottom:10px;max-height:55vh;overflow:auto'; t.textContent = msg;
+        box.appendChild(t);
+        let inp = null;
+        if (withInput) { inp = document.createElement('input'); inp.type = 'text'; inp.value = defVal || ''; inp.style.cssText = 'width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px;margin-bottom:10px;font-size:13px'; box.appendChild(inp); }
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+        const bNo = document.createElement('button'); bNo.textContent = 'Hủy'; bNo.style.cssText = 'padding:7px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;font-weight:700;cursor:pointer';
+        const bOk = document.createElement('button'); bOk.textContent = okText || 'Đồng ý'; bOk.style.cssText = 'padding:7px 14px;border-radius:8px;border:0;background:#2563eb;color:#fff;font-weight:700;cursor:pointer';
+        row.appendChild(bNo); row.appendChild(bOk); box.appendChild(row); ov.appendChild(box); document.body.appendChild(ov);
+        const done = v => { document.removeEventListener('keydown', onKey, true); ov.remove(); resolve(v); };
+        const onKey = e => { if (e.key === 'Escape') done(withInput ? null : false); else if (e.key === 'Enter' && (withInput || true)) { e.preventDefault(); done(withInput ? inp.value : true); } };
+        document.addEventListener('keydown', onKey, true);
+        bNo.onclick = () => done(withInput ? null : false);
+        bOk.onclick = () => done(withInput ? inp.value : true);
+        setTimeout(() => (inp || bOk).focus(), 30);
+      });
+    }
+    const appConfirm = (msg) => _appDialog(msg, false);
+    const appPrompt = (msg, def) => _appDialog(msg, true, def);
+
     function loadScript(src) {
       return new Promise((res, rej) => {
         const s = document.createElement('script'); s.src = src; s.onload = res;
@@ -1305,7 +1332,7 @@
       if (!(await ensureSupabase())) return alert("Trình duyệt chưa tải được thư viện Supabase! Kiểm tra mạng rồi F5 lại trang.");
       const list = Array.from(masterGpsMap.values());
       if (list.length === 0) return alert("Không tìm thấy dữ liệu tọa độ nào trên máy này để đẩy lên Cloud!");
-      if (!confirm(`Tìm thấy ${list.length} điểm map trên máy này. Đẩy toàn bộ lên Cloud Supabase?`)) return;
+      if (!(await appConfirm(`Tìm thấy ${list.length} điểm map trên máy này. Đẩy toàn bộ lên Cloud Supabase?`))) return;
       try {
         await upsertMasterChunks(list);
         await loadMasterDataFromCloud(); refreshStopMappingFromMaster(); refreshAllViews();
@@ -1320,8 +1347,8 @@
       if (subInv) subInv.innerText = `Đã kết nối ${count} tọa độ gốc từ Cloud`;
     }
 
-    function promptMasterAdmin() {
-      let pass = prompt("Nhập mật khẩu Quản Trị Master Data GPS:");
+    async function promptMasterAdmin() {
+      let pass = await appPrompt("Nhập mật khẩu Quản Trị Master Data GPS:");
       if (pass === "1111") {
         document.getElementById('masterAdminModal').classList.remove('hidden');
         safeRenderIcons();
@@ -1971,7 +1998,7 @@ async function revokeDriverLink(truckId) {
   let truck = fleet.find(t => t.id === truckId);
   if (!truck) return;
   const pending = truck.stops.filter(x => x.status === 'pending');
-  if (!confirm(`THU HỒI ${truck.name}?\n\n• ${pending.length} điểm CHƯA GIAO sẽ được rút về kho đơn chung để xếp xe khác.\n• Điểm đã giao / thất bại giữ nguyên (bấm "Hoàn tất chuyến" khi xe về để đóng chuyến).`)) return;
+  if (!(await appConfirm(`THU HỒI ${truck.name}?\n\n• ${pending.length} điểm CHƯA GIAO sẽ được rút về kho đơn chung để xếp xe khác.\n• Điểm đã giao / thất bại giữ nguyên (bấm "Hoàn tất chuyến" khi xe về để đóng chuyến).`))) return;
   pending.forEach(x => { x.truckId = null; x.locked = false; x.stopSeq = 0; x.lifoSeq = 0; });
   truck.stops = truck.stops.filter(x => x.status !== 'pending');
   if (truck.stops.length === 0) { truck.linkIssued = false; truck.linkToken = null; }
@@ -1987,10 +2014,10 @@ async function completeTrip(truckId) {
   if (!truck || truck.stops.length === 0) return alert("Xe này chưa có chuyến nào đang chạy.");
   const ok = truck.stops.filter(x => x.status === 'success'), bad = truck.stops.filter(x => x.status === 'failed'), pend = truck.stops.filter(x => x.status === 'pending');
   const codOk = ok.reduce((a, x) => a + (parseFloat(x.totalCod) || 0), 0);
-  if (!confirm(`HOÀN TẤT CHUYẾN ${truck.tripNo || 1} • ${truck.name}?\n\n• Đã giao: ${ok.length} điểm (thu ${formatMoney(codOk)})\n• Giao thất bại: ${bad.length} điểm\n• Chưa giao: ${pend.length} điểm\n\nXe sẽ được giải phóng để nhận chuyến sau.`)) return;
+  if (!(await appConfirm(`HOÀN TẤT CHUYẾN ${truck.tripNo || 1} • ${truck.name}?\n\n• Đã giao: ${ok.length} điểm (thu ${formatMoney(codOk)})\n• Giao thất bại: ${bad.length} điểm\n• Chưa giao: ${pend.length} điểm\n\nXe sẽ được giải phóng để nhận chuyến sau.`))) return;
   const back = truck.stops.filter(x => x.status !== 'success');
   let returnBack = false;
-  if (back.length > 0) returnBack = confirm(`Có ${back.length} điểm CHƯA GIAO / GIAO THẤT BẠI.\n\nOK = ĐƯA LẠI vào kho đơn chung để xếp chuyến sau.\nCancel = ĐÓNG LUÔN (kế toán tự thêm lại hôm sau nếu cần).`);
+  if (back.length > 0) returnBack = await appConfirm(`Có ${back.length} điểm CHƯA GIAO / GIAO THẤT BẠI.\n\nOK = ĐƯA LẠI vào kho đơn chung để xếp chuyến sau.\nCancel = ĐÓNG LUÔN (kế toán tự thêm lại hôm sau nếu cần).`);
   const tripNo = truck.tripNo || 1;
   truck.stops.forEach(x => {
     if (x.status !== 'success' && returnBack) {
@@ -3003,7 +3030,7 @@ async function submitDriverRejectReason(reason) {
     async function reassignStopToAnotherTruck(event, canonicalId) {
       if (event) event.stopPropagation();
       let truckNames = fleet.map((t, idx) => `${idx + 1}. ${t.name} (Đang tải ${t.stops.reduce((a, b) => a + b.totalQty, 0)} Thùng)`).join('\n');
-      let choice = prompt(`CHỌN XE MUỐN CHUYỂN ĐẾN:\n\n${truckNames}\n\nNhập số thứ tự xe (1, 2, 3...):`);
+      let choice = await appPrompt(`CHỌN XE MUỐN CHUYỂN ĐẾN:\n\n${truckNames}\n\nNhập số thứ tự xe (1, 2, 3...):`);
       let truckIdx = parseInt(choice) - 1;
 
       if (!isNaN(truckIdx) && fleet[truckIdx]) {
@@ -3151,12 +3178,12 @@ async function submitDriverRejectReason(reason) {
       if (btnPrint) btnPrint.disabled = !hasData;
     }
 
-    function resetApp() {
-      if (confirm("Làm mới lại toàn bộ trang web?")) location.reload();
+    async function resetApp() {
+      if (await appConfirm("Làm mới lại toàn bộ trang web?")) location.reload();
     }
 
     async function clearTodayTestOrders() {
-      if (prompt("Thao tác này XÓA TOÀN BỘ đơn hôm nay trên MỌI máy.\nGõ chữ XOA để xác nhận:") !== "XOA") return;
+      if ((await appPrompt("Thao tác này XÓA TOÀN BỘ đơn hôm nay trên MỌI máy.\nGõ chữ XOA để xác nhận:")) !== "XOA") return;
 
       allMergedStops = [];
       unmappedStops = [];
