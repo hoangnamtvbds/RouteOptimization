@@ -279,7 +279,7 @@
             <button id="btnMapSelect" onclick="toggleMapSelectMode()" class="pointer-events-auto bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
               <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5"></i><span id="btnMapSelectText">Quét Chọn Cụm</span>
             </button>
-            <div id="mapSelHint" class="hidden pointer-events-none bg-amber-100/95 text-amber-900 text-[10px] font-semibold px-2 py-1 rounded-lg border border-amber-300 max-w-[260px]">Giữ chuột kéo vẽ vòng quanh cụm điểm • bấm 1 điểm để chọn / bỏ chọn</div>
+            <div id="mapSelHint" class="hidden pointer-events-none bg-amber-100/95 text-amber-900 text-[10px] font-semibold px-2 py-1 rounded-lg border border-amber-300 max-w-[260px]">Chuột trái kéo: vẽ vòng quanh cụm • Chuột phải kéo: di chuyển bản đồ • Lăn chuột: zoom • Bấm 1 điểm: chọn / bỏ chọn</div>
             <div id="mapSelBar" class="hidden pointer-events-auto bg-white/95 backdrop-blur border border-amber-300 rounded-xl shadow px-2 py-1.5 flex items-center gap-1.5 text-xs">
               <span id="mapSelInfo" class="font-bold text-amber-900">0 đơn</span>
               <select id="mapSelTruck" class="p-1 border rounded bg-white text-xs font-bold text-slate-700"></select>
@@ -2745,7 +2745,8 @@ async function submitDriverRejectReason(reason) {
     }
 
     // ===== QUÉT CHỌN CỤM TRÊN MAP =====
-    let mapSelectMode = false, lassoPts = [], lassoShape = null, lassoLayer = null, lassoActive = false;
+    let mapSelectMode = false, lassoPts = [], lassoShape = null, lassoLayer = null, lassoActive = false, panActive = false, panLast = null;
+    function lassoCtx(e) { e.preventDefault(); }
     const TRUCK_COLORS = ['#2563eb', '#ca8a04', '#7c3aed', '#db2777', '#0891b2', '#c2410c', '#4f46e5', '#92400e'];
     function truckColor(id) { const i = fleet.findIndex(t => t.id === id); return i < 0 ? '#64748b' : TRUCK_COLORS[i % TRUCK_COLORS.length]; }
     // chỉ chọn được điểm chưa giao, có GPS, và không nằm trên xe đã phát link
@@ -2778,6 +2779,13 @@ async function submitDriverRejectReason(reason) {
     }
     function lassoDown(e) {
       if (!mapSelectMode || !map) return;
+      if (e.pointerType === 'mouse' && (e.button === 2 || e.button === 1)) {   // chuột phải / chuột giữa: kéo di chuyển bản đồ
+        if (e.target.closest && e.target.closest('.leaflet-control')) return;
+        panActive = true; panLast = { x: e.clientX, y: e.clientY };
+        try { map.getContainer().setPointerCapture(e.pointerId); } catch (x) {}
+        map.getContainer().style.cursor = 'grabbing';
+        e.preventDefault(); return;
+      }
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (e.target.closest && e.target.closest('.leaflet-marker-icon, .leaflet-control')) return;
       lassoActive = true; lassoPts = [map.mouseEventToLatLng(e)];
@@ -2788,11 +2796,18 @@ async function submitDriverRejectReason(reason) {
       e.preventDefault();
     }
     function lassoMove(e) {
+      if (panActive && map) {
+        const dx = e.clientX - panLast.x, dy = e.clientY - panLast.y;
+        panLast = { x: e.clientX, y: e.clientY };
+        if (dx || dy) map.panBy([-dx, -dy], { animate: false });
+        return;
+      }
       if (!lassoActive || !map) return;
       lassoPts.push(map.mouseEventToLatLng(e));
       if (lassoShape) lassoShape.setLatLngs(lassoPts);
     }
     function lassoUp() {
+      if (panActive) { panActive = false; if (map && mapSelectMode) map.getContainer().style.cursor = 'crosshair'; return; }
       if (!lassoActive) return;
       lassoActive = false;
       const poly = lassoPts.map(p => [p.lat, p.lng]);
@@ -2813,12 +2828,13 @@ async function submitDriverRejectReason(reason) {
         el.style.cursor = 'crosshair'; el.style.touchAction = 'none';
         el.addEventListener('pointerdown', lassoDown); el.addEventListener('pointermove', lassoMove);
         el.addEventListener('pointerup', lassoUp); el.addEventListener('pointercancel', lassoUp);
+        el.addEventListener('contextmenu', lassoCtx);
         renderSelectModeMap(true);
       } else {
         map.dragging.enable(); map.doubleClickZoom.enable(); map.boxZoom.enable();
         el.style.cursor = ''; el.style.touchAction = '';
         el.removeEventListener('pointerdown', lassoDown); el.removeEventListener('pointermove', lassoMove);
-        el.removeEventListener('pointerup', lassoUp); el.removeEventListener('pointercancel', lassoUp);
+        el.removeEventListener('pointerup', lassoUp); el.removeEventListener('pointercancel', lassoUp); el.removeEventListener('contextmenu', lassoCtx); panActive = false;
         if (lassoLayer) lassoLayer.clearLayers();
         renderRouteOnMap();
       }
