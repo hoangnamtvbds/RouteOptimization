@@ -938,10 +938,13 @@
         if (!el) return;
         drvMap = L.map('drvMiniMap', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, zoomControl: false, preferCanvas: true });
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap'
-        }).addTo(drvMap);
+      // Áp dụng cho cả hàm initMap() và initDriverMiniMap():
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  subdomains: 'abcd',
+  attribution: '© OpenStreetMap, © CARTO'
+}).addTo(map); // (với initDriverMiniMap thì thay bằng .addTo(drvMap))
+
 
         drvRouteLayer = L.layerGroup().addTo(drvMap);
         drvPinsLayer = L.layerGroup().addTo(drvMap);
@@ -1170,10 +1173,13 @@
         if (!el) return;
         map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true });
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        // Áp dụng cho cả hàm initMap() và initDriverMiniMap():
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  subdomains: 'abcd',
+  attribution: '© OpenStreetMap, © CARTO'
+}).addTo(map); // (với initDriverMiniMap thì thay bằng .addTo(drvMap))
+
 
         routeLayer = L.layerGroup().addTo(map);
         pinsLayer = L.layerGroup().addTo(map);
