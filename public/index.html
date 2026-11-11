@@ -1135,124 +1135,171 @@
     // -------------------------------------------------------------------------
     // 6. THUẬT TOÁN ĐIỀU PHỐI TỰ ĐỘNG & CÂN BẰNG TẢI TRỌNG
     // -------------------------------------------------------------------------
-    async function runSmartFleetDispatch() {
-      if (allMergedStops.length === 0) return;
-      fleet.forEach(t => t.stops = []);
+   async function runSmartFleetDispatch() {
+  if (allMergedStops.length === 0) return;
+  fleet.forEach(t => t.stops = []);
 
-      let mappedStops = allMergedStops.filter(s => s.isMapped);
-      unmappedStops = allMergedStops.filter(s => !s.isMapped);
+  // Reset lại trạng thái xe cho tất cả đơn
+  allMergedStops.forEach(s => s.truckId = null);
 
-      // Sắp xếp theo góc cực quét đều quanh mốc kho
-      mappedStops.sort((a, b) => {
-        let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
-        let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
-        return angleA - angleB;
-      });
+  let mappedStops = allMergedStops.filter(s => s.isMapped);
+  unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
-      let curTruckIdx = 0;
-      let remaining = [...mappedStops];
+  // Sắp xếp các điểm theo góc cực quanh Kho xuất phát để chia thành các cánh cung tuyến hợp lý
+  mappedStops.sort((a, b) => {
+    let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
+    let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
+    return angleA - angleB;
+  });
 
-      // Giai đoạn 1: Gom đơn vào từng xe theo giới hạn tải trọng
-      while (remaining.length > 0 && curTruckIdx < fleet.length) {
-        let truck = fleet[curTruckIdx];
-        let currentLoad = truck.stops.reduce((sum, s) => sum + s.totalQty, 0);
-        let lastPos = truck.stops.length > 0
-          ? { lat: truck.stops[truck.stops.length - 1].lat, lon: truck.stops[truck.stops.length - 1].lon }
-          : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
+  let curTruckIdx = 0;
+  let remaining = [...mappedStops];
 
-        let candidateIdx = -1;
-        let minDist = Infinity;
+  // CHẶN QUÁ TẢI NGHIÊM NGẶT: Mỗi xe chỉ nhận tối đa 100% dung lượng thùng
+  while (remaining.length > 0 && curTruckIdx < fleet.length) {
+    let truck = fleet[curTruckIdx];
+    let currentLoad = truck.stops.reduce((sum, s) => sum + s.totalQty, 0);
+    let lastPos = truck.stops.length > 0
+      ? { lat: truck.stops[truck.stops.length - 1].lat, lon: truck.stops[truck.stops.length - 1].lon }
+      : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
 
-        for (let i = 0; i < remaining.length; i++) {
-          let s = remaining[i];
-          if (currentLoad + s.totalQty <= truck.maxCapacity * 1.1) {
-            let d = calcDistanceKm(lastPos.lat, lastPos.lon, s.lat, s.lon);
-            if (d < minDist) {
-              minDist = d;
-              candidateIdx = i;
-            }
-          }
-        }
+    let candidateIdx = -1;
+    let minDist = Infinity;
 
-        if (candidateIdx !== -1) {
-          let chosen = remaining.splice(candidateIdx, 1)[0];
-          chosen.truckId = truck.id;
-          truck.stops.push(chosen);
-        } else {
-          curTruckIdx++;
+    for (let i = 0; i < remaining.length; i++) {
+      let s = remaining[i];
+      // Chặn trần: Chỉ cho vào nếu không vượt quá tải trọng xe
+      if (currentLoad + s.totalQty <= truck.maxCapacity) {
+        let d = calcDistanceKm(lastPos.lat, lastPos.lon, s.lat, s.lon);
+        if (d < minDist) {
+          minDist = d;
+          candidateIdx = i;
         }
       }
-
-      // Giai đoạn 2: Cân bằng tải cho các đơn dôi dư, chia đều thay vì dồn 1 xe
-      remaining.forEach(s => {
-        let bestTruck = fleet.slice().sort((a, b) => {
-          let loadA = a.stops.reduce((sum, x) => sum + x.totalQty, 0) / a.maxCapacity;
-          let loadB = b.stops.reduce((sum, x) => sum + x.totalQty, 0) / b.maxCapacity;
-          return loadA - loadB;
-        })[0];
-        s.truckId = bestTruck.id;
-        bestTruck.stops.push(s);
-      });
-
-      fleet.forEach(t => optimizeTruckSequence(t));
-      unassignedStops = allMergedStops.filter(s => s.truckId === null);
-      document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
-
-      // Chuyển sang xem lộ trình xe 1 sau khi xếp xong
-      currentStopTab = 'route';
-      ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
-        let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
-        if (b) b.className = (k === 'route') ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
-      });
-
-      renderFleetTabs();
-      updateTruckSummary();
-      renderStopsList();
-      renderRouteOnMap();
-      updateDashboardReport();
-      checkButtonsState();
-      savePermanentEdits();
-
-      if (supabase) {
-        for (let t of fleet) {
-          if (t.stops.length > 0) await syncTruckStopsToCloud(t);
-        }
-      }
-
-      alert(`ĐÃ GỢI Ý XẾP XE HOÀN TẤT!\n\nĐã cân tải và tối ưu lộ trình khép kín kho cho toàn bộ đội xe.`);
     }
+
+    if (candidateIdx !== -1) {
+      let chosen = remaining.splice(candidateIdx, 1)[0];
+      chosen.truckId = truck.id;
+      truck.stops.push(chosen);
+    } else {
+      // Xe hiện tại đã đầy tải -> chuyển sang xe tiếp theo
+      curTruckIdx++;
+    }
+  }
+
+  // Những đơn còn lại không thể nhét vừa xe nào sẽ GIỮ NGUYÊN LÀ "CHƯA XẾP"
+  // Tuyệt đối không tự ý nhồi vào xe để tránh xe 150 thùng bị quá tải lên 400 thùng!
+  remaining.forEach(s => {
+    s.truckId = null;
+  });
+
+  // Tối ưu lại chuỗi hành trình vòng tròn xuất phát từ kho và kết thúc tại kho
+  fleet.forEach(t => optimizeTruckSequence(t));
+
+  unassignedStops = allMergedStops.filter(s => s.truckId === null);
+  document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+  // Chuyển sang xem lộ trình xe 1
+  currentStopTab = 'route';
+  ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
+    let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
+    if (b) b.className = (k === 'route') ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
+  });
+
+  renderFleetTabs();
+  updateTruckSummary();
+  renderStopsList();
+  renderRouteOnMap();
+  updateDashboardReport();
+  checkButtonsState();
+  savePermanentEdits();
+
+  if (supabase) {
+    for (let t of fleet) {
+      if (t.stops.length > 0) await syncTruckStopsToCloud(t);
+    }
+  }
+
+  let overMsg = unassignedStops.length > 0 
+    ? `\n\n⚠️ Lưu ý: Còn ${unassignedStops.length} đơn chưa xếp do đội xe đã đầy tải 100%! Vui lòng kiểm tra tab "Chưa Xếp".` 
+    : '';
+  alert(`ĐÃ XẾP XE HOÀN TẤT & ĐÚNG TẢI TRỌNG!${overMsg}`);
+}
 
     function optimizeTruckSequence(truck) {
-      if (!truck || truck.stops.length === 0) return;
-      let mapped = truck.stops.filter(s => s.isMapped);
-      let unmap = truck.stops.filter(s => !s.isMapped);
+  if (!truck || truck.stops.length === 0) return;
+  let mapped = truck.stops.filter(s => s.isMapped);
+  let unmap = truck.stops.filter(s => !s.isMapped);
 
-      let currentPos = { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
-      let unvisited = [...mapped];
-      let sorted = [];
+  if (mapped.length <= 1) {
+    truck.stops = [...mapped, ...unmap];
+    truck.stops.forEach((s, idx) => {
+      s.stopSeq = idx + 1;
+      s.lifoSeq = truck.stops.length - idx;
+      s.truckId = truck.id;
+    });
+    return;
+  }
 
-      while (unvisited.length > 0) {
-        let bestIdx = 0;
-        let minDist = Infinity;
-        for (let i = 0; i < unvisited.length; i++) {
-          let d = calcDistanceKm(currentPos.lat, currentPos.lon, unvisited[i].lat, unvisited[i].lon);
-          if (d < minDist) {
-            minDist = d;
-            bestIdx = i;
-          }
-        }
-        let nextStop = unvisited.splice(bestIdx, 1)[0];
-        sorted.push(nextStop);
-        currentPos = { lat: nextStop.lat, lon: nextStop.lon };
+  // Bước A: Tìm lộ trình ban đầu bằng Nearest Neighbor từ Kho
+  let currentPos = { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
+  let unvisited = [...mapped];
+  let route = [];
+
+  while (unvisited.length > 0) {
+    let bestIdx = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < unvisited.length; i++) {
+      let d = calcDistanceKm(currentPos.lat, currentPos.lon, unvisited[i].lat, unvisited[i].lon);
+      if (d < minDist) {
+        minDist = d;
+        bestIdx = i;
       }
-
-      truck.stops = [...sorted, ...unmap];
-      truck.stops.forEach((s, idx) => {
-        s.stopSeq = idx + 1;
-        s.lifoSeq = truck.stops.length - idx;
-        s.truckId = truck.id;
-      });
     }
+    let nextStop = unvisited.splice(bestIdx, 1)[0];
+    route.push(nextStop);
+    currentPos = { lat: nextStop.lat, lon: nextStop.lon };
+  }
+
+  // Bước B: Tối ưu 2-Opt tính cả chặng quay về Kho để loại bỏ các đường chéo cắt nhau
+  function calcTotalRoundTrip(stopsList) {
+    let total = calcDistanceKm(warehouseDepot.lat, warehouseDepot.lon, stopsList[0].lat, stopsList[0].lon);
+    for (let i = 0; i < stopsList.length - 1; i++) {
+      total += calcDistanceKm(stopsList[i].lat, stopsList[i].lon, stopsList[i+1].lat, stopsList[i+1].lon);
+    }
+    total += calcDistanceKm(stopsList[stopsList.length - 1].lat, stopsList[stopsList.length - 1].lon, warehouseDepot.lat, warehouseDepot.lon);
+    return total;
+  }
+
+  let improved = true;
+  let iterations = 0;
+  while (improved && iterations < 50) {
+    improved = false;
+    iterations++;
+    let bestDistance = calcTotalRoundTrip(route);
+    for (let i = 0; i < route.length - 1; i++) {
+      for (let k = i + 1; k < route.length; k++) {
+        let newRoute = route.slice(0, i).concat(route.slice(i, k + 1).reverse(), route.slice(k + 1));
+        let newDist = calcTotalRoundTrip(newRoute);
+        if (newDist < bestDistance - 0.01) {
+          route = newRoute;
+          bestDistance = newDist;
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  truck.stops = [...route, ...unmap];
+  truck.stops.forEach((s, idx) => {
+    s.stopSeq = idx + 1;
+    s.lifoSeq = truck.stops.length - idx;
+    s.truckId = truck.id;
+  });
+}
 
     // -------------------------------------------------------------------------
     // 7. PHÂN TUYẾN THỦ CÔNG
@@ -1473,15 +1520,11 @@
   if (elDispatch) elDispatch.classList.add('hidden');
   if (elDriver) elDriver.classList.remove('hidden');
 
-  // Nạp dữ liệu offline trước
   loadPermanentData();
 
-  // Lấy đúng ID xe từ URL tham số và gán đè sau cùng
   let urlParams = new URLSearchParams(hash.split('?')[1] || '');
   let paramTruckId = parseInt(urlParams.get('truck') || 0);
-  if (paramTruckId > 0) {
-    activeTruckId = paramTruckId;
-  }
+  if (paramTruckId > 0) activeTruckId = paramTruckId;
 
   let orderDate = urlParams.get('date') || getTodayString();
   let token = urlParams.get('token') || '';
@@ -1505,30 +1548,32 @@
     return true;
   }
 
+  // Khởi tạo khung bản đồ trước
+  initDriverMiniMap();
   renderDriverAppCards();
-      setTimeout(() => initDriverMiniMap(), 200);
 
-      if (supabase) {
-        Promise.race([
-          supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000))
-        ]).then(({ data }) => {
-          if (data && data.stops && data.stops.length > 0) {
-            let truck = fleet.find(t => t.id === activeTruckId);
-            if (!truck) {
-              truck = { id: activeTruckId, name: data.truck_name || `Xe ${activeTruckId}`, plate: data.plate || '', driver: data.driver_name || '', phone: data.driver_phone || '', maxCapacity: data.max_capacity || 150, stops: [] };
-              fleet.push(truck);
-            }
-            truck.stops = data.stops;
-            truck.driver = data.driver_name || truck.driver;
-            truck.plate = data.plate || truck.plate;
-            truck.name = data.truck_name || truck.name;
-            renderDriverAppCards();
+  // Kéo dữ liệu tươi mới nhất từ Cloud Supabase và vẽ lại thẻ + map ngay lập tức
+  if (supabase) {
+    supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle()
+      .then(({ data }) => {
+        if (data && data.stops && data.stops.length > 0) {
+          let truck = fleet.find(t => t.id === activeTruckId);
+          if (!truck) {
+            truck = { id: activeTruckId, name: data.truck_name || `Xe ${activeTruckId}`, plate: data.plate || '', driver: data.driver_name || '', phone: data.driver_phone || '', maxCapacity: data.max_capacity || 150, stops: [] };
+            fleet.push(truck);
           }
-        }).catch(err => console.warn("Không thể tải đơn tài xế:", err));
-      }
-      return true;
-    }
+          truck.stops = data.stops;
+          truck.driver = data.driver_name || truck.driver;
+          truck.plate = data.plate || truck.plate;
+          truck.name = data.truck_name || truck.name;
+
+          renderDriverAppCards();
+          renderDriverMiniMapRoute(truck.stops);
+        }
+      }).catch(err => console.warn("Lỗi tải đơn tài xế:", err));
+  }
+  return true;
+}
 
     function isTokenExpired(token) {
       try {
