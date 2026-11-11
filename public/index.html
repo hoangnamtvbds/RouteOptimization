@@ -43,8 +43,8 @@
     #map { height: 100%; width: 100%; min-height: 240px; background: #e2e8f0; }
     #drvMiniMap { height: 190px; width: 100%; background: #e2e8f0; }
     .leaflet-popup-content-wrapper { border-radius: 12px; font-size: 12px; }
-    .safe-bottom-padding { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 20px)); }
-    @media print {
+    .safe-bottom-padding { padding-bottom: 160px !important; }
+      @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
       #printArea { position: absolute; left: 0; top: 0; width: 100%; }
@@ -97,9 +97,10 @@
           <span class="hidden sm:inline">Đồng Bộ</span>
         </button>
 
-        <button onclick="resetApp()" title="Làm mới lại" class="bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-rose-200 text-[11px] p-1.5 rounded border border-slate-700 transition">
-          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-        </button>
+     <button onclick="clearTodayTestOrders()" title="Xóa toàn bộ đơn test để nạp lại" class="bg-rose-900/60 hover:bg-rose-700 text-rose-300 hover:text-white text-[11px] px-2 py-1 rounded border border-rose-600/50 flex items-center gap-1 transition">
+  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+  <span class="hidden sm:inline">Xóa Đơn Test</span>
+</button>
       </div>
     </header>
 
@@ -2567,6 +2568,58 @@ L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
     function resetApp() {
       if (confirm("Làm mới lại toàn bộ trang web?")) location.reload();
     }
+    function clearTodayTestOrders() {
+      if (!confirm("Anh có chắc muốn XÓA HẾT ĐƠN HÀNG HÔM NAY để test lại từ đầu không?")) return;
+
+      // 1. Dọn dẹp mảng dữ liệu trong bộ nhớ
+      allMergedStops = [];
+      unmappedStops = [];
+      unassignedStops = [];
+      dailyInvoicesRaw = [];
+      selectedStopIds.clear();
+      fleet.forEach(t => {
+        t.stops = [];
+        t.linkIssued = false;
+        t.linkToken = null;
+      });
+
+      // 2. Xóa sạch cache session trên máy
+      localStorage.removeItem(STORAGE_KEY_SESSION);
+
+      // 3. Xóa dữ liệu hôm nay trên Supabase nếu có kết nối
+      if (supabase) {
+        let today = getTodayString();
+        supabase.from('dispatch_sessions').delete().eq('order_date', today).then(() => {
+          console.log("Đã dọn dẹp Supabase session hôm nay");
+        }).catch(err => console.warn(err));
+      }
+
+      // 4. Reset nhãn hiển thị về ban đầu
+      let labelInv = document.getElementById('labelInvoice');
+      let subInv = document.getElementById('subInvoice');
+      let btnSmart = document.getElementById('btnSmartDispatch');
+      if (labelInv) labelInv.innerText = "Kéo File Hóa Đơn KiotViet Hôm Nay";
+      if (subInv) {
+        subInv.innerText = "Đã có 624 tọa độ gốc + Gộp điểm trùng";
+        subInv.className = "text-[10px] text-slate-500";
+      }
+      if (btnSmart) {
+        btnSmart.disabled = true;
+        btnSmart.className = "flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition";
+      }
+
+      // 5. Vẽ lại giao diện sạch
+      renderFleetTabs();
+      updateTruckSummary();
+      renderStopsList();
+      if (routeLayer) routeLayer.clearLayers();
+      if (pinsLayer) pinsLayer.clearLayers();
+      updateDashboardReport();
+      checkButtonsState();
+
+      alert("ĐÃ XÓA SẠCH DỮ LIỆU ĐƠN TEST!\n\nBây giờ anh có thể chọn kéo file Excel mới vào.");
+    }
+
   </script>
 </body>
 </html>
