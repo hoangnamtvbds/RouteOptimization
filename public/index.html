@@ -180,7 +180,6 @@
             <div class="w-14 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div id="curTruckLoadBar" class="h-full bg-blue-600 rounded-full transition-all" style="width: 0%"></div>
             </div>
-            <button id="btnCompleteTrip" onclick="completeTrip(activeTruckId)" title="Xe đã về kho và đối chiếu xong" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-2 py-1 rounded-lg shadow">Hoàn tất chuyến</button>
           </div>
         </div>
 
@@ -271,7 +270,12 @@
             <div class="flex items-center gap-2">
               <i data-lucide="calendar" class="w-4 h-4 text-blue-600"></i>
               <span class="text-xs font-bold text-slate-700">Mốc Báo Cáo Doanh Thu:</span>
-              <span class="text-xs font-bold text-slate-800 bg-slate-50 border rounded-lg px-2 py-1">Hôm nay</span>
+              <select id="dashDateRangeFilter" onchange="changeDashboardDateRange(this.value)" class="text-xs font-bold p-1 border rounded-lg bg-slate-50 text-slate-800">
+                <option value="today">Hôm nay</option>
+                <option value="7d">7 ngày qua (1 tuần)</option>
+                <option value="14d">14 ngày qua (2 tuần)</option>
+                <option value="30d">30 ngày qua (1 tháng)</option>
+              </select>
             </div>
             <span class="text-[10px] text-slate-400">Tự động làm mới và đồng bộ thời gian thực</span>
           </div>
@@ -384,7 +388,7 @@
     <!-- BANNER HẾT HẠN LINK -->
     <div id="drvExpiredBanner" class="hidden p-4 bg-rose-600 text-white text-center text-xs font-bold">
       <i data-lucide="clock-alert" class="w-6 h-6 mx-auto mb-1"></i>
-      Chuyến giao hàng này đã kết thúc hoặc đã bị thu hồi. Vui lòng liên hệ kho / kế toán để nhận link chuyến mới.
+      Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!
     </div>
 
     <!-- BỘ LỌC TRẠNG THÁI GIAO HÀNG -->
@@ -490,10 +494,6 @@
         <div>
           <label class="font-bold text-slate-700">Tọa độ GPS (Lat, Long) hoặc Link Google Maps của Kho:</label>
           <input type="text" id="inputDepotCoords" placeholder="Ví dụ: 11.1550, 106.6150 hoặc 11,1550, 106,6150" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
-        </div>
-        <div>
-          <label class="font-bold text-slate-700">Máy chủ OSRM (tùy chọn, để tính đường thật - miễn phí):</label>
-          <input type="text" id="inputOsrmBase" placeholder="Ví dụ: https://osrm.tenmien.com (để trống = đường chim bay x1.3)" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
         </div>
         <button onclick="saveDepotCoordinates()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs shadow transition">
           Lưu Vị Trí Kho Vĩnh Viễn
@@ -793,7 +793,6 @@
       if (error) throw error;
       const m = {}; (data || []).forEach(r => m[r.key_name] = r.setting_val);
       if (m.warehouse_depot && m.warehouse_depot.lat) warehouseDepot = m.warehouse_depot;
-      if (typeof m.osrm_base === 'string') { try { localStorage.setItem(STORAGE_KEY_OSRM, m.osrm_base); } catch (e) {} }
       if (Array.isArray(m.fleet_config) && m.fleet_config.length) { cloudFleetCfg = m.fleet_config; applyFleetConfig(cloudFleetCfg); }
       if (m.store_aliases && typeof m.store_aliases === 'object') storeAliasMap = new Map(Object.entries(m.store_aliases));
       saveLocalCache();
@@ -812,8 +811,6 @@
       s.totalQty = parseFloat(s.totalQty) || 0; s.totalCod = parseFloat(s.totalCod) || 0;
       s.status = s.status || 'pending'; s.failedReason = s.failedReason || '';
       s.truckId = (s.truckId === undefined) ? null : s.truckId;
-      s.baseId = s.baseId || String(s.canonicalId || '').split('#')[0];
-      s.archived = !!s.archived; s.locked = !!s.locked; s.tripNo = s.tripNo || 0;
       return s;
     }
     function serializeStop(s) { return { ...s, rawIds: Array.from(s.rawIds || []), invoices: Array.from(s.invoices || []) }; }
@@ -832,7 +829,7 @@
       });
       const assigned = new Set();
       fleet.forEach(t => t.stops.forEach(s => { s.truckId = t.id; assigned.add(s.canonicalId); }));
-      stops.forEach(s => { if (!assigned.has(s.canonicalId) && !s.archived) s.truckId = null; });
+      stops.forEach(s => { if (!assigned.has(s.canonicalId)) s.truckId = null; });
       allMergedStops = stops;
       if (cloudFleetCfg) applyFleetConfig(cloudFleetCfg);
       if (sess.activeTruckId && fleet.some(t => t.id === sess.activeTruckId)) activeTruckId = sess.activeTruckId;
@@ -889,14 +886,10 @@
       const { data: rows, error: e2 } = await db.from('dispatch_sessions').select('truck_id,stops').eq('order_date', today);
       if (e2) throw e2;
       const byId = new Map(allMergedStops.map(s => [s.canonicalId, s]));
-      (rows || []).forEach(r => {
-        const tr = fleet.find(t => t.id === Number(r.truck_id));
-        (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
-          const m = byId.get(rs.canonicalId);
-          if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
-          if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; }
-        });
-      });
+      (rows || []).forEach(r => (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
+        const m = byId.get(rs.canonicalId);
+        if (m && rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; }
+      }));
       _cloudHasStops = allMergedStops.length > 0;
       return !!data;
     }
@@ -904,14 +897,14 @@
     function refreshStopMappingFromMaster() {
       allMergedStops.forEach(s => {
         if (!s.isMapped) {
-          const m = masterGpsMap.get(s.baseId || s.canonicalId);
+          const m = masterGpsMap.get(s.canonicalId);
           if (m) { s.lat = m.lat; s.lon = m.lon; s.isMapped = true; if (!s.addr) s.addr = m.addr || ''; if (!s.phone) s.phone = m.phone || ''; }
         }
       });
     }
     function recomputeDerivedLists() {
-      unmappedStops = allMergedStops.filter(s => !s.isMapped && !s.archived);
-      unassignedStops = allMergedStops.filter(s => !s.archived && (s.truckId === null || s.truckId === undefined || !fleet.some(t => t.id === s.truckId)));
+      unmappedStops = allMergedStops.filter(s => !s.isMapped);
+      unassignedStops = allMergedStops.filter(s => s.truckId === null || s.truckId === undefined || !fleet.some(t => t.id === s.truckId));
       const set = (id, v) => { const e = document.getElementById(id); if (e) e.innerText = v; };
       set('unmappedCountBadge', unmappedStops.length); set('unassignedCountBadge', unassignedStops.length); set('allImportedCountBadge', allMergedStops.length);
       const wp = document.getElementById('unmappedWarningPanel'); if (wp) wp.classList.toggle('hidden', unmappedStops.length === 0);
@@ -1000,7 +993,6 @@
     function driverOrderDate() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('date') || getTodayString(); }
     async function driverApplyStatus(canonicalId, status, reason) {
       const truck = fleet.find(t => t.id === activeTruckId);
-      if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
       s.status = status; s.failedReason = reason || '';
@@ -1018,7 +1010,6 @@
         const date = driverOrderDate(), truck = fleet.find(t => t.id === activeTruckId) || {};
         const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', date).eq('truck_id', activeTruckId).maybeSingle();
         if (error) throw error;
-        if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
         batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.doneAt = new Date().toISOString(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
@@ -1041,11 +1032,10 @@
         if (dep.data && dep.data.setting_val && dep.data.setting_val.lat) warehouseDepot = dep.data.setting_val;
         const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', driverOrderDate()).eq('truck_id', activeTruckId).maybeSingle();
         if (error) throw error;
-        if (data && Array.isArray(data.stops) && (data.stops.length === 0 || (data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo))) { markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops)) {
           let truck = fleet.find(t => t.id === activeTruckId);
           if (!truck) { truck = { id: activeTruckId, stops: [] }; fleet.push(truck); }
-          truck.stops = data.stops.map(sanitizeDriverStop); truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
+          truck.stops = data.stops; truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
           truck.plate = data.plate || truck.plate || ''; truck.phone = data.driver_phone || truck.phone || ''; truck.maxCapacity = data.max_capacity || truck.maxCapacity || 150;
           pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; } });
         }
@@ -1098,7 +1088,6 @@
     }
 
     const STORAGE_KEY_MASTER_CACHE = "FMCG_MASTER_CLOUD_CACHE_V4";
-    const STORAGE_KEY_OSRM = "FMCG_OSRM_BASE_V1";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
     const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V4";
     const STORAGE_KEY_SESSION = "FMCG_DAILY_SESSION_V4";
@@ -1122,9 +1111,7 @@
     let selectedStopIds = new Set();
     let currentStopTab = 'all_imported';
     let currentDetailStop = null;
-    let pinningStopId = null;
     let driverAppFilter = 'all';
-    let driverTripNo = 1, driverLinkEnded = false, routeDrawToken = 0;
     let rejectingStopCanonicalId = null;
     let currentHistoryRange = 'today';
     let warehouseDepot = { name: "Kho NPP Bến Cát (Mỹ Phước)", lat: 11.1550, lon: 106.6150 };
@@ -1136,9 +1123,6 @@
     // -------------------------------------------------------------------------
     // 2. TIỆN ÍCH & CHUẨN HÓA DỮ LIỆU
     // -------------------------------------------------------------------------
-    function esc(v) { return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-    function jsq(v) { return esc(JSON.stringify(String(v === undefined || v === null ? '' : v))); }   // chuỗi JS an toàn để chèn vào onclick="..."
-
     function normalizePhone(raw) {
       if (!raw) return "";
       let s = String(raw).split('.')[0].trim().replace(/\D/g, '');
@@ -1190,9 +1174,10 @@
         if (!el) return;
         map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true });
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          maxZoom: 19, subdomains: 'abcd',
-          attribution: '© OpenStreetMap contributors © CARTO'
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
+          maxZoom: 20,
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          attribution: '© Google Maps'
         }).addTo(map);
 
         routeLayer = L.layerGroup().addTo(map);
@@ -1202,13 +1187,13 @@
         setTimeout(() => { if (map) map.invalidateSize(); }, 300);
 
         map.on('click', function(e) {
-          if (!pinningStopId) return;                       // chỉ ghim khi vừa bấm "Ghim Bản Đồ"
-          const stop = allMergedStops.find(x => x.canonicalId === pinningStopId);
-          pinningStopId = null;
-          if (!stop) return;
-          let lat = parseFloat(e.latlng.lat.toFixed(6));
-          let lon = parseFloat(e.latlng.lng.toFixed(6));
-          if (confirm(`Gán tọa độ [${lat}, ${lon}] cho quán "${stop.custName}"?`)) saveStopNewCoords(stop.canonicalId, lat, lon);
+          if (currentDetailStop) {
+            let lat = parseFloat(e.latlng.lat.toFixed(6));
+            let lon = parseFloat(e.latlng.lng.toFixed(6));
+            if (confirm(`Gán tọa độ [${lat}, ${lon}] cho quán "${currentDetailStop.custName}"?`)) {
+              saveStopNewCoords(currentDetailStop.canonicalId, lat, lon);
+            }
+          }
         });
       } catch (err) {
         console.warn("Lỗi khởi tạo Leaflet Map:", err);
@@ -1225,14 +1210,13 @@
         iconAnchor: [16, 16]
       });
       windowDepotMarker = L.marker([warehouseDepot.lat, warehouseDepot.lon], { icon: depotIcon })
-        .bindPopup(`<b>${esc(warehouseDepot.name)}</b><br>Mốc xuất phát & quay về kho.<br>Tọa độ: ${warehouseDepot.lat}, ${warehouseDepot.lon}`)
+        .bindPopup(`<b>${warehouseDepot.name}</b><br>Mốc xuất phát & quay về kho.<br>Tọa độ: ${warehouseDepot.lat}, ${warehouseDepot.lon}`)
         .addTo(map);
     }
 
     function openDepotModal() {
       document.getElementById('inputDepotName').value = warehouseDepot.name;
       document.getElementById('inputDepotCoords').value = `${warehouseDepot.lat}, ${warehouseDepot.lon}`;
-      document.getElementById('inputOsrmBase').value = osrmBase();
       document.getElementById('depotModal').classList.remove('hidden');
     }
 
@@ -1247,10 +1231,6 @@
       if (!coords) return alert("Tọa độ không hợp lệ!");
 
       warehouseDepot = { name: name || "Kho NPP", lat: coords.lat, lon: coords.lon };
-      const osrmVal = (document.getElementById('inputOsrmBase').value || '').trim().replace(/\/+$/, '');
-      try { localStorage.setItem(STORAGE_KEY_OSRM, osrmVal); } catch (e) {}
-      roadCache.clear();
-      cloudSetSetting('osrm_base', osrmVal);
       localStorage.setItem(STORAGE_KEY_DEPOT, JSON.stringify(warehouseDepot));
       if (map) {
         map.setView([warehouseDepot.lat, warehouseDepot.lon], 13);
@@ -1421,84 +1401,55 @@ async function restoreMasterBackupFromCloud() {
           await savePermanentEdits();
           for (const t of fleet) if (t.stops.length > 0) await syncTruckStopsToCloud(t);
           alert(`ĐÃ GỘP ĐỢT NẠP MỚI:\n• +${st.newInv} hóa đơn mới (${st.newStops} điểm giao mới)\n• Bỏ qua ${st.dupInv} hóa đơn đã nạp từ trước\n` +
-                (st.splitStops ? `• ${st.splitStops} điểm đã giao/đã phát xe trước đó nay có đơn mới → tạo thành điểm giao riêng (đợt sau), COD cũ không bị tính lại\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
+                (st.reopened ? `• ${st.reopened} điểm đã giao được mở lại do phát sinh đơn mới\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
         } catch (err) { alert("Lỗi đọc file: " + err.message); }
         finally { input.value = ''; }
       };
       reader.readAsArrayBuffer(file);
     });
 
-    // Đọc số tiền kiểu Việt (1.234.567 / 1,234,567 / 1234567,5)
-    function parseMoney(v) {
-      if (typeof v === 'number') return isNaN(v) ? 0 : v;
-      let t = String(v === undefined || v === null ? '' : v).replace(/[^\d.,\-]/g, '');
-      if (!t) return 0;
-      const hasDot = t.includes('.'), hasCom = t.includes(',');
-      if (hasDot && hasCom) { const dec = t.lastIndexOf('.') > t.lastIndexOf(',') ? '.' : ','; t = t.split(dec === '.' ? ',' : '.').join('').replace(dec, '.'); }
-      else if (hasDot || hasCom) {
-        const sep = hasDot ? '.' : ',';
-        if (/^-?\d{1,3}([.,]\d{3})+$/.test(t)) t = t.split(sep).join('');     // dấu phân cách hàng nghìn
-        else t = t.replace(sep, '.');                                              // dấu thập phân
-      }
-      const n = parseFloat(t); return isNaN(n) ? 0 : n;
-    }
-    function isTruckLocked(truckId) { const t = fleet.find(x => x.id === truckId); return !!(t && t.linkIssued); }
-
-    // Mỗi đợt nạp: hóa đơn MỚI luôn cộng thêm vào "kho đơn chung"; điểm đã giao / xe đã phát link thì tách thành điểm mới (đợt #2, #3...)
-    // => không bao giờ động tới COD hoặc trạng thái của đơn đã giao / đã phát.
     function mergeInvoiceRows(rows) {
+      const byId = new Map(allMergedStops.map(s => [s.canonicalId, s]));
       const known = new Set(); allMergedStops.forEach(s => s.invoices.forEach(i => known.add(i)));
       const keyOf = row => ({ inv: String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim(), cust: String(row['Mã khách hàng'] || row['Mã KH'] || '').trim() });
-      const hasCodCol = rows.some(r => r['Còn cần thu (COD)'] !== undefined || r['Khách cần trả'] !== undefined);
       const codByInv = new Map();
       rows.forEach(row => {
         const { inv, cust } = keyOf(row);
         if (!inv || !cust || inv.toLowerCase().includes('tổng')) return;
-        if (hasCodCol) {
-          const raw = row['Còn cần thu (COD)'] !== undefined ? row['Còn cần thu (COD)'] : row['Khách cần trả'];
-          if (!codByInv.has(inv) && raw !== undefined && raw !== '') codByInv.set(inv, parseMoney(raw));
-        } else {
-          codByInv.set(inv, (codByInv.get(inv) || 0) + parseMoney(row['Thành tiền']));   // không có cột COD: cộng tất cả dòng của hóa đơn
-        }
+        const cod = parseFloat(String(row['Còn cần thu (COD)'] || row['Khách cần trả'] || row['Thành tiền'] || 0).replace(/,/g, ''));
+        if (!isNaN(cod) && !codByInv.has(inv)) codByInv.set(inv, cod);
       });
-      const newInv = new Set(), dupInv = new Set(), touched = new Set(), batchStop = new Map(); let newStops = 0, splitStops = 0;
+      const newInv = new Set(), dupInv = new Set(), touched = new Set(); let newStops = 0, reopened = 0;
       rows.forEach(row => {
         const { inv: invId, cust: rawCustId } = keyOf(row);
         if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
         if (known.has(invId)) { dupInv.add(invId); return; }      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
         const custName = row['Tên khách hàng'] || row['Tên KH'] || '';
         const itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
-        const rawQty = parseMoney(row['Số lượng'] === undefined || row['Số lượng'] === '' ? 1 : row['Số lượng']);
+        const rawQty = parseFloat(String(row['Số lượng'] || 1).replace(/,/g, '')) || 0;
         const unit = String(row['ĐVT'] || row['Đơn vị tính'] || 'Thùng').trim();
-        const lineAmount = parseMoney(row['Thành tiền']);
+        const lineAmount = parseFloat(String(row['Thành tiền'] || 0).replace(/,/g, '')) || 0;
         const uLower = unit.toLowerCase();
         let boxEquivalent = rawQty;
         if (uLower.includes('lon') || uLower.includes('chai') || uLower.includes('gói') || uLower.includes('hộp') || uLower.includes('ly')) boxEquivalent = rawQty / 24;
         else if (uLower.includes('lốc') || uLower.includes('vỉ') || uLower.includes('bịch')) boxEquivalent = rawQty / 4;
         if (boxEquivalent > 300) boxEquivalent = boxEquivalent / 24;
 
-        let baseId = rawCustId;
+        let canonicalId = rawCustId;
         const aliasTarget = storeAliasMap.get(rawCustId);
-        if (aliasTarget) baseId = aliasTarget.targetId;
-
-        let s = batchStop.get(baseId);
-        if (!s) {
-          // dùng lại điểm đang chờ giao (chưa giao, chưa nằm trên xe đã phát link); ngược lại tạo điểm mới
-          s = allMergedStops.find(x => x.baseId === baseId && !x.archived && x.status === 'pending' && !(x.truckId != null && isTruckLocked(x.truckId)));
-          if (!s) {
-            const sameBase = allMergedStops.filter(x => x.baseId === baseId);
-            const canonicalId = sameBase.length === 0 ? baseId : `${baseId}#${sameBase.length + 1}`;
-            const master = masterGpsMap.get(baseId) || masterGpsMap.get(rawCustId);
-            const lat = aliasTarget ? aliasTarget.lat : (master ? master.lat : null), lon = aliasTarget ? aliasTarget.lon : (master ? master.lon : null);
-            s = hydrateStop({
-              canonicalId, baseId, rawIds: [rawCustId], custName: aliasTarget ? aliasTarget.name : (master ? master.name : custName),
-              phone: normalizePhone(master ? master.phone : (row['Điện thoại'] || '')), addr: master ? master.addr : (row['Địa chỉ (Khách hàng)'] || ''),
-              lat, lon, isMapped: !!(lat && lon), totalQty: 0, totalCod: 0, items: [], invoices: [], status: 'pending', failedReason: '', truckId: null
-            });
-            allMergedStops.push(s); newStops++; if (sameBase.length > 0) splitStops++;
-          }
-          batchStop.set(baseId, s);
+        if (aliasTarget) canonicalId = aliasTarget.targetId;
+        if (!byId.has(canonicalId)) {
+          const master = masterGpsMap.get(canonicalId) || masterGpsMap.get(rawCustId);
+          const lat = aliasTarget ? aliasTarget.lat : (master ? master.lat : null), lon = aliasTarget ? aliasTarget.lon : (master ? master.lon : null);
+          const stop = hydrateStop({
+            canonicalId, rawIds: [rawCustId], custName: aliasTarget ? aliasTarget.name : (master ? master.name : custName),
+            phone: normalizePhone(master ? master.phone : (row['Điện thoại'] || '')), addr: master ? master.addr : (row['Địa chỉ (Khách hàng)'] || ''),
+            lat, lon, isMapped: !!(lat && lon), totalQty: 0, totalCod: 0, items: [], invoices: [], status: 'pending', failedReason: '', truckId: null
+          });
+          byId.set(canonicalId, stop); allMergedStops.push(stop); newStops++;
         }
+        const s = byId.get(canonicalId);
+        if (s.status !== 'pending') { s.status = 'pending'; s.failedReason = ''; reopened++; }   // phát sinh đơn mới cho điểm đã giao
         s.rawIds.add(rawCustId);
         s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
         s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
@@ -1507,230 +1458,196 @@ async function restoreMasterBackupFromCloud() {
       });
       touched.forEach(s => { s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10); });
       refreshStopMappingFromMaster();
-      return { newInv: newInv.size, dupInv: dupInv.size, newStops, splitStops, reopened: 0 };
+      return { newInv: newInv.size, dupInv: dupInv.size, newStops, reopened };
     }
 
     // -------------------------------------------------------------------------
     // 6. THUẬT TOÁN ĐIỀU PHỐI TỰ ĐỘNG & CÂN BẰNG TẢI TRỌNG
     // -------------------------------------------------------------------------
-   // ===== KHOẢNG CÁCH & TÍNH TUYẾN =====
-    // Không có OSRM: dùng đường chim bay x hệ số đường thật. Có OSRM (tự host, miễn phí): dùng bảng khoảng cách đường thật.
-    const DETOUR_FACTOR = 1.3;
-    const roadCache = new Map();
-    function ptKey(p) { return Number(p.lat).toFixed(5) + ',' + Number(p.lon).toFixed(5); }
-    function osrmBase() { try { return (localStorage.getItem(STORAGE_KEY_OSRM) || '').trim().replace(/\/+$/, ''); } catch (e) { return ''; } }
-    function distKm(a, b) {
-      const c = roadCache.get(ptKey(a) + '>' + ptKey(b));
-      return c !== undefined ? c : calcDistanceKm(a.lat, a.lon, b.lat, b.lon) * DETOUR_FACTOR;
+   async function runSmartFleetDispatch() {
+  if (allMergedStops.length === 0) return;
+  if (!cloudReady) return alert("Chưa đồng bộ xong với Cloud, vui lòng thử lại sau vài giây.");
+  if (fleet.some(t => t.stops.length > 0)) {
+    let fullReset = !confirm("Đã có đơn được xếp xe.\n\nOK = CHỈ xếp các đơn CHƯA XẾP vào chỗ trống của các xe (giữ nguyên xe đã xếp).\nCancel = xem tùy chọn xếp lại toàn bộ.");
+    if (fullReset) {
+      if (!confirm("Xếp lại TOÀN BỘ các đơn chưa giao từ đầu?\n(Đơn đã giao / đã hủy vẫn giữ nguyên trên xe cũ.)")) return;
+      fleet.forEach(t => { t.stops = t.stops.filter(s => s.status !== 'pending'); });
     }
-    function depotPt() { return { lat: warehouseDepot.lat, lon: warehouseDepot.lon }; }
+  }
+  allMergedStops.forEach(s => { if (!fleet.some(t => t.stops.includes(s))) s.truckId = null; });
 
-    async function prefetchRoadMatrix(points) {
-      const base = osrmBase(); if (!base) return false;
-      const uniq = [], seen = new Set();
-      points.forEach(p => { const k = ptKey(p); if (!seen.has(k)) { seen.add(k); uniq.push({ lat: Number(p.lat), lon: Number(p.lon) }); } });
-      if (uniq.length < 2) return true;
-      const CH = 45, chunks = [];
-      for (let i = 0; i < uniq.length; i += CH) chunks.push(uniq.slice(i, i + CH));
-      try {
-        for (let a = 0; a < chunks.length; a++) for (let b = 0; b < chunks.length; b++) {
-          const A = chunks[a], B = chunks[b], same = (a === b);
-          const coords = same ? A : A.concat(B);
-          const src = A.map((_, i) => i).join(';');
-          const dst = (same ? A.map((_, i) => i) : B.map((_, i) => A.length + i)).join(';');
-          const url = `${base}/table/v1/driving/${coords.map(p => p.lon + ',' + p.lat).join(';')}?annotations=distance&sources=${src}&destinations=${dst}`;
-          const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 10000);
-          const res = await fetch(url, { signal: ctrl.signal }); clearTimeout(to);
-          if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
-          const j = await res.json();
-          if (j.code !== 'Ok' || !j.distances) throw new Error('OSRM ' + j.code);
-          A.forEach((pa, i) => B.forEach((pb, k) => { const d = j.distances[i][k]; if (d !== null && d !== undefined) roadCache.set(ptKey(pa) + '>' + ptKey(pb), d / 1000); }));
-        }
-        return true;
-      } catch (e) { console.warn('OSRM lỗi -> dùng đường chim bay x hệ số:', e); return false; }
-    }
+  let mappedStops = allMergedStops.filter(s => s.isMapped && s.truckId === null);
+  unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
-    // Sắp thứ tự các điểm: xuất phát từ `start`, đi hết các điểm rồi QUAY VỀ KHO. Nearest-neighbor + 2-opt + Or-opt (tính theo bảng khoảng cách).
-    function orderStops(stops, start) {
-      const n = stops.length;
-      if (n <= 1) return [...stops];
-      const P = [start, ...stops, depotPt()];                    // 0 = điểm đầu, 1..n = các điểm giao, n+1 = kho
-      const D = P.map(a => P.map(b => distKm(a, b)));
-      let route = [], cur = 0; const left = new Set(); for (let i = 1; i <= n; i++) left.add(i);
-      while (left.size) { let bi = -1, bd = Infinity; left.forEach(i => { if (D[cur][i] < bd) { bd = D[cur][i]; bi = i; } }); route.push(bi); left.delete(bi); cur = bi; }
-      const cost = r => { let c = 0, p = 0; for (const i of r) { c += D[p][i]; p = i; } return c + D[p][n + 1]; };
-      let best = cost(route), improved = true, pass = 0;
-      const deadline = performance.now() + 2000;
-      while (improved && pass < 80 && performance.now() < deadline) {
-        improved = false; pass++;
-        for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) {          // 2-opt
-          const cand = route.slice(0, i).concat(route.slice(i, k + 1).reverse(), route.slice(k + 1));
-          const c = cost(cand); if (c < best - 1e-6) { route = cand; best = c; improved = true; }
-        }
-        orLoop:
-        for (let len = 1; len <= 3 && len < n; len++) for (let i = 0; i + len <= n; i++) {   // Or-opt: dời đoạn 1-3 điểm
-          const seg = route.slice(i, i + len), rest = route.slice(0, i).concat(route.slice(i + len));
-          for (let j = 0; j <= rest.length; j++) {
-            if (j === i) continue;
-            for (let rv = 0; rv < (len > 1 ? 2 : 1); rv++) {
-              const sg = rv ? seg.slice().reverse() : seg;
-              const cand = rest.slice(0, j).concat(sg, rest.slice(j)); const c = cost(cand);
-              if (c < best - 1e-6) { route = cand; best = c; improved = true; break orLoop; }
-            }
+  // Sắp xếp các điểm theo góc quét địa lý quanh Kho để các điểm cùng hướng đi chung 1 xe
+  mappedStops.sort((a, b) => {
+    let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
+    let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
+    return angleA - angleB;
+  });
+
+  let remaining = [...mappedStops];
+
+  // Phân bổ thông minh: Đi từng xe, chọn điểm hạt nhân và gom các điểm lân cận vừa khít tải trọng
+  for (let tIdx = 0; tIdx < fleet.length; tIdx++) {
+    let truck = fleet[tIdx];
+    let currentLoad = truck.stops.reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0);
+
+    while (remaining.length > 0) {
+      // Tìm điểm gần nhất với điểm vừa giao (hoặc gần kho nếu là điểm đầu tiên của xe)
+      let lastMapped = [...truck.stops].reverse().find(x => x.isMapped);
+      let refPos = lastMapped ? { lat: lastMapped.lat, lon: lastMapped.lon } : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
+
+      let bestIdx = -1;
+      let bestScore = Infinity;
+
+      for (let i = 0; i < remaining.length; i++) {
+        let s = remaining[i];
+        // Chỉ nhận đơn nếu không vượt quá tải trọng tối đa của xe
+        if (currentLoad + s.totalQty <= truck.maxCapacity) {
+          let distFromLast = calcDistanceKm(refPos.lat, refPos.lon, s.lat, s.lon);
+          // Nếu là điểm mở đầu của xe thì lấy điểm đầu dải quạt góc cực
+          let score = !lastMapped ? i * 0.1 : distFromLast;
+          if (score < bestScore) {
+            bestScore = score;
+            bestIdx = i;
           }
         }
       }
-      return route.map(i => stops[i - 1]);
-    }
 
-    function truckLoadOf(t) { return (t.stops || []).reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0); }
-    function truckKm(t) {
-      const m = (t.stops || []).filter(s => s.isMapped); if (m.length === 0) return 0;
-      let c = 0, p = depotPt(); m.forEach(s => { c += distKm(p, s); p = s; }); return c + distKm(p, depotPt());
-    }
-    function cheapestInsertion(route, stop) {
-      const d = depotPt(); let best = { cost: Infinity, pos: 0 };
-      for (let pos = 0; pos <= route.length; pos++) {
-        const prev = pos === 0 ? d : route[pos - 1], next = pos === route.length ? d : route[pos];
-        const c = distKm(prev, stop) + distKm(stop, next) - distKm(prev, next);
-        if (c < best.cost) best = { cost: c, pos };
+      if (bestIdx !== -1) {
+        let chosen = remaining.splice(bestIdx, 1)[0];
+        chosen.truckId = truck.id;
+        truck.stops.push(chosen);
+        currentLoad += chosen.totalQty;
+      } else {
+        // Không còn đơn nào vừa tải trọng của xe này -> Chuyển sang xe kế tiếp
+        break;
       }
-      return best;
     }
-    function renumberTruck(truck) {
-      truck.stops.forEach((s, idx) => { s.stopSeq = idx + 1; s.lifoSeq = truck.stops.length - idx; s.truckId = truck.id; });
-    }
+  }
 
-    // Tối ưu thứ tự 1 xe. Các điểm đã "khóa" (xe đã phát link cho tài xế) giữ NGUYÊN vị trí; chỉ điểm mới thêm được xếp tối ưu ở phía sau.
+  // Các đơn vượt quá tổng sức chở của đội xe giữ lại ở "Chưa Xếp"
+  remaining.forEach(s => s.truckId = null);
+
+  // Tối ưu vòng tuyến đi từ Kho và quay về Kho ngắn nhất cho từng xe
+  fleet.forEach(t => optimizeTruckSequence(t));
+
+  unassignedStops = allMergedStops.filter(s => s.truckId === null);
+  document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+  // Tự động chọn hiển thị xe đầu tiên có đơn
+  let firstActive = fleet.find(t => t.stops.length > 0);
+  if (firstActive) activeTruckId = firstActive.id;
+
+  currentStopTab = 'route';
+  ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
+    let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
+    if (b) b.className = (k === 'route') ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
+  });
+
+  renderFleetTabs();
+  updateTruckSummary();
+  renderStopsList();
+  renderRouteOnMap();
+  updateDashboardReport();
+  checkButtonsState();
+  await savePermanentEdits();
+
+  if (db) {
+    for (let t of fleet) {
+      if (t.stops.length > 0) await syncTruckStopsToCloud(t);
+    }
+  }
+
+  let assignedCount = allMergedStops.length - unassignedStops.length;
+  let msg = `ĐÃ XẾP TUYẾN THÔNG MINH HOÀN TẤT!\n• Đã xếp: ${assignedCount} điểm vào các xe đúng tải trọng.`;
+  if (unassignedStops.length > 0) {
+    msg += `\n• Còn dư: ${unassignedStops.length} điểm ở mục "Chưa Xếp" (do vượt tải hoặc chưa có GPS).`;
+  }
+  alert(msg);
+}
+
     function optimizeTruckSequence(truck) {
-      if (!truck || truck.stops.length === 0) return;
-      const frozen = truck.stops.filter(s => s.locked).sort((a, b) => (a.stopSeq || 0) - (b.stopSeq || 0));
-      const fresh = truck.stops.filter(s => !s.locked);
-      const lastFrozen = [...frozen].reverse().find(s => s.isMapped);
-      const start = lastFrozen ? { lat: lastFrozen.lat, lon: lastFrozen.lon } : depotPt();
-      const ordered = orderStops(fresh.filter(s => s.isMapped), start);
-      truck.stops = [...frozen, ...ordered, ...fresh.filter(s => !s.isMapped)];
-      renumberTruck(truck);
-    }
+  if (!truck || truck.stops.length === 0) return;
+  let mapped = truck.stops.filter(s => s.isMapped);
+  let unmap = truck.stops.filter(s => !s.isMapped);
 
-    async function runSmartFleetDispatch() {
-      if (allMergedStops.length === 0) return;
-      if (!cloudReady) return alert("Chưa đồng bộ xong với Cloud, vui lòng thử lại sau vài giây.");
-      const open = fleet.filter(t => !t.linkIssued);          // xe chưa phát link = đang ở kho / đang soạn hàng
-      if (open.length === 0) return alert("Tất cả xe đều đã phát link (đang đi giao).\n\nKhi xe về kho hãy bấm 'Hoàn tất chuyến'; hoặc 'Thu hồi' để rút các đơn chưa giao về kho đơn chung.");
-      if (open.some(t => t.stops.length > 0)) {
-        const keep = confirm("Có xe đang soạn đã được xếp đơn.\n\nOK = GIỮ NGUYÊN, chỉ xếp thêm các đơn CHƯA XẾP vào chỗ trống.\nCancel = xem tùy chọn xếp lại.");
-        if (!keep) {
-          if (!confirm("Xếp lại TOÀN BỘ đơn của các xe đang soạn từ đầu?\n(Xe đã phát link / đang đi giao KHÔNG bị ảnh hưởng.)")) return;
-          open.forEach(t => { t.stops.forEach(s => { s.truckId = null; s.stopSeq = 0; s.lifoSeq = 0; s.locked = false; }); t.stops = []; });
+  if (mapped.length <= 1) {
+    truck.stops = [...mapped, ...unmap];
+    truck.stops.forEach((s, idx) => {
+      s.stopSeq = idx + 1;
+      s.lifoSeq = truck.stops.length - idx;
+      s.truckId = truck.id;
+    });
+    return;
+  }
+
+  // Bước A: Tìm lộ trình ban đầu bằng Nearest Neighbor từ Kho
+  let currentPos = { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
+  let unvisited = [...mapped];
+  let route = [];
+
+  while (unvisited.length > 0) {
+    let bestIdx = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < unvisited.length; i++) {
+      let d = calcDistanceKm(currentPos.lat, currentPos.lon, unvisited[i].lat, unvisited[i].lon);
+      if (d < minDist) {
+        minDist = d;
+        bestIdx = i;
+      }
+    }
+    let nextStop = unvisited.splice(bestIdx, 1)[0];
+    route.push(nextStop);
+    currentPos = { lat: nextStop.lat, lon: nextStop.lon };
+  }
+
+  // Bước B: Tối ưu 2-Opt tính cả chặng quay về Kho để loại bỏ các đường chéo cắt nhau
+  function calcTotalRoundTrip(stopsList) {
+    let total = calcDistanceKm(warehouseDepot.lat, warehouseDepot.lon, stopsList[0].lat, stopsList[0].lon);
+    for (let i = 0; i < stopsList.length - 1; i++) {
+      total += calcDistanceKm(stopsList[i].lat, stopsList[i].lon, stopsList[i+1].lat, stopsList[i+1].lon);
+    }
+    total += calcDistanceKm(stopsList[stopsList.length - 1].lat, stopsList[stopsList.length - 1].lon, warehouseDepot.lat, warehouseDepot.lon);
+    return total;
+  }
+
+  let improved = true;
+  let iterations = 0;
+  while (improved && iterations < 50) {
+    improved = false;
+    iterations++;
+    let bestDistance = calcTotalRoundTrip(route);
+    for (let i = 0; i < route.length - 1; i++) {
+      for (let k = i + 1; k < route.length; k++) {
+        let newRoute = route.slice(0, i).concat(route.slice(i, k + 1).reverse(), route.slice(k + 1));
+        let newDist = calcTotalRoundTrip(newRoute);
+        if (newDist < bestDistance - 0.01) {
+          route = newRoute;
+          bestDistance = newDist;
+          improved = true;
+          break;
         }
       }
-      const depot = depotPt();
-      const pool = allMergedStops.filter(s => !s.archived && s.status === 'pending' && s.isMapped && (s.truckId === null || s.truckId === undefined || !fleet.some(t => t.id === s.truckId)));
-      pool.forEach(s => { s.truckId = null; });
-      let usedRoad = false;
-      setBoot('Đang tính tuyến tối ưu...');
-      try {
-        usedRoad = await prefetchRoadMatrix([depot, ...pool, ...open.flatMap(t => t.stops.filter(s => s.isMapped))]);
-
-        const leftover = [];
-        const assign = (s, t) => { s.truckId = t.id; if (!t.stops.includes(s)) t.stops.push(s); };
-        const hasExisting = open.some(t => t.stops.length > 0);
-
-        if (!hasExisting && pool.length > 0) {
-          // ---- XE TRỐNG: chia theo "quạt" góc quanh kho => mỗi xe một vùng liền nhau, không chồng tuyến ----
-          const totalLoad = pool.reduce((a, s) => a + s.totalQty, 0);
-          const byCap = [...open].sort((a, b) => b.maxCapacity - a.maxCapacity);
-          const chosen = []; let capSum = 0;
-          for (const t of byCap) { chosen.push(t); capSum += t.maxCapacity; if (capSum >= totalLoad * 1.08) break; }   // dùng ít xe nhất có thể
-          const ang = s => Math.atan2(s.lat - depot.lat, s.lon - depot.lon);
-          let sorted = [...pool].sort((a, b) => ang(a) - ang(b));
-          let cut = 0, bestGap = -1;                                   // cắt vòng tròn tại khoảng trống góc lớn nhất
-          for (let i = 0; i < sorted.length; i++) {
-            const a1 = ang(sorted[i]), a2 = ang(sorted[(i + 1) % sorted.length]);
-            const gap = i === sorted.length - 1 ? (a2 + 2 * Math.PI - a1) : (a2 - a1);
-            if (gap > bestGap) { bestGap = gap; cut = (i + 1) % sorted.length; }
-          }
-          sorted = sorted.slice(cut).concat(sorted.slice(0, cut));
-          const loads = chosen.map(() => 0), targets = chosen.map(t => Math.min(t.maxCapacity, totalLoad * t.maxCapacity / capSum + 0.5));
-          let ti = 0;
-          for (const s of sorted) {
-            let placed = false;
-            for (let k = ti; k < chosen.length; k++) {
-              const fits = loads[k] + s.totalQty <= chosen[k].maxCapacity;
-              if (fits && (loads[k] < targets[k] || k === chosen.length - 1)) { assign(s, chosen[k]); loads[k] += s.totalQty; ti = k; placed = true; break; }
-            }
-            if (!placed) leftover.push(s);
-          }
-        } else {
-          // ---- ĐÃ CÓ ĐƠN TRÊN XE ĐANG SOẠN: chèn từng đơn mới vào vị trí tốn thêm km ít nhất ----
-          open.forEach(t => optimizeTruckSequence(t));
-          [...pool].sort((a, b) => distKm(depot, b) - distKm(depot, a)).forEach(s => {
-            let bt = null, bc = Infinity, bp = 0;
-            open.forEach(t => {
-              if (truckLoadOf(t) + s.totalQty > t.maxCapacity) return;
-              const r = t.stops.filter(x => x.isMapped), ins = cheapestInsertion(r, s);
-              if (ins.cost < bc) { bc = ins.cost; bt = t; bp = ins.pos; }
-            });
-            if (bt) { const r = bt.stops.filter(x => x.isMapped); s.truckId = bt.id; bt.stops = [...r.slice(0, bp), s, ...r.slice(bp), ...bt.stops.filter(x => !x.isMapped)]; }
-            else leftover.push(s);
-          });
-        }
-        // đơn thừa: thử nhét vào xe còn chỗ (kể cả xe chưa được chọn)
-        for (let i = leftover.length - 1; i >= 0; i--) {
-          const s = leftover[i]; let bt = null, bc = Infinity;
-          open.forEach(t => { if (truckLoadOf(t) + s.totalQty <= t.maxCapacity) { const c = cheapestInsertion(t.stops.filter(x => x.isMapped), s).cost; if (c < bc) { bc = c; bt = t; } } });
-          if (bt) { assign(s, bt); leftover.splice(i, 1); }
-        }
-        open.forEach(t => optimizeTruckSequence(t));
-
-        // ---- Tinh chỉnh: chuyển điểm sang xe khác nếu giảm được tổng km ----
-        for (let round = 0; round < 3; round++) {
-          let moved = false; const touched = new Set();
-          for (const A of open) {
-            for (const s of [...A.stops]) {
-              if (!s.isMapped || s.locked) continue;
-              const rA = A.stops.filter(x => x.isMapped), idx = rA.indexOf(s);
-              const prev = idx === 0 ? depot : rA[idx - 1], next = idx === rA.length - 1 ? depot : rA[idx + 1];
-              const gain = distKm(prev, s) + distKm(s, next) - distKm(prev, next);
-              if (gain < 0.5) continue;
-              let bt = null, bc = gain - 0.3;
-              for (const B of open) {
-                if (B === A || truckLoadOf(B) + s.totalQty > B.maxCapacity) continue;
-                const c = cheapestInsertion(B.stops.filter(x => x.isMapped), s).cost; if (c < bc) { bc = c; bt = B; }
-              }
-              if (bt) { A.stops = A.stops.filter(x => x !== s); s.truckId = bt.id; bt.stops.push(s); touched.add(A); touched.add(bt); moved = true; }
-            }
-          }
-          touched.forEach(t => optimizeTruckSequence(t));
-          if (!moved) break;
-        }
-        pool.forEach(s => { if (!open.some(t => t.stops.includes(s))) s.truckId = null; });
-
-        const firstActive = open.find(t => t.stops.length > 0) || fleet.find(t => t.stops.length > 0);
-        if (firstActive) activeTruckId = firstActive.id;
-        currentStopTab = 'route';
-        refreshAllViews();
-        await savePermanentEdits();
-        for (const t of fleet) if (t.stops.length > 0) await syncTruckStopsToCloud(t);
-
-        const assignedCount = pool.length - pool.filter(s => s.truckId === null).length;
-        const kmTotal = open.reduce((a, t) => a + truckKm(t), 0);
-        const noGps = allMergedStops.filter(s => !s.isMapped && !s.archived && s.status === 'pending').length;
-        let msg = `ĐÃ XẾP TUYẾN XONG!\n• Đã xếp mới: ${assignedCount} điểm, mỗi xe một khu vực, đi vòng và quay về kho.\n• Tổng quãng đường ước tính các xe đang soạn: ~${Math.round(kmTotal)} km (${usedRoad ? 'theo đường thật OSRM' : 'ước lượng từ đường chim bay'}).`;
-        const left = pool.filter(s => s.truckId === null).length;
-        if (left > 0) msg += `\n• Còn ${left} điểm ở mục "Chưa Xếp" vì vượt tải trọng các xe còn trống — chờ xe về chạy chuyến sau.`;
-        if (noGps > 0) msg += `\n• ${noGps} điểm chưa có GPS nên chưa được xếp tuyến (xem tab "Điểm Mới").`;
-        alert(msg);
-      } finally { hideBoot(); }
+      if (improved) break;
     }
+  }
+
+  truck.stops = [...route, ...unmap];
+  truck.stops.forEach((s, idx) => {
+    s.stopSeq = idx + 1;
+    s.lifoSeq = truck.stops.length - idx;
+    s.truckId = truck.id;
+  });
+}
 
     // -------------------------------------------------------------------------
     // 7. PHÂN TUYẾN THỦ CÔNG
     // -------------------------------------------------------------------------
     function updateManualTruckDropdown() {
       let select = document.getElementById('selectTargetTruckManual');
-      if (select) select.innerHTML = fleet.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      if (select) select.innerHTML = fleet.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
     }
 
     function handleStopCheckboxToggle(canonicalId, checked) {
@@ -1764,54 +1681,87 @@ async function restoreMasterBackupFromCloud() {
     }
 
     async function applyManualTruckAssignment() {
-      if (selectedStopIds.size === 0) return;
-      const targetTruckId = parseInt(document.getElementById('selectTargetTruckManual').value);
-      const targetTruck = fleet.find(t => t.id === targetTruckId);
-      if (!targetTruck) return;
-      const picked = [...selectedStopIds].map(id => allMergedStops.find(x => x.canonicalId === id)).filter(Boolean);
-      const movable = picked.filter(x => !x.archived && x.status === 'pending');      // điểm đã giao / đã đóng chuyến thì không gán lại
-      if (movable.length === 0) { selectedStopIds.clear(); updateManualRoutingBarState(); renderStopsList(); return alert("Các đơn đang chọn đều đã giao hoặc đã đóng chuyến nên không thể gán lại."); }
-      const addQty = movable.filter(x => x.truckId !== targetTruckId).reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0);
-      const currentLoad = truckLoadOf(targetTruck);
-      if (currentLoad + addQty > targetTruck.maxCapacity) {
-        if (!confirm(`CẢNH BÁO QUÁ TẢI TRỌNG!\n\n${targetTruck.name} tải tối đa: ${targetTruck.maxCapacity} Thùng.\nĐang chở: ${Math.round(currentLoad)} Thùng + thêm ${Math.round(addQty)} Thùng = ${Math.round(currentLoad + addQty)} Thùng (QUÁ TẢI)!\n\nVẫn muốn gán?`)) return;
-      }
-      if (targetTruck.linkIssued && !confirm(`${targetTruck.name} đã phát link / đang đi giao.\nCác điểm thêm vào sẽ NỐI VÀO CUỐI lộ trình, thứ tự các điểm cũ giữ nguyên.\n\nTiếp tục?`)) return;
-      const touched = new Set([targetTruck]);
-      movable.forEach(stop => {
-        if (stop.truckId === targetTruckId && targetTruck.stops.includes(stop)) return;
-        const old = fleet.find(t => t.id === stop.truckId);
-        if (old) { old.stops = old.stops.filter(x => x !== stop); touched.add(old); }
-        stop.truckId = targetTruckId; stop.locked = false; targetTruck.stops.push(stop);
-      });
-      await prefetchRoadMatrix([depotPt(), ...targetTruck.stops.filter(x => x.isMapped)]);
-      touched.forEach(t => optimizeTruckSequence(t));
-      selectedStopIds.clear(); updateManualRoutingBarState();
-      activeTruckId = targetTruckId;
-      refreshAllViews();
-      await savePermanentEdits();
-      for (const t of touched) await syncTruckStopsToCloud(t);
-      alert(`ĐÃ GÁN ${movable.length} ĐƠN VÀO ${targetTruck.name.toUpperCase()}!` + (picked.length > movable.length ? `\n(Bỏ qua ${picked.length - movable.length} đơn đã giao/đã đóng chuyến)` : ''));
-    }
+  if (selectedStopIds.size === 0) return;
+  let targetTruckId = parseInt(document.getElementById('selectTargetTruckManual').value);
+  let targetTruck = fleet.find(t => t.id === targetTruckId);
+  if (!targetTruck) return;
 
-    // "Thu hồi" các đơn đã chọn về kho đơn chung (chỉ đơn CHƯA GIAO)
+  // Tính tổng lượng hàng của các đơn đang chọn
+  let pendingQty = 0;
+  selectedStopIds.forEach(id => {
+    let stop = allMergedStops.find(s => s.canonicalId === id);
+    if (stop) pendingQty += (parseFloat(stop.totalQty) || 0);
+  });
+
+  let currentLoad = targetTruck.stops.reduce((sum, s) => sum + (parseFloat(s.totalQty) || 0), 0);
+
+  // CẢNH BÁO & CHẶN NẾU QUÁ TẢI
+  if (currentLoad + pendingQty > targetTruck.maxCapacity) {
+    let msg = `CẢNH BÁO QUÁ TẢI TRỌNG!\n\n${targetTruck.name} có tải trọng tối đa: ${targetTruck.maxCapacity} Thùng.\nHiện tại xe đang chở: ${currentLoad} Thùng.\nSố lượng đơn anh vừa chọn thêm: ${pendingQty} Thùng.\nTổng cộng sẽ là: ${currentLoad + pendingQty} Thùng (QUÁ TẢI)!\n\nAnh có CHẮC CHẮN muốn ép xe này chở quá tải không?`;
+    if (!confirm(msg)) {
+      return; // Hủy bỏ ngay lập tức nếu không đồng ý
+    }
+  }
+
+  selectedStopIds.forEach(id => {
+    let stop = allMergedStops.find(s => s.canonicalId === id);
+    if (stop) {
+      if (stop.truckId) {
+        let oldTruck = fleet.find(t => t.id === stop.truckId);
+        if (oldTruck) oldTruck.stops = oldTruck.stops.filter(s => s.canonicalId !== id);
+      }
+      stop.truckId = targetTruckId;
+      targetTruck.stops.push(stop);
+    }
+  });
+
+  fleet.forEach(t => optimizeTruckSequence(t));
+  selectedStopIds.clear();
+  updateManualRoutingBarState();
+  unassignedStops = allMergedStops.filter(s => s.truckId === null);
+  document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+  activeTruckId = targetTruckId;
+  renderFleetTabs();
+  updateTruckSummary();
+  renderStopsList();
+  renderRouteOnMap();
+  updateDashboardReport();
+  checkButtonsState();
+  savePermanentEdits();
+
+  for (const t of fleet) await syncTruckStopsToCloud(t);
+  alert(`ĐÃ GÁN VÀO ${targetTruck.name.toUpperCase()} THÀNH CÔNG!`);
+}
+
     async function unassignSelectedStops() {
       if (selectedStopIds.size === 0) return;
-      const touched = new Set(); let n = 0, skipped = 0;
       selectedStopIds.forEach(id => {
-        const stop = allMergedStops.find(x => x.canonicalId === id);
-        if (!stop || stop.archived) return;
-        if (stop.status !== 'pending') { skipped++; return; }
-        const old = fleet.find(t => t.id === stop.truckId);
-        if (old) { old.stops = old.stops.filter(x => x !== stop); touched.add(old); n++; }
-        stop.truckId = null; stop.locked = false; stop.stopSeq = 0; stop.lifoSeq = 0;
+        let stop = allMergedStops.find(s => s.canonicalId === id);
+        if (stop && stop.truckId) {
+          let oldTruck = fleet.find(t => t.id === stop.truckId);
+          if (oldTruck) oldTruck.stops = oldTruck.stops.filter(s => s.canonicalId !== id);
+          stop.truckId = null;
+        }
       });
-      touched.forEach(t => optimizeTruckSequence(t));
-      selectedStopIds.clear(); updateManualRoutingBarState();
-      refreshAllViews();
-      await savePermanentEdits();
-      for (const t of touched) await syncTruckStopsToCloud(t);
-      if (skipped > 0) alert(`Đã rút ${n} đơn về kho đơn chung.\n${skipped} đơn đã giao/thất bại nên giữ nguyên trên xe (bấm "Hoàn tất chuyến" khi xe về).`);
+
+      fleet.forEach(t => optimizeTruckSequence(t));
+      selectedStopIds.clear();
+      updateManualRoutingBarState();
+      unassignedStops = allMergedStops.filter(s => s.truckId === null);
+      document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+      renderFleetTabs();
+      updateTruckSummary();
+      renderStopsList();
+      renderRouteOnMap();
+      updateDashboardReport();
+      checkButtonsState();
+      savePermanentEdits();
+
+      if (db) {
+        for (let t of fleet) await syncTruckStopsToCloud(t);
+      }
     }
 
     // -------------------------------------------------------------------------
@@ -1858,7 +1808,6 @@ function checkDriverRoutingModeSync() {
   let paramTruckId = parseInt(urlParams.get('truck') || '1', 10);
   let orderDate = urlParams.get('date') || getTodayString();
   let embeddedData = urlParams.get('d') || '';
-  driverTripNo = parseInt(urlParams.get('trip') || '1', 10) || 1;
 
   loadLocalCache();
   activeTruckId = paramTruckId;
@@ -1884,7 +1833,7 @@ function checkDriverRoutingModeSync() {
         targetTruck.name = decoded.n || targetTruck.name;
         targetTruck.driver = decoded.dr || targetTruck.driver;
         targetTruck.plate = decoded.p || targetTruck.plate;
-        targetTruck.stops = decoded.s.map(sanitizeDriverStop);
+        targetTruck.stops = decoded.s;
       }
     } catch (e) {
       console.warn("Lỗi giải mã gói link:", e);
@@ -1905,27 +1854,6 @@ function checkDriverRoutingModeSync() {
   driverCloudRefresh(true);
   setupDriverRealtime();
   return true;
-}
-
-// Dữ liệu trong link/Cloud là "không tin cậy": ép kiểu trước khi hiển thị
-function sanitizeDriverStop(st) {
-  st = st || {};
-  const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
-  const lat = Number(st.lat), lon = Number(st.lon), okGps = isFinite(lat) && isFinite(lon) && st.lat !== null && st.lon !== null && !!st.isMapped;
-  return {
-    canonicalId: String(st.canonicalId || ''), stopSeq: num(st.stopSeq), lifoSeq: num(st.lifoSeq), tripNo: num(st.tripNo) || undefined,
-    custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
-    lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
-    totalQty: num(st.totalQty), totalCod: num(st.totalCod),
-    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''),
-    items: (Array.isArray(st.items) ? st.items : []).map(it => ({ qty: num(it && it.qty), unit: String((it && it.unit) || ''), itemName: String((it && it.itemName) || '') }))
-  };
-}
-function markDriverLinkEnded() {
-  driverLinkEnded = true;
-  const truck = fleet.find(t => t.id === activeTruckId); if (truck) truck.stops = [];
-  const b = document.getElementById('drvExpiredBanner'); if (b) b.classList.remove('hidden');
-  renderDriverAppCards();
 }
 
 function isTokenExpired(token) {
@@ -1962,7 +1890,7 @@ function buildDriverFullUrl(truck) {
     }))
   };
   let encoded = btoa(unescape(encodeURIComponent(JSON.stringify(compactPayload))));
-  return `${baseCleanUrl}#/driver?truck=${truck.id}&trip=${truck.tripNo || 1}&date=${today}&d=${encoded}`;
+  return `${baseCleanUrl}#/driver?truck=${truck.id}&date=${today}&d=${encoded}`;
 }
 
 async function generateStandaloneDriverLink(targetTruckId) {
@@ -1970,21 +1898,20 @@ async function generateStandaloneDriverLink(targetTruckId) {
   let truck = fleet.find(t => t.id === tid);
   if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
 
-  // Phát link = KHÓA chuyến: các điểm hiện có giữ nguyên thứ tự, chỉ cho nối thêm điểm vào cuối
-  truck.linkIssued = true;
-  truck.linkToken = getTodayString();
-  truck.stops.forEach(s => { s.locked = true; });
-  await savePermanentEdits();
+  let today = getTodayString();
   await syncTruckStopsToCloud(truck);
 
   let driverUrl = buildDriverFullUrl(truck);
+
+  truck.linkIssued = true;
+  truck.linkToken = today;
+  savePermanentEdits();
   renderFleetTabs();
   updateDashboardReport();
-  updateTruckSummary();
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(driverUrl).then(() => {
-      alert(`ĐÃ TẠO & COPY LINK CHO ${truck.name.toUpperCase()} (CHUYẾN ${truck.tripNo || 1})!\n\nDán (Paste) gửi Zalo cho tài xế ${truck.driver}. Chuyến đã được KHÓA thứ tự; khi xe về kho bấm "Hoàn tất chuyến".`);
+      alert(`ĐÃ TẠO & COPY LINK CHO ${truck.name.toUpperCase()}!\n\nAnh chỉ cần dán (Paste) gửi qua Zalo cho tài xế ${truck.driver} là mở lên thấy ngay toàn bộ đơn và bản đồ!`);
     }).catch(() => {
       prompt(`Copy link tài xế của ${truck.name} dưới đây:`, driverUrl);
     });
@@ -1993,46 +1920,16 @@ async function generateStandaloneDriverLink(targetTruckId) {
   }
 }
 
-// THU HỒI: rút các điểm CHƯA GIAO của xe về kho đơn chung để xếp xe khác. Điểm đã giao/thất bại giữ nguyên trên xe.
-async function revokeDriverLink(truckId) {
+function revokeDriverLink(truckId) {
   let truck = fleet.find(t => t.id === truckId);
   if (!truck) return;
-  const pending = truck.stops.filter(x => x.status === 'pending');
-  if (!confirm(`THU HỒI ${truck.name}?\n\n• ${pending.length} điểm CHƯA GIAO sẽ được rút về kho đơn chung để xếp xe khác.\n• Điểm đã giao / thất bại giữ nguyên (bấm "Hoàn tất chuyến" khi xe về để đóng chuyến).`)) return;
-  pending.forEach(x => { x.truckId = null; x.locked = false; x.stopSeq = 0; x.lifoSeq = 0; });
-  truck.stops = truck.stops.filter(x => x.status !== 'pending');
-  if (truck.stops.length === 0) { truck.linkIssued = false; truck.linkToken = null; }
-  optimizeTruckSequence(truck);
-  refreshAllViews();
-  await savePermanentEdits();
-  await syncTruckStopsToCloud(truck);
-}
-
-// HOÀN TẤT CHUYẾN: xe đã về kho & đối chiếu xong. Đóng chuyến, xe trống để chạy chuyến sau.
-async function completeTrip(truckId) {
-  const truck = fleet.find(t => t.id === Number(truckId));
-  if (!truck || truck.stops.length === 0) return alert("Xe này chưa có chuyến nào đang chạy.");
-  const ok = truck.stops.filter(x => x.status === 'success'), bad = truck.stops.filter(x => x.status === 'failed'), pend = truck.stops.filter(x => x.status === 'pending');
-  const codOk = ok.reduce((a, x) => a + (parseFloat(x.totalCod) || 0), 0);
-  if (!confirm(`HOÀN TẤT CHUYẾN ${truck.tripNo || 1} • ${truck.name}?\n\n• Đã giao: ${ok.length} điểm (thu ${formatMoney(codOk)})\n• Giao thất bại: ${bad.length} điểm\n• Chưa giao: ${pend.length} điểm\n\nXe sẽ được giải phóng để nhận chuyến sau.`)) return;
-  const back = truck.stops.filter(x => x.status !== 'success');
-  let returnBack = false;
-  if (back.length > 0) returnBack = confirm(`Có ${back.length} điểm CHƯA GIAO / GIAO THẤT BẠI.\n\nOK = ĐƯA LẠI vào kho đơn chung để xếp chuyến sau.\nCancel = ĐÓNG LUÔN (kế toán tự thêm lại hôm sau nếu cần).`);
-  const tripNo = truck.tripNo || 1;
-  truck.stops.forEach(x => {
-    if (x.status !== 'success' && returnBack) {
-      x.history = (x.history || []).concat([{ tripNo, status: x.status, reason: x.failedReason || '' }]);
-      x.status = 'pending'; x.failedReason = ''; x.truckId = null; x.locked = false; x.stopSeq = 0; x.lifoSeq = 0;
-    } else {
-      if (x.status === 'pending') { x.status = 'failed'; x.failedReason = 'Đóng chuyến - chưa giao'; }
-      x.archived = true; x.tripNo = tripNo; x.truckId = truck.id;
-    }
-  });
-  truck.stops = []; truck.linkIssued = false; truck.linkToken = null; truck.tripNo = tripNo + 1;
-  refreshAllViews();
-  await savePermanentEdits();
-  await syncTruckStopsToCloud(truck);
-  alert(`ĐÃ HOÀN TẤT CHUYẾN ${tripNo} CỦA ${truck.name.toUpperCase()}.` + (returnBack && back.length ? `\n${back.length} điểm đã quay lại tab "Chưa Xếp".` : ''));
+  if (confirm(`Thu hồi và hủy link của ${truck.name}? Tài xế sẽ không thể vào xem đơn nữa.`)) {
+    truck.linkIssued = false;
+    truck.linkToken = null;
+    savePermanentEdits();
+    renderFleetTabs();
+    updateDashboardReport();
+  }
 }
 
 function openDriverLinkDirect(truckId) {
@@ -2050,9 +1947,10 @@ function initDriverMiniMap() {
     if (!el) return;
     drvMap = L.map('drvMiniMap', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, zoomControl: false, preferCanvas: true });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains: 'abcd',
-      attribution: '© OpenStreetMap contributors © CARTO'
+    L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Maps'
     }).addTo(drvMap);
 
     drvRouteLayer = L.layerGroup().addTo(drvMap);
@@ -2088,7 +1986,7 @@ function renderDriverMiniMapRoute(stops) {
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     });
-    L.marker([s.lat, s.lon], { icon }).bindPopup(`<b>#${s.stopSeq} • ${esc(s.custName)}</b><br>${esc(s.addr)}<br>COD: <b>${formatMoney(s.totalCod)}</b>`).addTo(drvPinsLayer);
+    L.marker([s.lat, s.lon], { icon }).bindPopup(`<b>#${s.stopSeq} • ${s.custName}</b><br>${s.addr}<br>COD: <b>${formatMoney(s.totalCod)}</b>`).addTo(drvPinsLayer);
   });
   latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
 
@@ -2139,8 +2037,8 @@ function renderDriverAppCards() {
           <div class="flex items-center gap-2">
             <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">#${s.stopSeq}</span>
             <div>
-              <h4 class="font-bold text-slate-900 text-xs">${esc(s.custName)}</h4>
-              <p class="text-[11px] text-slate-500">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
+              <h4 class="font-bold text-slate-900 text-xs">${s.custName}</h4>
+              <p class="text-[11px] text-slate-500">${s.addr || 'Chưa có địa chỉ chi tiết'}</p>
             </div>
           </div>
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
@@ -2167,16 +2065,16 @@ function renderDriverAppCards() {
         </div>
 
         <div class="text-[11px] text-slate-600 border-t pt-1.5 space-y-0.5">
-          ${(s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
+          ${(s.items || []).map(it => `• <strong>${it.qty} ${it.unit}</strong> ${it.itemName}`).join('<br>')}
         </div>
 
-        ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(s.failedReason)}</div>` : ''}
+        ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${s.failedReason}</div>` : ''}
 
         <div class="flex items-center gap-2 pt-1 border-t">
-          <button onclick="driverMarkSuccess(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
+          <button onclick="driverMarkSuccess('${s.canonicalId}')" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
             <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã Giao & Thu Tiền
           </button>
-          <button onclick="openDriverRejectPicker(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
+          <button onclick="openDriverRejectPicker('${s.canonicalId}')" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
             <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Không Giao Được
           </button>
         </div>
@@ -2189,12 +2087,8 @@ function renderDriverAppCards() {
     async function syncTruckStopsToCloud(truck) {
   if (!db || !truck || !cloudReady) return;
   let today = getTodayString();
-  const tripNo = truck.tripNo || 1;
   try {
-    // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
-    const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
-    const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
-    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; } });
+    // CHUYỂN ĐỔI BẮT BUỘC: Biến Set() thành mảng Array thường để Supabase lưu không bị rỗng
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
       custName: s.custName || '',
@@ -2210,7 +2104,6 @@ function renderDriverAppCards() {
       stopSeq: s.stopSeq || 1,
       lifoSeq: s.lifoSeq || 1,
       truckId: truck.id,
-      tripNo,
       items: s.items || [],
       rawIds: Array.from(s.rawIds || []),
       invoices: Array.from(s.invoices || [])
@@ -2367,7 +2260,7 @@ async function submitDriverRejectReason(reason) {
             return `
               <div class="space-y-0.5">
                 <div class="flex justify-between text-[11px]">
-                  <span class="font-medium text-slate-800">${esc(reason)}</span>
+                  <span class="font-medium text-slate-800">${reason}</span>
                   <span class="font-bold text-rose-700">${count} đơn (${pct}%)</span>
                 </div>
                 <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -2403,8 +2296,7 @@ async function submitDriverRejectReason(reason) {
               <button onclick="event.stopPropagation(); openDriverLinkDirect(${t.id});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-200">Mở</button>
             <button onclick="event.stopPropagation(); generateStandaloneDriverLink(${t.id});" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
  
-            <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" title="Rút đơn chưa giao về kho đơn" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Thu hồi</button>
-            <button onclick="event.stopPropagation(); completeTrip(${t.id});" title="Xe đã về kho, đóng chuyến" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-200">Xong</button>
+            <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
             </div>
           ` : `
             <span class="text-[10px] text-slate-300 italic select-none">Chưa có đơn</span>
@@ -2413,10 +2305,10 @@ async function submitDriverRejectReason(reason) {
           return `
             <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
               <td class="p-2">
-                <strong class="text-slate-800">${esc(t.name)}</strong>
-                <div class="text-[10px] text-slate-400 font-mono">${esc(t.plate)} • Chuyến ${t.tripNo || 1}</div>
+                <strong class="text-slate-800">${t.name}</strong>
+                <div class="text-[10px] text-slate-400 font-mono">${t.plate}</div>
               </td>
-              <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
+              <td class="p-2">${t.driver}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
               <td class="p-2 text-center font-bold ${truckLoad > t.maxCapacity ? 'text-rose-600' : 'text-blue-600'}">${Math.round(truckLoad)}/${t.maxCapacity}</td>
               <td class="p-2 text-center font-bold text-slate-800">${t.stops.length}</td>
               <td class="p-2 text-right font-bold text-amber-800 font-mono">${formatMoney(truckCod)}</td>
@@ -2444,7 +2336,7 @@ async function submitDriverRejectReason(reason) {
         return `
           <button onclick="selectTruck(${t.id})" class="px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 transition flex flex-col items-start gap-0.5 ${activeClass}">
             <div class="flex items-center gap-1.5">
-              <span>${esc(t.name)}</span>
+              <span>${t.name}</span>
               ${isOverloaded ? '<span class="w-2 h-2 rounded-full bg-rose-400"></span>' : ''}
             </div>
             <div class="text-[10px] opacity-80 font-normal">
@@ -2479,8 +2371,7 @@ async function submitDriverRejectReason(reason) {
       let elHeader = document.getElementById('mapRouteHeader');
       let elBtnText = document.getElementById('btnDriverLinkText');
 
-      if (elName) elName.innerText = `${truck.name} (${truck.plate}) • Chuyến ${truck.tripNo || 1}`;
-      const btnDone = document.getElementById('btnCompleteTrip'); if (btnDone) btnDone.classList.toggle('hidden', truck.stops.length === 0);
+      if (elName) elName.innerText = `${truck.name} (${truck.plate})`;
       if (elDriver) elDriver.innerText = `Tài xế: ${truck.driver} • ${normalizePhone(truck.phone)}`;
       if (elLoad) elLoad.innerText = `${Math.round(totalLoad)}/${truck.maxCapacity}`;
       if (elBar) {
@@ -2524,23 +2415,23 @@ async function submitDriverRejectReason(reason) {
 
         container.innerHTML = list.map((s, idx) => {
           let assignedTruck = fleet.find(t => t.id === s.truckId);
-          let truckBadge = s.archived ? `<span class="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">${s.status === 'success' ? 'Đã giao' : 'Đã đóng'} • Chuyến ${s.tripNo || ''}</span>` : assignedTruck 
+          let truckBadge = assignedTruck 
             ? `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">${assignedTruck.name}</span>`
             : `<span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded">Chưa xếp xe</span>`;
 
           return `
             <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
-              <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
-              <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+              <input type="checkbox" onchange="handleStopCheckboxToggle('${s.canonicalId}', this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+              <div onclick="openStopDetail('${s.canonicalId}')" class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-1">
-                  <span class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${esc(s.custName)}</span>
+                  <span class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${s.custName}</span>
                   <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
                 </div>
                 <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
-                  <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                  <span>Mã: <strong class="text-slate-700">${s.canonicalId}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
                   <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
                 </div>
-                <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr || 'Chưa có địa chỉ')}</div>
+                <div class="text-[10px] text-slate-400 truncate mt-0.5">${s.addr || 'Chưa có địa chỉ'}</div>
                 <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
                   <div>${truckBadge}</div>
                   <span class="text-[10px] ${s.isMapped ? 'text-emerald-600' : 'text-rose-600'} font-semibold">${s.isMapped ? 'Đã có GPS' : 'Chưa có GPS'}</span>
@@ -2565,17 +2456,17 @@ async function submitDriverRejectReason(reason) {
           <div class="p-3 bg-rose-50/60 border-l-4 border-rose-500 space-y-2">
             <div class="flex items-start justify-between gap-1">
               <div>
-                <strong class="text-xs text-rose-950">${esc(s.custName)}</strong>
-                <div class="text-[11px] text-slate-500">Mã KH: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> • SĐT: ${normalizePhone(s.phone) || 'Trống'}</div>
-                <div class="text-[10px] text-slate-400">${esc(s.addr)}</div>
+                <strong class="text-xs text-rose-950">${s.custName}</strong>
+                <div class="text-[11px] text-slate-500">Mã KH: <strong class="text-slate-700">${s.canonicalId}</strong> • SĐT: ${normalizePhone(s.phone) || 'Trống'}</div>
+                <div class="text-[10px] text-slate-400">${s.addr}</div>
               </div>
               <span class="text-xs font-bold text-blue-700 shrink-0">${s.totalQty} Thùng</span>
             </div>
             <div class="flex items-center gap-1.5 pt-1 border-t border-rose-200">
-              <button onclick="promptEditStopCoordinates(${jsq(s.canonicalId)})" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded shadow flex items-center gap-1">
+              <button onclick="promptEditStopCoordinates('${s.canonicalId}')" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded shadow flex items-center gap-1">
                 <i data-lucide="map-pin" class="w-3 h-3"></i> Nhập / Dán Link Map
               </button>
-              <button onclick="triggerClickToPin(${jsq(s.canonicalId)})" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow flex items-center gap-1">
+              <button onclick="triggerClickToPin('${s.canonicalId}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow flex items-center gap-1">
                 <i data-lucide="mouse-pointer-click" class="w-3 h-3"></i> Ghim Bản Đồ
               </button>
             </div>
@@ -2594,17 +2485,17 @@ async function submitDriverRejectReason(reason) {
         }
         container.innerHTML = unassignedStops.map(s => `
           <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
-            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
-            <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+            <input type="checkbox" onchange="handleStopCheckboxToggle('${s.canonicalId}', this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+            <div onclick="openStopDetail('${s.canonicalId}')" class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
-                <span class="text-xs font-bold text-slate-900 truncate">${esc(s.custName)}</span>
+                <span class="text-xs font-bold text-slate-900 truncate">${s.custName}</span>
                 <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
               </div>
               <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
-                <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                <span>Mã: <strong class="text-slate-700">${s.canonicalId}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
                 <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
               </div>
-              <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr)}</div>
+              <div class="text-[10px] text-slate-400 truncate mt-0.5">${s.addr}</div>
             </div>
           </div>
         `).join('');
@@ -2639,27 +2530,27 @@ async function submitDriverRejectReason(reason) {
 
         let mapStatus = s.isMapped
           ? '<span class="text-[10px] text-emerald-600 font-semibold"><i data-lucide="map-pin" class="w-3 h-3 inline"></i> Có Map</span>'
-          : `<button onclick="promptEditStopCoordinates(${jsq(s.canonicalId)})" class="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded border border-rose-200">Gắn Map</button>`;
+          : `<button onclick="promptEditStopCoordinates('${s.canonicalId}')" class="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded border border-rose-200">Gắn Map</button>`;
 
         let multiCodesBadge = s.rawIds?.size > 1 ? `<span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1 py-0.2 rounded">Gộp ${s.rawIds.size} mã</span>` : '';
 
         return `
           <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
-            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+            <input type="checkbox" onchange="handleStopCheckboxToggle('${s.canonicalId}', this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
             ${seqBadge}
-            <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+            <div onclick="openStopDetail('${s.canonicalId}')" class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
-                <span class="text-xs font-bold text-slate-900 truncate">${esc(s.custName)}</span>
+                <span class="text-xs font-bold text-slate-900 truncate">${s.custName}</span>
                 <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
               </div>
               <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
-                <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> ${multiCodesBadge} • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                <span>Mã: <strong class="text-slate-700">${s.canonicalId}</strong> ${multiCodesBadge} • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
                 <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
               </div>
-              <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr || 'Chưa có địa chỉ')}</div>
+              <div class="text-[10px] text-slate-400 truncate mt-0.5">${s.addr || 'Chưa có địa chỉ'}</div>
               <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
                 <div class="flex items-center gap-1.5">${statusBadge} ${mapStatus}</div>
-                <button onclick="reassignStopToAnotherTruck(event, ${jsq(s.canonicalId)})" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium">Chuyển xe</button>
+                <button onclick="reassignStopToAnotherTruck(event, '${s.canonicalId}')" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium">Chuyển xe</button>
               </div>
             </div>
           </div>
@@ -2667,17 +2558,6 @@ async function submitDriverRejectReason(reason) {
       }).join('');
 
       safeRenderIcons();
-    }
-
-    async function fetchRoadGeometry(latlngs) {
-      const base = osrmBase(); if (!base || latlngs.length < 2 || latlngs.length > 100) return null;
-      try {
-        const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(`${base}/route/v1/driving/${latlngs.map(p => p[1] + ',' + p[0]).join(';')}?overview=full&geometries=geojson`, { signal: ctrl.signal });
-        clearTimeout(to);
-        const j = await res.json();
-        return (j.code === 'Ok' && j.routes && j.routes[0]) ? j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]) : null;
-      } catch (e) { return null; }
     }
 
     function renderRouteOnMap() {
@@ -2702,7 +2582,7 @@ async function submitDriverRejectReason(reason) {
             iconAnchor: [10, 10]
           });
           L.marker([s.lat, s.lon], { icon }).bindPopup(`
-            <b>${esc(s.custName)}</b><br>${esc(s.addr)}<br>Hàng: <b>${s.totalQty} Thùng</b><br>COD: <b>${formatMoney(s.totalCod)}</b>
+            <b>${s.custName}</b><br>${s.addr}<br>Hàng: <b>${s.totalQty} Thùng</b><br>COD: <b>${formatMoney(s.totalCod)}</b>
           `).addTo(pinsLayer);
         });
         map.fitBounds(bounds, { padding: [30, 30] });
@@ -2717,17 +2597,17 @@ async function submitDriverRejectReason(reason) {
         latlngs.push([s.lat, s.lon]);
         let icon = L.divIcon({
           className: 'stop-map-pin',
-          html: `<div class="w-6 h-6 rounded-full ${s.status === 'success' ? 'bg-emerald-600' : (s.status === 'failed' ? 'bg-rose-600' : 'bg-blue-600')} border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-extrabold">${s.stopSeq}</div>`,
+          html: `<div class="w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-extrabold">${s.stopSeq}</div>`,
           iconSize: [24, 24],
           iconAnchor: [12, 12]
         });
         L.marker([s.lat, s.lon], { icon }).bindPopup(`
           <div class="space-y-1">
-            <div class="font-bold text-blue-600">#${s.stopSeq} • ${esc(s.custName)}</div>
-            <div class="text-[11px] text-slate-500">${esc(s.addr)}</div>
+            <div class="font-bold text-blue-600">#${s.stopSeq} • ${s.custName}</div>
+            <div class="text-[11px] text-slate-500">${s.addr}</div>
             <div class="text-[11px] font-bold text-slate-800">Giao: ${s.totalQty} Thùng</div>
             <div class="text-[11px] font-bold text-amber-700">Thu COD: ${formatMoney(s.totalCod)}</div>
-            <button onclick="openStopDetail(${jsq(s.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
+            <button onclick="openStopDetail('${s.canonicalId}')" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
           </div>
         `).addTo(pinsLayer);
       });
@@ -2736,11 +2616,6 @@ async function submitDriverRejectReason(reason) {
       let polyline = L.polyline(latlngs, { color: '#2563eb', weight: 3.5, opacity: 0.8, dashArray: '4, 4' });
       routeLayer.addLayer(polyline);
       map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-      const myToken = ++routeDrawToken;                         // có OSRM: thay đường thẳng bằng đường đi thật
-      fetchRoadGeometry(latlngs).then(pts => {
-        if (!pts || myToken !== routeDrawToken || !routeLayer) return;
-        routeLayer.clearLayers(); routeLayer.addLayer(L.polyline(pts, { color: '#2563eb', weight: 4, opacity: 0.85 }));
-      }).catch(() => {});
     }
 
     // -------------------------------------------------------------------------
@@ -2761,9 +2636,9 @@ async function submitDriverRejectReason(reason) {
       let tbody = document.getElementById('modalItemsTableBody');
       tbody.innerHTML = stop.items.map(it => `
         <tr class="hover:bg-slate-50">
-          <td class="p-2 font-mono text-[11px] text-slate-500">${esc(it.invId)}</td>
-          <td class="p-2 font-medium text-slate-800">${esc(it.itemName)}</td>
-          <td class="p-2 text-center font-bold text-blue-600">${it.qty} ${esc(it.unit)}</td>
+          <td class="p-2 font-mono text-[11px] text-slate-500">${it.invId}</td>
+          <td class="p-2 font-medium text-slate-800">${it.itemName}</td>
+          <td class="p-2 text-center font-bold text-blue-600">${it.qty} ${it.unit}</td>
           <td class="p-2 text-right font-mono">${formatMoney(it.lineAmount)}</td>
         </tr>
       `).join('');
@@ -2773,7 +2648,6 @@ async function submitDriverRejectReason(reason) {
     }
 
     function closeStopDetailModal() {
-      currentDetailStop = null;
       document.getElementById('stopDetailModal').classList.add('hidden');
     }
 
@@ -2792,7 +2666,7 @@ async function submitDriverRejectReason(reason) {
     function triggerClickToPin(targetId) {
       let stop = allMergedStops.find(s => s.canonicalId === targetId);
       if (!stop) return;
-      pinningStopId = stop.canonicalId;
+      currentDetailStop = stop;
       alert(`Đã chọn: "${stop.custName}".\n\nBây giờ anh hãy CLICK TRỰC TIẾP lên bản đồ ở góc đường mong muốn để gán tọa độ!`);
     }
 
@@ -2804,14 +2678,16 @@ async function submitDriverRejectReason(reason) {
       stop.lon = lon;
       stop.isMapped = true;
 
-      let item = { id: stop.baseId || canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr };
-      masterGpsMap.set(item.id, item);
+      let item = { id: canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr };
+      masterGpsMap.set(canonicalId, item);
 
       if (db) { const { error } = await db.from('master_customers').upsert(item, { onConflict: 'id' }); if (error) return alert("Lỗi lưu tọa độ lên Cloud: " + error.message); }
 
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
 
-      recomputeDerivedLists();
+      unmappedStops = allMergedStops.filter(s => !s.isMapped);
+      if (unmappedStops.length > 0) document.getElementById('unmappedCountBadge').innerText = unmappedStops.length;
+      else document.getElementById('unmappedWarningPanel').classList.add('hidden');
 
       savePermanentEdits();
       alert(`ĐÃ LƯU VĨNH VIỄN TỌA ĐỘ [${lat}, ${lon}] CHO "${stop.custName}" LÊN CLOUD!`);
@@ -2828,11 +2704,11 @@ async function submitDriverRejectReason(reason) {
         items.push(`
           <div class="p-2 bg-slate-50 border rounded-xl flex items-center justify-between text-xs">
             <div>
-              <span class="font-mono font-bold text-amber-800">${esc(srcId)}</span>
+              <span class="font-mono font-bold text-amber-800">${srcId}</span>
               <span class="text-slate-400"> &rarr; gộp vào: </span>
-              <strong class="text-blue-700">${esc(target.targetId)}</strong> (${esc(target.name)})
+              <strong class="text-blue-700">${target.targetId}</strong> (${target.name})
             </div>
-            <button onclick="removeAliasMapping(${jsq(srcId)})" class="text-rose-500 hover:text-rose-700 p-1 text-[11px] font-bold">Xóa</button>
+            <button onclick="removeAliasMapping('${srcId}')" class="text-rose-500 hover:text-rose-700 p-1 text-[11px] font-bold">Xóa</button>
           </div>
         `);
       });
@@ -2876,9 +2752,9 @@ async function submitDriverRejectReason(reason) {
       container.innerHTML = fleet.map(t => `
         <div class="p-2.5 bg-slate-50 rounded-xl border flex items-center justify-between gap-2 text-xs">
           <div class="flex-1">
-            <input type="text" value="${esc(t.name)}" onchange="updateVehicle(${t.id}, 'name', this.value)" class="font-bold bg-white p-1 border rounded w-full text-xs">
+            <input type="text" value="${t.name}" onchange="updateVehicle(${t.id}, 'name', this.value)" class="font-bold bg-white p-1 border rounded w-full text-xs">
             <div class="grid grid-cols-2 gap-1 mt-1">
-              <input type="text" value="${esc(t.plate)}" placeholder="Biển số" onchange="updateVehicle(${t.id}, 'plate', this.value)" class="p-1 bg-white border rounded text-[11px]">
+              <input type="text" value="${t.plate}" placeholder="Biển số" onchange="updateVehicle(${t.id}, 'plate', this.value)" class="p-1 bg-white border rounded text-[11px]">
               <input type="number" value="${t.maxCapacity}" placeholder="Tải trọng thùng" onchange="updateVehicle(${t.id}, 'maxCapacity', parseFloat(this.value))" class="p-1 bg-white border rounded text-[11px] font-bold text-blue-600">
             </div>
           </div>
@@ -2924,10 +2800,8 @@ async function submitDriverRejectReason(reason) {
         let curTruck = fleet.find(t => t.id === activeTruckId);
         let stopIdx = curTruck.stops.findIndex(s => s.canonicalId === canonicalId);
         if (stopIdx !== -1) {
-          if (curTruck.stops[stopIdx].status !== 'pending') return alert("Điểm này đã giao / thất bại nên không thể chuyển xe.");
-          if (fleet[truckIdx].id === curTruck.id) return;
           let stop = curTruck.stops.splice(stopIdx, 1)[0];
-          stop.truckId = fleet[truckIdx].id; stop.locked = false;
+          stop.truckId = fleet[truckIdx].id;
           fleet[truckIdx].stops.push(stop);
 
           optimizeTruckSequence(curTruck);
@@ -2982,23 +2856,13 @@ async function submitDriverRejectReason(reason) {
     function openGoogleNavMultiStop() {
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck) return;
-      const mapped = truck.stops.filter(x => x.isMapped && x.status === 'pending');   // chỉ các điểm còn phải đi
-      if (mapped.length === 0) return alert("Không còn điểm giao nào chưa giao có tọa độ!");
-      const W = 9, legs = [];                                                          // Google Maps nhận tối đa 9 điểm trung gian / lượt
-      for (let i = 0; i < mapped.length; i += W) legs.push(mapped.slice(i, i + W));
-      let k = 0;
-      if (legs.length > 1) {
-        const v = prompt(`Tuyến còn ${mapped.length} điểm, Google Maps chỉ nhận ${W} điểm/lượt nên chia thành ${legs.length} chặng.\n\nNhập số chặng muốn mở (1-${legs.length}):`, '1');
-        if (v === null) return;
-        k = Math.min(legs.length, Math.max(1, parseInt(v, 10) || 1)) - 1;
-      }
-      const leg = legs[k], isLast = (k === legs.length - 1);
-      const originPt = k === 0 ? depotPt() : legs[k - 1][legs[k - 1].length - 1];
-      const destPt = isLast ? depotPt() : leg[leg.length - 1];
-      const wps = isLast ? leg : leg.slice(0, -1);
-      let url = `https://www.google.com/maps/dir/?api=1&origin=${originPt.lat},${originPt.lon}&destination=${destPt.lat},${destPt.lon}&travelmode=driving`;
-      if (wps.length) url += `&waypoints=${wps.map(x => x.lat + ',' + x.lon).join('|')}`;
-      window.open(url, '_blank');
+      let mapped = truck.stops.filter(s => s.isMapped);
+      if (mapped.length === 0) return alert("Chưa có điểm giao có tọa độ!");
+
+      let origin = `${warehouseDepot.lat},${warehouseDepot.lon}`;
+      let waypoints = mapped.slice(0, 8).map(s => `${s.lat},${s.lon}`).join('|');
+      let destination = `${warehouseDepot.lat},${warehouseDepot.lon}`;
+      window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`, '_blank');
     }
 
     function printLifoPackingSlip() {
@@ -3011,7 +2875,7 @@ async function submitDriverRejectReason(reason) {
       let html = `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="text-align: center; margin-bottom: 4px;">PHIẾU XẾP HÀNG LÊN XE (LIFO)</h2>
-          <p style="text-align: center; font-size: 13px; margin: 0;"><strong>${esc(truck.name)} - Biển số: ${esc(truck.plate)}</strong> | Tài xế: ${esc(truck.driver)} (${normalizePhone(truck.phone)})</p>
+          <p style="text-align: center; font-size: 13px; margin: 0;"><strong>${truck.name} - Biển số: ${truck.plate}</strong> | Tài xế: ${truck.driver} (${normalizePhone(truck.phone)})</p>
           <p style="text-align: center; font-size: 12px; color: #475569; margin-top: 4px;">Nguyên tắc: Điểm giao sau cùng chất vào trước (đáy xe) • Điểm giao đầu tiên chất sau cùng (cửa xe)</p>
           <hr style="margin: 15px 0;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;" border="1" cellpadding="6">
@@ -3029,12 +2893,12 @@ async function submitDriverRejectReason(reason) {
       `;
 
       lifoList.forEach((s, idx) => {
-        let itemsStr = s.items.map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>');
+        let itemsStr = s.items.map(it => `• <strong>${it.qty} ${it.unit}</strong> ${it.itemName}`).join('<br>');
         html += `
           <tr>
             <td style="text-align: center; font-weight: bold; font-size: 13px;">LIFO #${idx + 1}</td>
             <td style="text-align: center; font-weight: bold; color: #2563eb; font-size: 13px;">Giao #${s.stopSeq}</td>
-            <td><strong>${esc(s.custName)}</strong> (${esc(s.canonicalId)})<br><small style="color:#64748b;">${esc(s.addr)}</small></td>
+            <td><strong>${s.custName}</strong> (${s.canonicalId})<br><small style="color:#64748b;">${s.addr}</small></td>
             <td style="text-align: center; font-weight: bold; font-size: 13px;">${s.totalQty}</td>
             <td>${itemsStr}</td>
             <td style="text-align: right; font-weight: bold;">${formatMoney(s.totalCod)}</td>
@@ -3070,7 +2934,7 @@ async function submitDriverRejectReason(reason) {
     }
 
     async function clearTodayTestOrders() {
-      if (prompt("Thao tác này XÓA TOÀN BỘ đơn hôm nay trên MỌI máy.\nGõ chữ XOA để xác nhận:") !== "XOA") return;
+      if (!confirm("Anh có chắc muốn XÓA HẾT ĐƠN HÀNG HÔM NAY để test lại từ đầu không?")) return;
 
       allMergedStops = [];
       unmappedStops = [];
@@ -3081,7 +2945,6 @@ async function submitDriverRejectReason(reason) {
         t.stops = [];
         t.linkIssued = false;
         t.linkToken = null;
-        t.tripNo = 1;
       });
 
       _cloudHasStops = false;
