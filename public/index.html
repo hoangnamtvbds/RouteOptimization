@@ -34,11 +34,11 @@
     }
   </script>
 
-<!-- Supabase JS Client v2 CDN kèm dự phòng -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Supabase JS Client v2 CDN chuẩn Browser UMD -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-    if (typeof window.supabase === 'undefined') {
-      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
+    if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
+      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>');
     }
   </script>
 
@@ -942,10 +942,14 @@
 
     // HÀM ĐẨY TOÀN BỘ 624 ĐIỂM MAP HIỆN CÓ LÊN CLOUD
    async function forcePushLocalMasterToCloud() {
-      if (!supabase) initSupabaseClient();
-      if (!supabase) {
-        return alert("Không thể tải thư viện Supabase! Vui lòng tạm tắt 'Brave Shields' (biểu tượng sư tử) trên thanh địa chỉ rồi bấm lại.");
+      // Tự động thử kết nối lại nếu biến chưa kịp gán
+      if (!supabase && window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
+      if (!supabase) {
+        return alert("Trình duyệt chưa tải được thư viện Supabase, vui lòng kiểm tra lại kết nối mạng và F5 lại trang!");
+      }
+
       let list = Array.from(masterGpsMap.values());
       if (list.length === 0) return alert("Không tìm thấy dữ liệu map trong bộ nhớ máy này!");
 
