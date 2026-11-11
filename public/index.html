@@ -260,18 +260,6 @@
               <span>Dẫn Đường Google Maps</span>
             </button>
           </div>
-          <div class="absolute top-11 left-2 z-[1000] flex flex-col items-start gap-1.5 pointer-events-none">
-            <button id="btnMapSelect" onclick="toggleMapSelectMode()" class="pointer-events-auto bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
-              <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5"></i><span id="btnMapSelectText">Quét Chọn Cụm</span>
-            </button>
-            <div id="mapSelHint" class="hidden pointer-events-none bg-amber-100/95 text-amber-900 text-[10px] font-semibold px-2 py-1 rounded-lg border border-amber-300 max-w-[260px]">Giữ chuột kéo vẽ vòng quanh cụm điểm • bấm 1 điểm để chọn / bỏ chọn</div>
-            <div id="mapSelBar" class="hidden pointer-events-auto bg-white/95 backdrop-blur border border-amber-300 rounded-xl shadow px-2 py-1.5 flex items-center gap-1.5 text-xs">
-              <span id="mapSelInfo" class="font-bold text-amber-900">0 đơn</span>
-              <select id="mapSelTruck" class="p-1 border rounded bg-white text-xs font-bold text-slate-700"></select>
-              <button onclick="applyFromMapSelection()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded font-bold shadow">Gán & Tối Ưu</button>
-              <button onclick="clearMapSelection()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-semibold">Bỏ chọn</button>
-            </div>
-          </div>
           <div id="map"></div>
         </div>
 
@@ -1052,7 +1040,7 @@
         const dep = await db.from('app_settings').select('setting_val').eq('key_name', 'warehouse_depot').maybeSingle();
         if (dep.data && dep.data.setting_val && dep.data.setting_val.lat) warehouseDepot = dep.data.setting_val;
         const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', driverOrderDate()).eq('truck_id', activeTruckId).maybeSingle();
-        if (error) throw error; driverLoaded = true;
+        if (error) throw error;
         if (data && Array.isArray(data.stops) && (data.stops.length === 0 || (data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo))) { markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops)) {
           let truck = fleet.find(t => t.id === activeTruckId);
@@ -1136,7 +1124,7 @@
     let currentDetailStop = null;
     let pinningStopId = null;
     let driverAppFilter = 'all';
-    let driverTripNo = 1, driverLinkEnded = false, routeDrawToken = 0, driverLoaded = false;
+    let driverTripNo = 1, driverLinkEnded = false, routeDrawToken = 0;
     let rejectingStopCanonicalId = null;
     let currentHistoryRange = 'today';
     let warehouseDepot = { name: "Kho NPP Bến Cát (Mỹ Phước)", lat: 11.1550, lon: 106.6150 };
@@ -1195,10 +1183,6 @@
     // -------------------------------------------------------------------------
     // 3. KHỞI TẠO BẢN ĐỒ
     // -------------------------------------------------------------------------
-    function makeTileLayer() {
-      return L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=vi&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['0', '1', '2', '3'], attribution: '© Google Maps' });
-    }
-
     function initMap() {
       if (map || typeof L === 'undefined') return;
       try {
@@ -1206,7 +1190,10 @@
         if (!el) return;
         map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true });
 
-        makeTileLayer().addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19, subdomains: 'abcd',
+          attribution: '© OpenStreetMap contributors © CARTO'
+        }).addTo(map);
 
         routeLayer = L.layerGroup().addTo(map);
         pinsLayer = L.layerGroup().addTo(map);
@@ -1744,8 +1731,6 @@ async function restoreMasterBackupFromCloud() {
     function updateManualTruckDropdown() {
       let select = document.getElementById('selectTargetTruckManual');
       if (select) select.innerHTML = fleet.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
-      const ms = document.getElementById('mapSelTruck');
-      if (ms) { const prev = ms.value || String(activeTruckId); ms.innerHTML = fleet.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join(''); if (fleet.some(t => String(t.id) === prev)) ms.value = prev; }
     }
 
     function handleStopCheckboxToggle(canonicalId, checked) {
@@ -1767,7 +1752,6 @@ async function restoreMasterBackupFromCloud() {
     }
 
     function updateManualRoutingBarState() {
-      try { updateMapSelOverlay(); if (mapSelectMode) renderSelectModeMap(false); } catch (e) { console.warn(e); }
       let bar = document.getElementById('manualRoutingBar');
       let badge = document.getElementById('selectedCountBadge');
       if (!bar || !badge) return;
@@ -1807,7 +1791,7 @@ async function restoreMasterBackupFromCloud() {
       refreshAllViews();
       await savePermanentEdits();
       for (const t of touched) await syncTruckStopsToCloud(t);
-      alert(`ĐÃ GÁN ${movable.length} ĐƠN VÀO ${targetTruck.name.toUpperCase()}!\nTuyến đã tối ưu: ${targetTruck.stops.length} điểm, ~${Math.round(truckKm(targetTruck))} km (đi vòng và quay về kho).` + (picked.length > movable.length ? `\n(Bỏ qua ${picked.length - movable.length} đơn đã giao/đã đóng chuyến)` : ''));
+      alert(`ĐÃ GÁN ${movable.length} ĐƠN VÀO ${targetTruck.name.toUpperCase()}!` + (picked.length > movable.length ? `\n(Bỏ qua ${picked.length - movable.length} đơn đã giao/đã đóng chuyến)` : ''));
     }
 
     // "Thu hồi" các đơn đã chọn về kho đơn chung (chỉ đơn CHƯA GIAO)
@@ -1954,9 +1938,31 @@ function isTokenExpired(token) {
 }
 
 function buildDriverFullUrl(truck) {
-  // Link ngắn: đơn hàng đọc từ Supabase (dispatch_sessions), không nhúng dữ liệu vào link nữa
-  const base = window.location.origin + window.location.pathname;
-  return `${base}#/driver?truck=${truck.id}&trip=${truck.tripNo || 1}&date=${getTodayString()}`;
+  let today = getTodayString();
+  let baseCleanUrl = window.location.origin + window.location.pathname;
+  // Nén gọn thông tin đơn hàng nhúng thẳng vào link để mở máy nào cũng lên 100%
+  let compactPayload = {
+    n: truck.name,
+    dr: truck.driver,
+    p: truck.plate,
+    s: (truck.stops || []).map(st => ({
+      canonicalId: st.canonicalId,
+      stopSeq: st.stopSeq,
+      custName: st.custName,
+      addr: st.addr,
+      phone: st.phone,
+      lat: st.lat,
+      lon: st.lon,
+      isMapped: st.isMapped,
+      totalQty: st.totalQty,
+      totalCod: st.totalCod,
+      status: st.status || 'pending',
+      failedReason: st.failedReason || '',
+      items: (st.items || []).map(it => ({ qty: it.qty, unit: it.unit, itemName: it.itemName }))
+    }))
+  };
+  let encoded = btoa(unescape(encodeURIComponent(JSON.stringify(compactPayload))));
+  return `${baseCleanUrl}#/driver?truck=${truck.id}&trip=${truck.tripNo || 1}&date=${today}&d=${encoded}`;
 }
 
 async function generateStandaloneDriverLink(targetTruckId) {
@@ -2044,7 +2050,10 @@ function initDriverMiniMap() {
     if (!el) return;
     drvMap = L.map('drvMiniMap', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, zoomControl: false, preferCanvas: true });
 
-    makeTileLayer().addTo(drvMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd',
+      attribution: '© OpenStreetMap contributors © CARTO'
+    }).addTo(drvMap);
 
     drvRouteLayer = L.layerGroup().addTo(drvMap);
     drvPinsLayer = L.layerGroup().addTo(drvMap);
@@ -2103,7 +2112,7 @@ function renderDriverAppCards() {
   if (!container) return;
 
   if (!truck || !truck.stops || truck.stops.length === 0) {
-    container.innerHTML = `<div class="p-8 text-center text-slate-400 text-xs">${driverLoaded ? 'Chưa có đơn hàng nào cho ' + (truck ? truck.name : 'Xe ' + activeTruckId) + ' hôm nay.' : 'Đang tải đơn hàng từ Cloud...'}</div>`;
+    container.innerHTML = `<div class="p-8 text-center text-slate-400 text-xs">Chưa có đơn hàng nào cho ${truck ? truck.name : 'Xe ' + activeTruckId} hôm nay.</div>`;
     if (elCod) elCod.innerText = "0 đ";
     return;
   }
@@ -2672,7 +2681,6 @@ async function submitDriverRejectReason(reason) {
     }
 
     function renderRouteOnMap() {
-      if (mapSelectMode && map) { renderSelectModeMap(false); return; }
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers();
       pinsLayer.clearLayers();
@@ -2738,112 +2746,6 @@ async function submitDriverRejectReason(reason) {
     // -------------------------------------------------------------------------
     // 11. CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ GPS & GỘP ĐIỂM BÁN TRÙNG
     // -------------------------------------------------------------------------
-    // ===== QUÉT CHỌN CỤM TRÊN MAP =====
-    let mapSelectMode = false, lassoPts = [], lassoShape = null, lassoLayer = null, lassoActive = false;
-    const TRUCK_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
-    function truckColor(id) { const i = fleet.findIndex(t => t.id === id); return i < 0 ? '#64748b' : TRUCK_COLORS[i % TRUCK_COLORS.length]; }
-    // chỉ chọn được điểm chưa giao, có GPS, và không nằm trên xe đã phát link
-    function isSelectableStop(s) {
-      if (s.archived || !s.isMapped || s.status !== 'pending') return false;
-      const t = fleet.find(x => x.id === s.truckId);
-      return !(t && t.linkIssued);
-    }
-    function pointInPoly(lat, lon, poly) {
-      let inside = false;
-      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-        const yi = poly[i][0], xi = poly[i][1], yj = poly[j][0], xj = poly[j][1];
-        if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
-      }
-      return inside;
-    }
-    function afterMapSelectionChange() { updateManualRoutingBarState(); renderStopsList(); }
-    function clearMapSelection() { selectedStopIds.clear(); afterMapSelectionChange(); }
-    function applyFromMapSelection() {
-      const v = document.getElementById('mapSelTruck').value;
-      const main = document.getElementById('selectTargetTruckManual'); if (main) main.value = v;
-      applyManualTruckAssignment();
-    }
-    function updateMapSelOverlay() {
-      const bar = document.getElementById('mapSelBar'); if (!bar) return;
-      const picked = [...selectedStopIds].map(id => allMergedStops.find(x => x.canonicalId === id)).filter(Boolean);
-      bar.classList.toggle('hidden', !(mapSelectMode && picked.length > 0));
-      const qty = picked.reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0), cod = picked.reduce((a, x) => a + (parseFloat(x.totalCod) || 0), 0);
-      const info = document.getElementById('mapSelInfo'); if (info) info.innerText = `${picked.length} đơn • ${Math.round(qty)} Thùng • ${formatMoney(cod)}`;
-    }
-    function lassoDown(e) {
-      if (!mapSelectMode || !map) return;
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (e.target.closest && e.target.closest('.leaflet-marker-icon, .leaflet-control')) return;
-      lassoActive = true; lassoPts = [map.mouseEventToLatLng(e)];
-      try { map.getContainer().setPointerCapture(e.pointerId); } catch (x) {}
-      if (!lassoLayer) lassoLayer = L.layerGroup().addTo(map);
-      lassoLayer.clearLayers();
-      lassoShape = L.polygon(lassoPts, { color: '#f59e0b', weight: 3, dashArray: '6,4', fillColor: '#f59e0b', fillOpacity: 0.15, interactive: false }).addTo(lassoLayer);
-      e.preventDefault();
-    }
-    function lassoMove(e) {
-      if (!lassoActive || !map) return;
-      lassoPts.push(map.mouseEventToLatLng(e));
-      if (lassoShape) lassoShape.setLatLngs(lassoPts);
-    }
-    function lassoUp() {
-      if (!lassoActive) return;
-      lassoActive = false;
-      const poly = lassoPts.map(p => [p.lat, p.lng]);
-      setTimeout(() => { if (lassoLayer) lassoLayer.clearLayers(); }, 250);
-      if (poly.length < 4) return;
-      allMergedStops.forEach(s => { if (isSelectableStop(s) && pointInPoly(s.lat, s.lon, poly)) selectedStopIds.add(s.canonicalId); });
-      afterMapSelectionChange();
-    }
-    function toggleMapSelectMode() {
-      if (!map) return;
-      mapSelectMode = !mapSelectMode; pinningStopId = null; lassoActive = false;
-      const el = map.getContainer(), btn = document.getElementById('btnMapSelect');
-      if (btn) btn.className = "pointer-events-auto " + (mapSelectMode ? "bg-amber-500 hover:bg-amber-400 text-white border-amber-600" : "bg-white hover:bg-amber-50 text-slate-700 border-slate-300") + " border px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition";
-      const tx = document.getElementById('btnMapSelectText'); if (tx) tx.innerText = mapSelectMode ? 'Thoát Quét Chọn' : 'Quét Chọn Cụm';
-      const hint = document.getElementById('mapSelHint'); if (hint) hint.classList.toggle('hidden', !mapSelectMode);
-      if (mapSelectMode) {
-        map.dragging.disable(); map.doubleClickZoom.disable(); map.boxZoom.disable();
-        el.style.cursor = 'crosshair'; el.style.touchAction = 'none';
-        el.addEventListener('pointerdown', lassoDown); el.addEventListener('pointermove', lassoMove);
-        el.addEventListener('pointerup', lassoUp); el.addEventListener('pointercancel', lassoUp);
-        renderSelectModeMap(true);
-      } else {
-        map.dragging.enable(); map.doubleClickZoom.enable(); map.boxZoom.enable();
-        el.style.cursor = ''; el.style.touchAction = '';
-        el.removeEventListener('pointerdown', lassoDown); el.removeEventListener('pointermove', lassoMove);
-        el.removeEventListener('pointerup', lassoUp); el.removeEventListener('pointercancel', lassoUp);
-        if (lassoLayer) lassoLayer.clearLayers();
-        renderRouteOnMap();
-      }
-      updateMapSelOverlay(); safeRenderIcons();
-    }
-    // Vẽ TẤT CẢ điểm chưa lưu trữ: màu theo xe, xám = chưa xếp, cam = đang chọn, mờ = đã khóa/đã giao
-    function renderSelectModeMap(fit) {
-      if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
-      routeLayer.clearLayers(); pinsLayer.clearLayers();
-      const d = [warehouseDepot.lat, warehouseDepot.lon], bounds = L.latLngBounds([d]);
-      fleet.forEach(t => {
-        const r = (t.stops || []).filter(s => s.isMapped && !s.archived);
-        if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(s => [s.lat, s.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
-      });
-      allMergedStops.filter(s => s.isMapped && !s.archived).forEach(s => {
-        bounds.extend([s.lat, s.lon]);
-        const sel = selectedStopIds.has(s.canonicalId), ok = isSelectableStop(s), assigned = fleet.some(t => t.id === s.truckId);
-        const col = assigned ? truckColor(s.truckId) : '#64748b', size = sel ? 26 : 20;
-        const html = `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${sel ? '#f59e0b' : col};border:${sel ? '3px solid #78350f' : '2px solid #fff'};opacity:${(ok || sel) ? 1 : 0.4};box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800">${assigned && s.stopSeq ? s.stopSeq : ''}</div>`;
-        const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className: 'sel-pin', html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }), zIndexOffset: sel ? 1000 : 0 });
-        m.bindTooltip(`${esc(s.custName)} • ${s.totalQty} Thùng • ${formatMoney(s.totalCod)}`, { direction: 'top' });
-        m.on('click', () => {
-          if (!ok) return;
-          if (selectedStopIds.has(s.canonicalId)) selectedStopIds.delete(s.canonicalId); else selectedStopIds.add(s.canonicalId);
-          afterMapSelectionChange();
-        });
-        m.addTo(pinsLayer);
-      });
-      if (fit && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
-    }
-
     function openStopDetail(canonicalId) {
       let stop = allMergedStops.find(s => s.canonicalId === canonicalId);
       if (!stop) return;
