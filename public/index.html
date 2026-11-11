@@ -515,7 +515,16 @@
         <label class="block text-xs font-bold text-amber-900">Nạp File Excel Master Mới (Ghi đè lên Cloud):</label>
         <input type="file" id="fileOverwriteMaster" accept=".xlsx, .xls" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-600 file:text-white hover:file:bg-amber-700 cursor-pointer">
       </div>
-
+<!-- NÚT KHÔI PHỤC MASTER DỰ PHÒNG -->
+      <div class="p-2.5 bg-slate-50 rounded-xl border flex items-center justify-between text-xs">
+        <div>
+          <strong class="text-slate-800 block">Khôi Phục Bản Gần Nhất (Restore)</strong>
+          <span class="text-[10px] text-slate-500">Quay lại danh sách tọa độ trước lần ghi đè gần nhất</span>
+        </div>
+        <button type="button" onclick="restoreMasterBackupFromCloud()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 shadow">
+          <i data-lucide="history" class="w-3.5 h-3.5 text-amber-400"></i> Restore
+        </button>
+      </div>
       <div class="p-3 bg-slate-50 rounded-xl border space-y-2 text-xs">
         <div class="font-bold text-slate-800">Thêm / Sửa Thủ Công 1 Khách Hàng Gốc Lên Cloud:</div>
         <div class="grid grid-cols-2 gap-2">
@@ -922,6 +931,18 @@
           let workbook = XLSX.read(data, { type: 'array' });
           let rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+          // 1. TỰ ĐỘNG SAO LƯU DỮ LIỆU HIỆN CÓ LÊN BẢNG BACKUP
+          if (supabase) {
+            let { data: curData } = await supabase.from('master_customers').select('*');
+            if (curData && curData.length > 0) {
+              await supabase.from('master_customers_backup').upsert({
+                id: 1,
+                backup_version: new Date().toISOString(),
+                data: curData
+              });
+            }
+          }
+
           let count = 0;
           let batchUpsert = [];
           rows.forEach(r => {
@@ -1007,7 +1028,21 @@
       XLSX.utils.book_append_sheet(wb, ws, "Master_GiaoHang_GPS");
       XLSX.writeFile(wb, "Data_KhachHang_Master_KiotViet_Cloud.xlsx");
     }
+async function restoreMasterBackupFromCloud() {
+      if (!supabase) return;
+      let { data } = await supabase.from('master_customers_backup').select('*').eq('id', 1).maybeSingle();
+      if (!data || !data.data) return alert("Chưa có bản sao lưu dự phòng nào trên Cloud!");
 
+      if (!confirm(`Khôi phục lại dữ liệu Master từ bản sao lưu lúc ${new Date(data.backup_version).toLocaleString()}?`)) return;
+
+      for (let i = 0; i < data.data.length; i += 100) {
+        await supabase.from('master_customers').upsert(data.data.slice(i, i + 100), { onConflict: 'id' });
+      }
+
+      alert("ĐÃ KHÔI PHỤC THÀNH CÔNG BẢN MASTER TRƯỚC ĐÓ!");
+      closeMasterAdminModal();
+      await loadMasterDataFromCloud();
+    }
     // -------------------------------------------------------------------------
     // 5. NẠP HÓA ĐƠN KIOTVIET & TỰ ĐỘNG HIỂN THỊ DANH SÁCH
     // -------------------------------------------------------------------------
@@ -1047,6 +1082,11 @@
     function groupInvoicesIntoInitialStops() {
   let physicalStopsMap = new Map();
   let invoiceCodMap = new Map();
+
+  // BỔ SUNG: Giữ lại các đơn đã nạp từ các file trước đó trong ngày
+  allMergedStops.forEach(s => {
+    physicalStopsMap.set(s.canonicalId, s);
+  });
 
   dailyInvoicesRaw.forEach(row => {
     let invId = String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim();
@@ -1486,12 +1526,11 @@
     function setupSupabaseRealtime() {
       if (!supabase) return;
       try {
+        let today = getTodayString();
         supabase
-          .channel('public:dispatch_sessions')
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'dispatch_sessions' }, payload => {
-            if (payload.new && payload.new.order_date === getTodayString()) {
-              applyRemoteTruckUpdate(payload.new);
-            }
+          .channel('public:daily_orders')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_orders', filter: `order_date=eq.${today}` }, payload => {
+            backgroundSyncSupabase();
           })
           .subscribe();
       } catch (err) {
@@ -1521,35 +1560,55 @@
 }
 
     async function backgroundSyncSupabase() {
-  if (!supabase) return;
-  try {
-    let today = getTodayString();
-    let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
-    let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+      if (!supabase) return;
+      try {
+        let today = getTodayString();
 
-    let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
-    if (res && res.data && res.data.length > 0) {
-      res.data.forEach(record => {
-        let t = fleet.find(x => x.id === record.truck_id);
-        if (t) {
-          t.stops = record.stops || [];
-          // Giữ nguyên trạng thái link từ bộ nhớ máy, không tự động bật link
-          let savedTruck = fleet.find(f => f.id === t.id);
-          t.linkIssued = savedTruck ? !!savedTruck.linkIssued : false;
-          t.linkToken = savedTruck ? savedTruck.linkToken : null;
+        // 1. Kéo phiên làm việc đầy đủ của ngày hôm nay từ Cloud
+        let { data: sessionRecord } = await supabase
+          .from('daily_orders')
+          .select('session_data')
+          .eq('order_date', today)
+          .maybeSingle();
+
+        if (sessionRecord && sessionRecord.session_data) {
+          let sess = sessionRecord.session_data;
+          if (sess.fleet) fleet = sess.fleet;
+          if (sess.activeTruckId) activeTruckId = sess.activeTruckId;
+          if (sess.allMergedStops) {
+            allMergedStops = sess.allMergedStops.map(s => {
+              s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
+              s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
+              return s;
+            });
+          }
+          if (sess.unmappedStops) unmappedStops = sess.unmappedStops;
+          if (sess.unassignedStops) unassignedStops = sess.unassignedStops;
+
+          // Cập nhật các badge số lượng trên giao diện
+          let badgeAll = document.getElementById('allImportedCountBadge');
+          if (badgeAll) badgeAll.innerText = allMergedStops.length;
+          let badgeUnassigned = document.getElementById('unassignedCountBadge');
+          if (badgeUnassigned) badgeUnassigned.innerText = unassignedStops.length;
+          let badgeUnmap = document.getElementById('unmappedCountBadge');
+          let warnPanel = document.getElementById('unmappedWarningPanel');
+          if (badgeUnmap && warnPanel) {
+            badgeUnmap.innerText = unmappedStops.length;
+            if (unmappedStops.length > 0) warnPanel.classList.remove('hidden');
+            else warnPanel.classList.add('hidden');
+          }
         }
-      });
-      renderFleetTabs();
-      updateTruckSummary();
-      renderStopsList();
-      renderRouteOnMap();
-      updateDashboardReport();
-      checkButtonsState();
+
+        renderFleetTabs();
+        updateTruckSummary();
+        renderStopsList();
+        renderRouteOnMap();
+        updateDashboardReport();
+        checkButtonsState();
+      } catch (e) {
+        console.warn("Lỗi sync phiên điều phối:", e);
+      }
     }
-  } catch (e) {
-    console.warn("Lỗi sync phiên điều phối:", e);
-  }
-}
 
     // -------------------------------------------------------------------------
     // 9. APP ĐỘC LẬP TÀI XẾ & BẢN ĐỒ THU NHỎ
@@ -2921,13 +2980,25 @@ async function submitDriverRejectReason(reason) {
           invoices: Array.from(s.invoices || [])
         }));
 
-        localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
+        let sessionPayload = {
           fleet,
           activeTruckId,
           allMergedStops: serializableStops,
           unmappedStops,
           unassignedStops
-        }));
+        };
+
+        localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(sessionPayload));
+
+        // TỰ ĐỘNG ĐẨY TOÀN BỘ PHIÊN LÊN SUPABASE CLOUD
+        if (supabase) {
+          let today = getTodayString();
+          supabase.from('daily_orders').upsert({
+            order_date: today,
+            session_data: sessionPayload,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'order_date' }).then(() => {}).catch(err => console.warn("Lỗi lưu Cloud:", err));
+        }
       } catch (e) {}
     }
   </script>
