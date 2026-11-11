@@ -1710,7 +1710,7 @@
             </div>
           </div>
         `;
-      }).join('');
+         }).join('') + '<div class="h-36 w-full shrink-0"></div>';
 
       safeRenderIcons();
     }
@@ -1736,44 +1736,61 @@
       }
     }
 
-    async function driverMarkSuccess(canonicalId) {
-      let truck = fleet.find(t => t.id === activeTruckId);
-      let s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
-      if (!s) return;
-      s.status = 'success';
-      s.failedReason = '';
-      recordDeliveryHistory(s);
-      savePermanentEdits();
-      renderDriverAppCards();
-      await syncTruckStopsToCloud(truck);
-    }
+ async function driverMarkSuccess(canonicalId) {
+  let truck = fleet.find(t => t.id === activeTruckId);
+  let s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
+  if (!s) return;
+  s.status = 'success';
+  s.failedReason = '';
 
-    function openDriverRejectPicker(canonicalId) {
-      rejectingStopCanonicalId = canonicalId;
-      let modal = document.getElementById('driverRejectModal');
-      if (modal) modal.classList.remove('hidden');
-      safeRenderIcons();
-    }
+  // Cập nhật ngay vào danh mục tổng
+  let mainStop = allMergedStops.find(x => x.canonicalId === canonicalId);
+  if (mainStop) {
+    mainStop.status = 'success';
+    mainStop.failedReason = '';
+  }
 
-    function closeDriverRejectModal() {
-      let modal = document.getElementById('driverRejectModal');
-      if (modal) modal.classList.add('hidden');
-      rejectingStopCanonicalId = null;
-    }
+  recordDeliveryHistory(s);
+  savePermanentEdits();
+  renderDriverAppCards();
+  await syncTruckStopsToCloud(truck);
+}
 
-    async function submitDriverRejectReason(reason) {
-      if (!rejectingStopCanonicalId) return;
-      let truck = fleet.find(t => t.id === activeTruckId);
-      let s = truck ? truck.stops.find(x => x.canonicalId === rejectingStopCanonicalId) : null;
-      if (!s) return;
-      s.status = 'failed';
-      s.failedReason = reason;
-      recordDeliveryHistory(s);
-      closeDriverRejectModal();
-      savePermanentEdits();
-      renderDriverAppCards();
-      await syncTruckStopsToCloud(truck);
-    }
+function openDriverRejectPicker(canonicalId) {
+  rejectingStopCanonicalId = canonicalId;
+  let modal = document.getElementById('driverRejectModal');
+  if (modal) modal.classList.remove('hidden');
+  safeRenderIcons();
+}
+
+function closeDriverRejectModal() {
+  let modal = document.getElementById('driverRejectModal');
+  if (modal) modal.classList.add('hidden');
+  rejectingStopCanonicalId = null;
+}
+
+async function submitDriverRejectReason(reason) {
+  if (!rejectingStopCanonicalId) return;
+  let truck = fleet.find(t => t.id === activeTruckId);
+  let s = truck ? truck.stops.find(x => x.canonicalId === rejectingStopCanonicalId) : null;
+  if (!s) return;
+  s.status = 'failed';
+  s.failedReason = reason;
+
+  // Cập nhật ngay vào danh mục tổng
+  let mainStop = allMergedStops.find(x => x.canonicalId === rejectingStopCanonicalId);
+  if (mainStop) {
+    mainStop.status = 'failed';
+    mainStop.failedReason = reason;
+  }
+
+  recordDeliveryHistory(s);
+  closeDriverRejectModal();
+  savePermanentEdits();
+  renderDriverAppCards();
+  await syncTruckStopsToCloud(truck);
+}
+
 
     function openNextPendingStopNavigation() {
       let truck = fleet.find(t => t.id === activeTruckId);
@@ -1832,12 +1849,24 @@
     }
 
     function updateDashboardReport() {
-      let totalQty = allMergedStops.reduce((sum, s) => sum + s.totalQty, 0);
-      let totalCod = allMergedStops.reduce((sum, s) => sum + s.totalCod, 0);
+  // Tự động gom đồng bộ trạng thái thực tế từ tất cả các xe vào danh sách tổng
+  fleet.forEach(t => {
+    (t.stops || []).forEach(truckStop => {
+      let mainStop = allMergedStops.find(s => s.canonicalId === truckStop.canonicalId);
+      if (mainStop) {
+        mainStop.status = truckStop.status;
+        mainStop.failedReason = truckStop.failedReason;
+        mainStop.truckId = t.id;
+      }
+    });
+  });
 
-      let successStops = allMergedStops.filter(s => s.status === 'success');
-      let failedStops = allMergedStops.filter(s => s.status === 'failed');
-      let collectedCod = successStops.reduce((sum, s) => sum + s.totalCod, 0);
+  let totalQty = allMergedStops.reduce((sum, s) => sum + s.totalQty, 0);
+  let totalCod = allMergedStops.reduce((sum, s) => sum + s.totalCod, 0);
+
+  let successStops = allMergedStops.filter(s => s.status === 'success');
+  let failedStops = allMergedStops.filter(s => s.status === 'failed');
+  let collectedCod = successStops.reduce((sum, s) => sum + (parseFloat(s.totalCod) || 0), 0);
 
       let activeTrucks = fleet.filter(t => t.stops.length > 0);
       let idleTrucks = fleet.filter(t => t.stops.length === 0);
