@@ -69,9 +69,6 @@
   <!-- A. MÀN HÌNH ĐIỀU PHỐI (KẾ TOÁN, ADMIN, NPP) -->
   <!-- ========================================================================= -->
   <div id="dispatchAppContainer" class="h-full w-full flex flex-col overflow-hidden">
-    <button id="btnMobileView" onclick="toggleMobileView()" class="md:hidden fixed right-3 bottom-20 z-[1500] bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-full shadow-xl flex items-center gap-1.5 border border-slate-600">
-      <i data-lucide="map" class="w-4 h-4"></i><span id="btnMobileViewText">Xem Bản Đồ</span>
-    </button>
     
     <!-- TOPBAR -->
     <header class="bg-slate-900 text-white px-3 py-2 flex items-center justify-between shadow shrink-0 border-b border-slate-800 z-20">
@@ -127,31 +124,39 @@
     <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
 
       <!-- LEFT SIDEBAR: ĐƠN HÀNG & PHÂN TUYẾN (480px) -->
-      <aside id="leftAside" class="w-full md:w-[480px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 shadow-lg md:shadow-none h-full">
+      <aside class="w-full md:w-[480px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 shadow-lg md:shadow-none h-1/2 md:h-full">
         
-        <!-- THANH CÔNG CỤ: NẠP FILE + XẾP TỰ ĐỘNG + ĐỘI XE (1 hàng) -->
-        <div class="p-1.5 bg-slate-50 border-b border-slate-200 shrink-0 flex items-center gap-1.5">
-          <label class="flex-1 min-w-0 cursor-pointer bg-white hover:bg-slate-50 border-2 border-dashed border-blue-400 hover:border-blue-600 px-2 py-1 rounded-lg flex items-center justify-between gap-1.5 transition shadow-sm relative">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-600 shrink-0"></i>
-              <div class="text-left min-w-0">
-                <span class="text-[11px] font-bold text-slate-800 block truncate" id="labelInvoice">Nạp File Hóa Đơn KiotViet</span>
-                <span class="text-[10px] text-slate-500 block truncate" id="subInvoice">Đang kết nối Cloud Master Data...</span>
+        <!-- STEP 1: HÓA ĐƠN INPUT & AUTO-DISPATCH -->
+        <div class="p-2 bg-slate-50 border-b border-slate-200 space-y-1.5 shrink-0">
+          <div class="flex items-center gap-2">
+            <label class="flex-1 cursor-pointer bg-white hover:bg-slate-50 border-2 border-dashed border-blue-400 hover:border-blue-600 p-2 rounded-xl flex items-center justify-between transition shadow-sm relative">
+              <div class="flex items-center gap-2 truncate">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                <div class="text-left truncate">
+                  <span class="text-xs font-bold text-slate-800 block truncate" id="labelInvoice">Kéo File Hóa Đơn KiotViet Hôm Nay</span>
+                  <span class="text-[10px] text-slate-500" id="subInvoice">Đang kết nối Cloud Master Data...</span>
+                </div>
               </div>
-            </div>
-            <span class="text-[10px] bg-blue-50 text-blue-700 font-bold px-1.5 py-0.5 rounded border border-blue-200 shrink-0">Chọn File</span>
-            <input type="file" id="fileInvoice" accept=".xlsx, .xls" class="hidden">
-          </label>
-          <button id="btnSmartDispatch" onclick="runSmartFleetDispatch()" disabled title="Gợi ý xếp đơn tự động (cân tải & tuyến)" class="shrink-0 bg-slate-300 text-slate-500 font-bold text-[11px] py-1.5 px-2.5 rounded-lg flex items-center gap-1 cursor-not-allowed shadow transition">
-            <i data-lucide="wand-2" class="w-3.5 h-3.5"></i><span>Xếp Tự Động</span>
-          </button>
-          <button onclick="openFleetConfigModal()" title="Cấu hình đội xe" class="shrink-0 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-[11px] py-1.5 px-2 rounded-lg flex items-center gap-1 shadow-sm">
-            <i data-lucide="settings" class="w-3.5 h-3.5"></i><span>Xe (<span id="fleetCountBadge">4</span>)</span>
-          </button>
+              <span class="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-1 rounded-md border border-blue-200 shrink-0">Chọn File</span>
+              <input type="file" id="fileInvoice" accept=".xlsx, .xls" class="hidden">
+            </label>
+          </div>
+
+          <!-- ACTIONS: TỰ ĐỘNG GỢI Ý HOẶC CẤU HÌNH ĐỘI XE -->
+          <div class="flex items-center gap-1.5">
+            <button id="btnSmartDispatch" onclick="runSmartFleetDispatch()" disabled class="flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition">
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+              <span>Gợi Ý Xếp Đơn Tự Động (Cân Tải & Tuyến)</span>
+            </button>
+            <button onclick="openFleetConfigModal()" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs py-2 px-2 rounded-lg flex items-center gap-1 shadow-sm shrink-0">
+              <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+              <span>Đội Xe (<span id="fleetCountBadge">4</span>)</span>
+            </button>
+          </div>
         </div>
 
         <!-- CẢNH BÁO: ĐƠN CHƯA CÓ MAP (ĐIỂM MỚI) -->
-        <div id="unmappedWarningPanel" class="hidden px-2 py-1 bg-rose-50 border-b border-rose-200 flex items-center justify-between shrink-0">
+        <div id="unmappedWarningPanel" class="hidden p-2 bg-rose-50 border-b border-rose-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-1.5 text-xs text-rose-800 font-bold truncate">
             <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0"></i>
             <span>Có <strong id="unmappedCountBadge">0</strong> đơn là điểm mới chưa có Map!</span>
@@ -165,17 +170,17 @@
         <div class="bg-slate-100 p-1.5 border-b border-slate-200 overflow-x-auto shrink-0 flex items-center gap-1" id="fleetTabsContainer"></div>
 
         <!-- ACTIVE TRUCK SUMMARY STRIP -->
-        <div id="truckSummaryStrip" class="px-2 py-1 bg-blue-50 border-b border-blue-100 flex items-center justify-between gap-2 text-xs shrink-0">
-          <div class="min-w-0 flex-1 truncate">
-            <span class="font-bold text-blue-900 text-[11px]" id="curTruckName">Xe 1</span>
-            <span class="text-[10px] text-blue-600 ml-1" id="curTruckDriver"></span>
+        <div id="truckSummaryStrip" class="p-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-xs shrink-0">
+          <div>
+            <span class="font-bold text-blue-900" id="curTruckName">Xe 1 (1.5 Tấn)</span>
+            <span class="text-[10px] text-blue-600 ml-1.5" id="curTruckDriver">Tài: Nguyễn Văn Tuấn</span>
           </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span class="text-slate-600 font-medium whitespace-nowrap text-[11px]"><strong id="curTruckLoad" class="text-blue-700">0/150</strong> Thùng</span>
-            <div class="w-12 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+          <div class="flex items-center gap-2">
+            <span class="text-slate-600 font-medium">Tải: <strong id="curTruckLoad" class="text-blue-700">0/150</strong> Thùng</span>
+            <div class="w-14 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div id="curTruckLoadBar" class="h-full bg-blue-600 rounded-full transition-all" style="width: 0%"></div>
             </div>
-            <button id="btnCompleteTrip" onclick="completeTrip(activeTruckId)" title="Xe đã về kho và đối chiếu xong" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-lg shadow whitespace-nowrap">Hoàn tất chuyến</button>
+            <button id="btnCompleteTrip" onclick="completeTrip(activeTruckId)" title="Xe đã về kho và đối chiếu xong" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-2 py-1 rounded-lg shadow">Hoàn tất chuyến</button>
           </div>
         </div>
 
@@ -195,46 +200,26 @@
           </div>
         </div>
 
-        <!-- TAB XEM DANH SÁCH -->
-        <div class="px-1.5 pt-1.5 bg-white flex gap-1 text-[11px] font-semibold shrink-0">
-          <button onclick="setStopTab('all_imported')" id="tabBtnAllImported" class="flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-slate-100 text-slate-600">Tất Cả (<span id="allImportedCountBadge">0</span>)</button>
-          <button onclick="setStopTab('route')" id="tabBtnRoute" class="flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-blue-600 text-white font-bold">Lộ Trình</button>
-          <button onclick="setStopTab('lifo')" id="tabBtnLifo" class="flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-slate-100 text-slate-600">LIFO</button>
-          <button onclick="setStopTab('unassigned')" id="tabBtnUnassigned" class="flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-slate-100 text-slate-600">Chưa Xếp (<span id="unassignedCountBadge">0</span>)</button>
-          <button onclick="setStopTab('unmapped')" id="tabBtnUnmapped" class="flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-slate-100 text-slate-600">Điểm Mới (<span id="unmappedTabCount">0</span>)</button>
-        </div>
-        <!-- TÌM KIẾM + SẮP XẾP -->
-        <div class="px-1.5 pt-1.5 bg-white flex items-center gap-1.5 shrink-0">
-          <div class="relative flex-1 min-w-0">
-            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400"></i>
-            <input type="text" id="searchInput" oninput="filterCurrentStops()" placeholder="Tìm tên, mã, SĐT, địa chỉ / khu vực..." class="w-full pl-8 pr-2 py-1 text-xs bg-slate-100 rounded border focus:outline-none focus:border-blue-500">
+        <!-- SEARCH & SUB-TABS (Đã bổ sung tab "Tất Cả Đơn") -->
+        <div class="p-2 bg-white border-b border-slate-200 flex items-center justify-between gap-1.5 shrink-0">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"></i>
+            <input type="text" id="searchInput" oninput="filterCurrentStops()" placeholder="Tìm quán, SĐT, mã đơn..." class="w-full pl-8 pr-2 py-1 text-xs bg-slate-100 rounded border focus:outline-none focus:border-blue-500">
           </div>
-          <select id="fltSort" onchange="setSortMode(this.value)" title="Sắp xếp" class="p-1 border rounded bg-white text-[11px] font-semibold text-slate-700 shrink-0">
-            <option value="default">Thứ tự mặc định</option>
-            <option value="cod_desc">COD cao → thấp</option>
-            <option value="qty_desc">Nhiều thùng → ít</option>
-            <option value="name">Tên A → Z</option>
-            <option value="dist">Gần kho → xa</option>
-          </select>
-        </div>
-        <!-- LỌC: TRẠNG THÁI / XE / GPS -->
-        <div class="px-1.5 py-1.5 bg-white border-b border-slate-200 flex items-center gap-1 flex-wrap shrink-0">
-          <button id="fltStAll" onclick="setStatusFilter('all')" class="px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0">Tất cả</button>
-          <button id="fltStPending" onclick="setStatusFilter('pending')" class="px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0">Chưa giao</button>
-          <button id="fltStSuccess" onclick="setStatusFilter('success')" class="px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0">Đã giao</button>
-          <button id="fltStFailed" onclick="setStatusFilter('failed')" class="px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0">Thất bại</button>
-          <select id="fltTruck" onchange="setTruckFilter(this.value)" title="Lọc theo xe" class="p-0.5 border rounded bg-white text-[11px] text-slate-700 shrink-0"><option value="all">Tất cả xe</option></select>
-          <select id="fltGps" onchange="setGpsFilter(this.value)" title="Lọc theo GPS" class="p-0.5 border rounded bg-white text-[11px] text-slate-700 shrink-0">
-            <option value="all">Mọi GPS</option><option value="yes">Có GPS</option><option value="no">Chưa có GPS</option>
-          </select>
-          <button id="btnClearFilters" onclick="clearAllFilters()" class="hidden text-[11px] text-rose-600 font-bold underline shrink-0">Xóa lọc</button>
+          <div class="flex gap-1 text-[11px] font-semibold shrink-0">
+            <button onclick="setStopTab('all_imported')" id="tabBtnAllImported" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Tất Cả Đơn (<span id="allImportedCountBadge">0</span>)</button>
+            <button onclick="setStopTab('route')" id="tabBtnRoute" class="px-2 py-1 rounded bg-blue-600 text-white font-bold">Lộ Trình Xe</button>
+            <button onclick="setStopTab('lifo')" id="tabBtnLifo" class="px-2 py-1 rounded bg-slate-100 text-slate-600">LIFO</button>
+            <button onclick="setStopTab('unassigned')" id="tabBtnUnassigned" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Chưa Xếp (<span id="unassignedCountBadge">0</span>)</button>
+            <button onclick="setStopTab('unmapped')" id="tabBtnUnmapped" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Điểm Mới</button>
+          </div>
         </div>
 
         <!-- SELECT ALL ROW -->
-        <div class="px-3 py-0.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
+        <div class="px-3 py-1 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
           <label class="flex items-center gap-1.5 cursor-pointer select-none">
             <input type="checkbox" id="chkSelectAllStops" onchange="toggleSelectAllStops(this.checked)" class="rounded text-blue-600">
-            <span>Chọn tất cả đơn <b>chưa giao</b> đang hiển thị</span>
+            <span>Chọn tất cả đơn trong danh sách</span>
           </label>
           <span id="listStopsSummaryText" class="font-medium">0 đơn</span>
         </div>
@@ -261,10 +246,10 @@
       </aside>
 
       <!-- RIGHT AREA: THU GỌN MAP 48% + DASHBOARD BÁO CÁO 52% -->
-      <section id="rightSection" class="hidden md:flex flex-1 flex-col relative h-full bg-slate-100 overflow-hidden">
+      <section class="flex-1 flex flex-col relative h-1/2 md:h-full bg-slate-100 overflow-hidden">
         
         <!-- TOP: MAP CANVAS -->
-        <div class="relative h-[62%] md:h-[48%] w-full border-b border-slate-300 shadow-sm shrink-0">
+        <div class="relative h-[48%] w-full border-b border-slate-300 shadow-sm shrink-0">
           <div class="absolute top-2 left-2 right-2 z-[1000] flex items-center justify-between pointer-events-none">
             <div class="bg-white/95 backdrop-blur px-2.5 py-1 rounded-xl shadow text-xs font-semibold text-slate-700 pointer-events-auto border border-slate-200 flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
@@ -275,7 +260,7 @@
               <span>Dẫn Đường Google Maps</span>
             </button>
           </div>
-          <div class="absolute bottom-28 right-2 z-[1000] flex flex-col-reverse items-end gap-1.5 pointer-events-none">
+          <div class="absolute top-11 left-2 z-[1000] flex flex-col items-start gap-1.5 pointer-events-none">
             <button id="btnMapSelect" onclick="toggleMapSelectMode()" class="pointer-events-auto bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
               <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5"></i><span id="btnMapSelectText">Quét Chọn Cụm</span>
             </button>
@@ -287,7 +272,6 @@
               <button onclick="clearMapSelection()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-semibold">Bỏ chọn</button>
             </div>
           </div>
-          <div id="mapLegend" class="absolute bottom-6 left-2 z-[1000] pointer-events-none bg-white/95 border border-slate-300 rounded-lg shadow px-2 py-1 text-[10px] text-slate-700 max-w-[70%]"></div>
           <div id="map"></div>
         </div>
 
@@ -522,7 +506,6 @@
         <div>
           <label class="font-bold text-slate-700">Máy chủ OSRM (tùy chọn, để tính đường thật - miễn phí):</label>
           <input type="text" id="inputOsrmBase" placeholder="Ví dụ: https://osrm.tenmien.com (để trống = đường chim bay x1.3)" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
-          <button type="button" onclick="testOsrmConnection()" class="mt-1 w-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-1 rounded-xl text-[11px]">Thử kết nối máy chủ OSRM (xóa trống ô này để quay về chế độ nhanh)</button>
         </div>
         <button onclick="saveDepotCoordinates()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs shadow transition">
           Lưu Vị Trí Kho Vĩnh Viễn
@@ -942,13 +925,13 @@
       unmappedStops = allMergedStops.filter(s => !s.isMapped && !s.archived);
       unassignedStops = allMergedStops.filter(s => !s.archived && (s.truckId === null || s.truckId === undefined || !fleet.some(t => t.id === s.truckId)));
       const set = (id, v) => { const e = document.getElementById(id); if (e) e.innerText = v; };
-      set('unmappedCountBadge', unmappedStops.length); set('unmappedTabCount', unmappedStops.length); set('unassignedCountBadge', unassignedStops.length); set('allImportedCountBadge', allMergedStops.length);
+      set('unmappedCountBadge', unmappedStops.length); set('unassignedCountBadge', unassignedStops.length); set('allImportedCountBadge', allMergedStops.length);
       const wp = document.getElementById('unmappedWarningPanel'); if (wp) wp.classList.toggle('hidden', unmappedStops.length === 0);
       const btn = document.getElementById('btnSmartDispatch');
       if (btn) {
         const on = allMergedStops.length > 0; btn.disabled = !on;
-        btn.className = on ? "shrink-0 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] py-1.5 px-2.5 rounded-lg flex items-center gap-1 shadow transition cursor-pointer"
-                           : "shrink-0 bg-slate-300 text-slate-500 font-bold text-[11px] py-1.5 px-2.5 rounded-lg flex items-center gap-1 cursor-not-allowed shadow transition";
+        btn.className = on ? "flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+                           : "flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition";
       }
       const sub = document.getElementById('subInvoice');
       if (sub && allMergedStops.length > 0) { sub.innerText = `Hôm nay: ${allMergedStops.length} điểm giao • nạp thêm file sẽ tự gộp`; sub.className = "text-[10px] text-blue-600 font-bold"; }
@@ -1221,8 +1204,7 @@
       try {
         let el = document.getElementById('map');
         if (!el) return;
-        map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true, zoomControl: false });
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        map = L.map('map', { center: [warehouseDepot.lat, warehouseDepot.lon], zoom: 13, preferCanvas: true });
 
         makeTileLayer().addTo(map);
 
@@ -1260,25 +1242,10 @@
         .addTo(map);
     }
 
-    async function testOsrmConnection() {
-      const base = (document.getElementById('inputOsrmBase').value || '').trim().replace(/\/+$/, '');
-      if (!base) return alert("Ô OSRM đang trống: app dùng đường chim bay x1.3 (nhanh, không phụ thuộc mạng ngoài).");
-      const call = async path => {
-        const t0 = performance.now(), ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 6000);
-        try { const r = await fetch(base + path, { signal: ctrl.signal }); const j = await r.json(); return { ok: j.code === 'Ok', code: j.code || r.status, ms: Math.round(performance.now() - t0) }; }
-        catch (e) { return { ok: false, code: 'không phản hồi trong 6 giây / bị chặn', ms: Math.round(performance.now() - t0) }; }
-        finally { clearTimeout(to); }
-      };
-      const r1 = await call('/route/v1/driving/106.6150,11.1550;106.6300,11.1700?overview=false');
-      const r2 = await call('/table/v1/driving/106.6150,11.1550;106.6300,11.1700;106.6000,11.1400?annotations=distance');
-      if (r1.ok && r2.ok) { osrmDownUntil = 0; alert(`OSRM chạy được.\n• Vẽ đường: ${r1.ms} ms\n• Bảng khoảng cách: ${r2.ms} ms\nBấm "Lưu" để dùng.`); }
-      else alert(`OSRM CHƯA DÙNG ĐƯỢC.\n• Vẽ đường: ${r1.ok ? 'OK' : r1.code}\n• Bảng khoảng cách: ${r2.ok ? 'OK' : r2.code}\n\nHãy xóa trống ô này rồi Lưu để app chạy nhanh bằng đường chim bay.`);
-    }
-
     function openDepotModal() {
       document.getElementById('inputDepotName').value = warehouseDepot.name;
       document.getElementById('inputDepotCoords').value = `${warehouseDepot.lat}, ${warehouseDepot.lon}`;
-      document.getElementById('inputOsrmBase').value = osrmBaseRaw();
+      document.getElementById('inputOsrmBase').value = osrmBase();
       document.getElementById('depotModal').classList.remove('hidden');
     }
 
@@ -1564,9 +1531,7 @@ async function restoreMasterBackupFromCloud() {
     const DETOUR_FACTOR = 1.3;
     const roadCache = new Map();
     function ptKey(p) { return Number(p.lat).toFixed(5) + ',' + Number(p.lon).toFixed(5); }
-    let osrmDownUntil = 0;   // OSRM vừa lỗi/chậm => tạm bỏ qua đến mốc này (ms)
-    function osrmBaseRaw() { try { return (localStorage.getItem(STORAGE_KEY_OSRM) || '').trim().replace(/\/+$/, ''); } catch (e) { return ''; } }
-    function osrmBase() { return Date.now() < osrmDownUntil ? '' : osrmBaseRaw(); }
+    function osrmBase() { try { return (localStorage.getItem(STORAGE_KEY_OSRM) || '').trim().replace(/\/+$/, ''); } catch (e) { return ''; } }
     function distKm(a, b) {
       const c = roadCache.get(ptKey(a) + '>' + ptKey(b));
       return c !== undefined ? c : calcDistanceKm(a.lat, a.lon, b.lat, b.lon) * DETOUR_FACTOR;
@@ -1580,7 +1545,6 @@ async function restoreMasterBackupFromCloud() {
       if (uniq.length < 2) return true;
       const CH = 45, chunks = [];
       for (let i = 0; i < uniq.length; i += CH) chunks.push(uniq.slice(i, i + CH));
-      if (chunks.length > 2) return false;   // quá nhiều điểm cho máy chủ thử: dùng ước lượng thay vì chờ lâu
       try {
         for (let a = 0; a < chunks.length; a++) for (let b = 0; b < chunks.length; b++) {
           const A = chunks[a], B = chunks[b], same = (a === b);
@@ -1588,7 +1552,7 @@ async function restoreMasterBackupFromCloud() {
           const src = A.map((_, i) => i).join(';');
           const dst = (same ? A.map((_, i) => i) : B.map((_, i) => A.length + i)).join(';');
           const url = `${base}/table/v1/driving/${coords.map(p => p.lon + ',' + p.lat).join(';')}?annotations=distance&sources=${src}&destinations=${dst}`;
-          const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 5000);
+          const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 10000);
           const res = await fetch(url, { signal: ctrl.signal }); clearTimeout(to);
           if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
           const j = await res.json();
@@ -1596,7 +1560,7 @@ async function restoreMasterBackupFromCloud() {
           A.forEach((pa, i) => B.forEach((pb, k) => { const d = j.distances[i][k]; if (d !== null && d !== undefined) roadCache.set(ptKey(pa) + '>' + ptKey(pb), d / 1000); }));
         }
         return true;
-      } catch (e) { console.warn('OSRM lỗi -> dùng đường chim bay x hệ số:', e); osrmDownUntil = Date.now() + 5 * 60000; return false; }
+      } catch (e) { console.warn('OSRM lỗi -> dùng đường chim bay x hệ số:', e); return false; }
     }
 
     // Sắp thứ tự các điểm: xuất phát từ `start`, đi hết các điểm rồi QUAY VỀ KHO. Nearest-neighbor + 2-opt + Or-opt (tính theo bảng khoảng cách).
@@ -1778,7 +1742,6 @@ async function restoreMasterBackupFromCloud() {
     // 7. PHÂN TUYẾN THỦ CÔNG
     // -------------------------------------------------------------------------
     function updateManualTruckDropdown() {
-      try { populateTruckFilter(); } catch (e) {}
       let select = document.getElementById('selectTargetTruckManual');
       if (select) select.innerHTML = fleet.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
       const ms = document.getElementById('mapSelTruck');
@@ -1798,7 +1761,7 @@ async function restoreMasterBackupFromCloud() {
           (currentStopTab === 'unmapped') ? unmappedStops : (truck ? truck.stops : [])
         )
       );
-      applyListFilters(currentList).filter(isPendingStop).forEach(s => checked ? selectedStopIds.add(s.canonicalId) : selectedStopIds.delete(s.canonicalId));
+      currentList.forEach(s => checked ? selectedStopIds.add(s.canonicalId) : selectedStopIds.delete(s.canonicalId));
       renderStopsList();
       updateManualRoutingBarState();
     }
@@ -2441,7 +2404,7 @@ async function submitDriverRejectReason(reason) {
           return `
             <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
               <td class="p-2">
-                <strong class="text-slate-800 flex items-center gap-1.5">${truckDot(t.id)}${esc(t.name)}</strong>
+                <strong class="text-slate-800">${esc(t.name)}</strong>
                 <div class="text-[10px] text-slate-400 font-mono">${esc(t.plate)} • Chuyến ${t.tripNo || 1}</div>
               </td>
               <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
@@ -2472,7 +2435,7 @@ async function submitDriverRejectReason(reason) {
         return `
           <button onclick="selectTruck(${t.id})" class="px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 transition flex flex-col items-start gap-0.5 ${activeClass}">
             <div class="flex items-center gap-1.5">
-              ${truckDot(t.id)}<span>${esc(t.name)}</span>
+              <span>${esc(t.name)}</span>
               ${isOverloaded ? '<span class="w-2 h-2 rounded-full bg-rose-400"></span>' : ''}
             </div>
             <div class="text-[10px] opacity-80 font-normal">
@@ -2509,7 +2472,7 @@ async function submitDriverRejectReason(reason) {
 
       if (elName) elName.innerText = `${truck.name} (${truck.plate}) • Chuyến ${truck.tripNo || 1}`;
       const btnDone = document.getElementById('btnCompleteTrip'); if (btnDone) btnDone.classList.toggle('hidden', truck.stops.length === 0);
-      if (elDriver) elDriver.innerText = `• ${truck.driver} ${normalizePhone(truck.phone)}`;
+      if (elDriver) elDriver.innerText = `Tài xế: ${truck.driver} • ${normalizePhone(truck.phone)}`;
       if (elLoad) elLoad.innerText = `${Math.round(totalLoad)}/${truck.maxCapacity}`;
       if (elBar) {
         elBar.style.width = pct + '%';
@@ -2523,7 +2486,7 @@ async function submitDriverRejectReason(reason) {
       currentStopTab = tab;
       ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
         let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
-        if (b) b.className = (k === tab) ? "flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-blue-600 text-white font-bold" : "flex-1 text-center whitespace-nowrap px-1 py-1 rounded bg-slate-100 text-slate-600";
+        if (b) b.className = (k === tab) ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
       });
       renderStopsList();
     }
@@ -2533,7 +2496,6 @@ async function submitDriverRejectReason(reason) {
     }
 
     function renderStopsList() {
-      updateFilterChips();
       let container = document.getElementById('stopsListView');
       let summaryText = document.getElementById('listStopsSummaryText');
       if (!container) return;
@@ -2542,16 +2504,42 @@ async function submitDriverRejectReason(reason) {
 
       // Tab 1: Toàn bộ đơn vừa nạp từ file Excel (Khắc phục lỗi 1)
       if (currentStopTab === 'all_imported') {
-        let list = allMergedStops.filter(x => !mapSelectMode || isPendingStop(x));
-        list = applyListFilters(list);
+        let list = [...allMergedStops];
+        if (query) list = list.filter(s => s.custName.toLowerCase().includes(query) || s.canonicalId.toLowerCase().includes(query) || s.phone.includes(query));
         if (summaryText) summaryText.innerText = `${list.length} đơn đã nạp`;
         
         if (list.length === 0) {
-          container.innerHTML = allMergedStops.length ? NO_MATCH_HTML : '<div class="p-8 text-center text-xs text-slate-400">Chưa có đơn hàng nào được nạp từ file.</div>';
+          container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Chưa có đơn hàng nào được nạp từ file.</div>';
           return;
         }
 
-        container.innerHTML = list.map((s, idx) => stopRowHtml(s, { num: (idx + 1) + '. ' })).join('');
+        container.innerHTML = list.map((s, idx) => {
+          let assignedTruck = fleet.find(t => t.id === s.truckId);
+          let truckBadge = s.archived ? `<span class="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">${s.status === 'success' ? 'Đã giao' : 'Đã đóng'} • Chuyến ${s.tripNo || ''}</span>` : assignedTruck 
+            ? `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">${assignedTruck.name}</span>`
+            : `<span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded">Chưa xếp xe</span>`;
+
+          return `
+            <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
+              <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+              <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${esc(s.custName)}</span>
+                  <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
+                </div>
+                <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
+                  <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                  <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr || 'Chưa có địa chỉ')}</div>
+                <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                  <div>${truckBadge}</div>
+                  <span class="text-[10px] ${s.isMapped ? 'text-emerald-600' : 'text-rose-600'} font-semibold">${s.isMapped ? 'Đã có GPS' : 'Chưa có GPS'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
         safeRenderIcons();
         return;
       }
@@ -2564,7 +2552,7 @@ async function submitDriverRejectReason(reason) {
           safeRenderIcons();
           return;
         }
-        container.innerHTML = applyListFilters(unmappedStops).map(s => `
+        container.innerHTML = unmappedStops.map(s => `
           <div class="p-3 bg-rose-50/60 border-l-4 border-rose-500 space-y-2">
             <div class="flex items-start justify-between gap-1">
               <div>
@@ -2595,7 +2583,22 @@ async function submitDriverRejectReason(reason) {
           container.innerHTML = '<div class="p-8 text-center text-slate-400 text-xs">Tất cả đơn đã được xếp vào đội xe.</div>';
           return;
         }
-        { const ul = applyListFilters(unassignedStops); container.innerHTML = ul.length ? ul.map(s => stopRowHtml(s, {})).join('') : NO_MATCH_HTML; }
+        container.innerHTML = unassignedStops.map(s => `
+          <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
+            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+            <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="text-xs font-bold text-slate-900 truncate">${esc(s.custName)}</span>
+                <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
+              </div>
+              <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
+                <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr)}</div>
+            </div>
+          </div>
+        `).join('');
         safeRenderIcons();
         return;
       }
@@ -2608,19 +2611,50 @@ async function submitDriverRejectReason(reason) {
         return;
       }
 
-      let list = truck.stops.filter(x => !mapSelectMode || isPendingStop(x));
+      let list = [...truck.stops];
       if (currentStopTab === 'lifo') list.sort((a, b) => b.stopSeq - a.stopSeq);
       else list.sort((a, b) => a.stopSeq - b.stopSeq);
 
-      list = applyListFilters(list);
+      if (query) list = list.filter(s => s.custName.toLowerCase().includes(query) || s.canonicalId.toLowerCase().includes(query) || s.phone.includes(query));
 
       if (summaryText) summaryText.innerText = `${list.length} đơn`;
 
-      if (list.length === 0) { container.innerHTML = NO_MATCH_HTML; return; }
       container.innerHTML = list.map(s => {
-        const lbl = currentStopTab === 'route' ? (s.status === 'success' ? '✓' : (s.status === 'failed' ? '✕' : '#' + s.stopSeq)) : 'L' + s.lifoSeq;
-        const seq = `<span style="background:${stopColor(s)}" class="min-w-[24px] h-6 px-1 rounded-full text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">${lbl}</span>`;
-        return stopRowHtml(s, { seq, reassign: true });
+        let seqBadge = currentStopTab === 'route'
+          ? `<span class="w-6 h-6 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">#${s.stopSeq}</span>`
+          : `<span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">LIFO ${s.lifoSeq}</span>`;
+
+        let statusBadge = s.status === 'success'
+          ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Đã giao</span>'
+          : (s.status === 'failed' ? '<span class="text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.5 rounded">Thất bại</span>' : '<span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Chưa giao</span>');
+
+        let mapStatus = s.isMapped
+          ? '<span class="text-[10px] text-emerald-600 font-semibold"><i data-lucide="map-pin" class="w-3 h-3 inline"></i> Có Map</span>'
+          : `<button onclick="promptEditStopCoordinates(${jsq(s.canonicalId)})" class="text-[10px] bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded border border-rose-200">Gắn Map</button>`;
+
+        let multiCodesBadge = s.rawIds?.size > 1 ? `<span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1 py-0.2 rounded">Gộp ${s.rawIds.size} mã</span>` : '';
+
+        return `
+          <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
+            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+            ${seqBadge}
+            <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="text-xs font-bold text-slate-900 truncate">${esc(s.custName)}</span>
+                <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
+              </div>
+              <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
+                <span>Mã: <strong class="text-slate-700">${esc(s.canonicalId)}</strong> ${multiCodesBadge} • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr || 'Chưa có địa chỉ')}</div>
+              <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                <div class="flex items-center gap-1.5">${statusBadge} ${mapStatus}</div>
+                <button onclick="reassignStopToAnotherTruck(event, ${jsq(s.canonicalId)})" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium">Chuyển xe</button>
+              </div>
+            </div>
+          </div>
+        `;
       }).join('');
 
       safeRenderIcons();
@@ -2629,174 +2663,84 @@ async function submitDriverRejectReason(reason) {
     async function fetchRoadGeometry(latlngs) {
       const base = osrmBase(); if (!base || latlngs.length < 2 || latlngs.length > 100) return null;
       try {
-        const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 4000);
+        const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 8000);
         const res = await fetch(`${base}/route/v1/driving/${latlngs.map(p => p[1] + ',' + p[0]).join(';')}?overview=full&geometries=geojson`, { signal: ctrl.signal });
         clearTimeout(to);
         const j = await res.json();
         return (j.code === 'Ok' && j.routes && j.routes[0]) ? j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]) : null;
-      } catch (e) { osrmDownUntil = Date.now() + 5 * 60000; return null; }
+      } catch (e) { return null; }
     }
 
     function renderRouteOnMap() {
       if (mapSelectMode && map) { renderSelectModeMap(false); return; }
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
-      routeLayer.clearLayers(); pinsLayer.clearLayers();
-      updateMapLegend();
-      const d = [warehouseDepot.lat, warehouseDepot.lon], truck = fleet.find(t => t.id === activeTruckId);
-      let actLine = null, actLatLngs = null;
-      fleet.forEach(t => {
-        const r = (t.stops || []).filter(x => x.isMapped && !x.archived);
-        if (!r.length) return;
-        const isAct = t.id === activeTruckId, pts = [d, ...r.map(x => [x.lat, x.lon]), d];
-        const line = L.polyline(pts, { color: truckColor(t.id), weight: isAct ? 4 : 2.5, opacity: isAct ? 0.9 : 0.5, dashArray: isAct ? '4,4' : '2,7', interactive: false });
-        routeLayer.addLayer(line);
-        if (isAct) { actLine = line; actLatLngs = pts; }
-      });
-      const bounds = L.latLngBounds([d]);
-      const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
-      allMergedStops.filter(x => x.isMapped).forEach(x => {
-        if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
-        const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
-        const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
-        L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(`
-          <div class="space-y-1">
-            <div class="font-bold" style="color:${stopColor(x)}">${x.stopSeq && tr ? '#' + x.stopSeq + ' • ' : ''}${esc(x.custName)}</div>
-            <div class="text-[11px] text-slate-500">${esc(x.addr)}</div>
-            <div class="text-[11px]"><b>${tr ? esc(tr.name) : 'Chưa xếp xe'}</b> • ${stTxt}</div>
-            <div class="text-[11px] font-bold text-slate-800">Giao: ${x.totalQty} Thùng • COD: ${formatMoney(x.totalCod)}</div>
-            <button onclick="openStopDetail(${jsq(x.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
-          </div>`).addTo(pinsLayer);
-      });
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
-      if (actLine && actLatLngs) {
-        const myToken = ++routeDrawToken;                         // có OSRM: thay đường thẳng bằng đường đi thật
-        fetchRoadGeometry(actLatLngs).then(pts => {
-          if (!pts || myToken !== routeDrawToken || !routeLayer) return;
-          routeLayer.removeLayer(actLine); routeLayer.addLayer(L.polyline(pts, { color: truckColor(activeTruckId), weight: 4, opacity: 0.85, interactive: false }));
-        }).catch(() => {});
+      routeLayer.clearLayers();
+      pinsLayer.clearLayers();
+
+      let truck = fleet.find(t => t.id === activeTruckId);
+      
+      // Nếu chưa xếp đơn vào xe, hiển thị toàn bộ các điểm giao chưa gán lên bản đồ (marker xám)
+      if (!truck || truck.stops.length === 0) {
+        let unassignedMapped = allMergedStops.filter(s => s.isMapped);
+        if (unassignedMapped.length === 0) return;
+
+        let bounds = L.latLngBounds([[warehouseDepot.lat, warehouseDepot.lon]]);
+        unassignedMapped.forEach(s => {
+          bounds.extend([s.lat, s.lon]);
+          let icon = L.divIcon({
+            className: 'unassigned-map-pin',
+            html: `<div class="w-5 h-5 rounded-full bg-slate-500 border border-white shadow flex items-center justify-center text-white text-[9px] font-bold">•</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+          L.marker([s.lat, s.lon], { icon }).bindPopup(`
+            <b>${esc(s.custName)}</b><br>${esc(s.addr)}<br>Hàng: <b>${s.totalQty} Thùng</b><br>COD: <b>${formatMoney(s.totalCod)}</b>
+          `).addTo(pinsLayer);
+        });
+        map.fitBounds(bounds, { padding: [30, 30] });
+        return;
       }
+
+      let validStops = truck.stops.filter(s => s.isMapped);
+      if (validStops.length === 0) return;
+
+      let latlngs = [[warehouseDepot.lat, warehouseDepot.lon]];
+      validStops.forEach(s => {
+        latlngs.push([s.lat, s.lon]);
+        let icon = L.divIcon({
+          className: 'stop-map-pin',
+          html: `<div class="w-6 h-6 rounded-full ${s.status === 'success' ? 'bg-emerald-600' : (s.status === 'failed' ? 'bg-rose-600' : 'bg-blue-600')} border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-extrabold">${s.stopSeq}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        L.marker([s.lat, s.lon], { icon }).bindPopup(`
+          <div class="space-y-1">
+            <div class="font-bold text-blue-600">#${s.stopSeq} • ${esc(s.custName)}</div>
+            <div class="text-[11px] text-slate-500">${esc(s.addr)}</div>
+            <div class="text-[11px] font-bold text-slate-800">Giao: ${s.totalQty} Thùng</div>
+            <div class="text-[11px] font-bold text-amber-700">Thu COD: ${formatMoney(s.totalCod)}</div>
+            <button onclick="openStopDetail(${jsq(s.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
+          </div>
+        `).addTo(pinsLayer);
+      });
+      latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
+
+      let polyline = L.polyline(latlngs, { color: '#2563eb', weight: 3.5, opacity: 0.8, dashArray: '4, 4' });
+      routeLayer.addLayer(polyline);
+      map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+      const myToken = ++routeDrawToken;                         // có OSRM: thay đường thẳng bằng đường đi thật
+      fetchRoadGeometry(latlngs).then(pts => {
+        if (!pts || myToken !== routeDrawToken || !routeLayer) return;
+        routeLayer.clearLayers(); routeLayer.addLayer(L.polyline(pts, { color: '#2563eb', weight: 4, opacity: 0.85 }));
+      }).catch(() => {});
     }
 
     // -------------------------------------------------------------------------
     // 11. CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ GPS & GỘP ĐIỂM BÁN TRÙNG
     // -------------------------------------------------------------------------
-    // ===== BỘ LỌC DANH SÁCH ĐƠN =====
-    let flt = { status: 'all', truck: 'all', gps: 'all', sort: 'default' };
-    function vnNorm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd'); }
-    function searchQuery() { const el = document.getElementById('searchInput'); return vnNorm((el && el.value) || '').trim(); }
-    function anyFilterActive() { return flt.status !== 'all' || flt.truck !== 'all' || flt.gps !== 'all' || flt.sort !== 'default' || !!searchQuery(); }
-    function setStatusFilter(v) { flt.status = v; renderStopsList(); }
-    function setTruckFilter(v) { flt.truck = v; renderStopsList(); }
-    function setGpsFilter(v) { flt.gps = v; renderStopsList(); }
-    function setSortMode(v) { flt.sort = v; renderStopsList(); }
-    function clearAllFilters() {
-      flt = { status: 'all', truck: 'all', gps: 'all', sort: 'default' };
-      const si = document.getElementById('searchInput'); if (si) si.value = '';
-      renderStopsList();
-    }
-    function populateTruckFilter() {
-      const ft = document.getElementById('fltTruck'); if (!ft) return;
-      ft.innerHTML = '<option value="all">Tất cả xe</option>' + fleet.map(t => `<option value="${t.id}">${esc(t.name.split('(')[0].trim())}</option>`).join('') + '<option value="none">Chưa xếp xe</option>';
-      ft.value = String(flt.truck);
-      if (ft.value !== String(flt.truck)) { flt.truck = 'all'; ft.value = 'all'; }
-    }
-    function applyListFilters(list) {
-      const q = searchQuery(), perTruckTab = (currentStopTab === 'route' || currentStopTab === 'lifo');
-      let out = list.filter(x => {
-        if (mapSelectMode && !isPendingStop(x)) return false;
-        if (flt.status !== 'all' && x.status !== flt.status) return false;
-        if (flt.gps === 'yes' && !x.isMapped) return false;
-        if (flt.gps === 'no' && x.isMapped) return false;
-        if (flt.truck !== 'all' && !perTruckTab) {
-          const has = fleet.some(t => t.id === x.truckId);
-          if (flt.truck === 'none' ? has : x.truckId !== Number(flt.truck)) return false;
-        }
-        if (q && !vnNorm([x.custName, x.canonicalId, x.baseId, x.phone, x.addr].join(' ')).includes(q)) return false;
-        return true;
-      });
-      const d = depotPt(), dist = x => x.isMapped ? calcDistanceKm(d.lat, d.lon, x.lat, x.lon) : 1e9;
-      if (flt.sort === 'cod_desc') out.sort((a, b) => (b.totalCod || 0) - (a.totalCod || 0));
-      else if (flt.sort === 'qty_desc') out.sort((a, b) => (b.totalQty || 0) - (a.totalQty || 0));
-      else if (flt.sort === 'name') out.sort((a, b) => String(a.custName).localeCompare(String(b.custName), 'vi'));
-      else if (flt.sort === 'dist') out.sort((a, b) => dist(a) - dist(b));
-      return out;
-    }
-    function updateFilterChips() {
-      const cnt = { all: allMergedStops.length, pending: 0, success: 0, failed: 0 };
-      allMergedStops.forEach(x => { cnt[x.status] = (cnt[x.status] || 0) + 1; });
-      const cls = { all: 'bg-slate-700 text-white', pending: 'bg-amber-500 text-white', success: 'bg-emerald-600 text-white', failed: 'bg-rose-600 text-white' };
-      [['all', 'fltStAll', 'Tất cả'], ['pending', 'fltStPending', 'Chưa giao'], ['success', 'fltStSuccess', 'Đã giao'], ['failed', 'fltStFailed', 'Thất bại']].forEach(([k, id, label]) => {
-        const b = document.getElementById(id); if (!b) return;
-        b.innerText = `${label} ${cnt[k] || 0}`;
-        b.className = 'px-2 py-0.5 rounded-full border text-[11px] font-semibold shrink-0 ' + (flt.status === k ? cls[k] + ' border-transparent' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50');
-      });
-      const fg = document.getElementById('fltGps'); if (fg) fg.value = flt.gps;
-      const fs = document.getElementById('fltSort'); if (fs) fs.value = flt.sort;
-      const ft = document.getElementById('fltTruck'); if (ft && ft.value !== String(flt.truck)) ft.value = String(flt.truck);
-      const clr = document.getElementById('btnClearFilters'); if (clr) clr.classList.toggle('hidden', !anyFilterActive());
-    }
-    // Dòng đơn gọn 3 dòng, dùng chung cho các tab
-    function stopRowHtml(s, o) {
-      o = o || {};
-      const tr = fleet.find(t => t.id === s.truckId);
-      const pill = (s.status !== 'pending' || tr) ? statusPill(s) : '<span class="text-[10px] bg-slate-100 text-slate-600 font-semibold px-1.5 py-0.5 rounded">Chưa xếp xe</span>';
-      const trPill = s.archived ? `<span class="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">Chuyến ${s.tripNo || ''} đã đóng</span>`
-        : (tr ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border" style="color:${truckColor(tr.id)};border-color:${truckColor(tr.id)}">${esc(tr.name.split('(')[0].trim())}</span>` : '');
-      const gps = s.isMapped ? '' : `<button onclick="event.stopPropagation(); promptEditStopCoordinates(${jsq(s.canonicalId)})" class="text-[10px] bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-200">Gắn Map</button>`;
-      const multi = (s.rawIds && s.rawIds.size > 1) ? `<span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1 rounded">Gộp ${s.rawIds.size}</span>` : '';
-      const re = (o.reassign && isPendingStop(s)) ? `<button onclick="reassignStopToAnotherTruck(event, ${jsq(s.canonicalId)})" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium underline">Chuyển xe</button>` : '';
-      return `
-        <div style="${rowStyle(s)}" class="px-2.5 py-1.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
-          <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0" ${isPendingStop(s) ? '' : 'disabled style="visibility:hidden"'}>
-          ${o.seq || ''}
-          <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
-            <div class="flex items-center justify-between gap-1">
-              <span class="text-xs font-bold text-slate-900 truncate">${o.num || ''}${esc(s.custName)}</span>
-              <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
-            </div>
-            <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
-            <div class="flex items-center justify-between gap-1 mt-0.5">
-              <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${gps}</div>
-              <div class="flex items-center gap-2 shrink-0">${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
-            </div>
-          </div>
-        </div>`;
-    }
-    const NO_MATCH_HTML = '<div class="p-8 text-center text-xs text-slate-400">Không có đơn nào khớp bộ lọc. <button onclick="clearAllFilters()" class="text-blue-600 font-bold underline">Xóa lọc</button></div>';
-
-    // ===== MÀU TRẠNG THÁI: Chưa giao = màu của xe • Đã giao = xanh lá ✓ • Thất bại = đỏ ✕ • Chưa xếp xe = xám =====
-    function stopColor(s) {
-      if (s.status === 'success') return '#16a34a';
-      if (s.status === 'failed') return '#dc2626';
-      return fleet.some(t => t.id === s.truckId) ? truckColor(s.truckId) : '#64748b';
-    }
-    function rowStyle(s) {
-      const bg = s.status === 'success' ? '#ecfdf5' : (s.status === 'failed' ? '#fff1f2' : '#ffffff');
-      return `border-left:5px solid ${stopColor(s)};background:${bg}`;
-    }
-    function statusPill(s) {
-      if (s.status === 'success') return '<span class="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded">✓ Đã giao</span>';
-      if (s.status === 'failed') return '<span class="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded">✕ Thất bại</span>';
-      return `<span class="text-[10px] text-white font-bold px-1.5 py-0.5 rounded" style="background:${stopColor(s)}">Chưa giao</span>`;
-    }
-    function truckDot(id) { return `<span style="background:${truckColor(id)}" class="w-2.5 h-2.5 rounded-full inline-block border border-white shrink-0"></span>`; }
-    function isPendingStop(s) { return !s.archived && s.status === 'pending'; }
-    function stopPinHtml(s, sel, dim) {
-      const done = s.status === 'success', bad = s.status === 'failed', assigned = fleet.some(t => t.id === s.truckId);
-      const label = done ? '✓' : bad ? '✕' : (assigned && s.stopSeq ? s.stopSeq : '');
-      const size = sel ? 28 : 24;
-      return { size, html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${sel ? '#f59e0b' : stopColor(s)};border:${sel ? '3px solid #78350f' : '2px solid #fff'};opacity:${dim ? 0.45 : 1};box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800">${label}</div>` };
-    }
-    function updateMapLegend() {
-      const el = document.getElementById('mapLegend'); if (!el) return;
-      const chips = fleet.filter(t => (t.stops || []).some(x => !x.archived)).map(t => `<span class="inline-flex items-center gap-1">${truckDot(t.id)}${esc(t.name.split('(')[0].trim())}</span>`).join('');
-      el.innerHTML = `<div class="font-bold text-slate-700 mb-0.5">${mapSelectMode ? 'Chỉ hiện đơn CHƯA GIAO' : 'Chú thích'}</div>`
-        + `<div class="flex flex-wrap gap-x-2 gap-y-0.5">${chips}${mapSelectMode ? '' : '<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#16a34a"></span>Đã giao ✓</span><span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#dc2626"></span>Thất bại ✕</span>'}<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#64748b"></span>Chưa xếp xe</span>${mapSelectMode ? '<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#f59e0b"></span>Đang chọn</span>' : ''}</div>`;
-    }
-
     // ===== QUÉT CHỌN CỤM TRÊN MAP =====
     let mapSelectMode = false, lassoPts = [], lassoShape = null, lassoLayer = null, lassoActive = false;
-    const TRUCK_COLORS = ['#2563eb', '#ca8a04', '#7c3aed', '#db2777', '#0891b2', '#c2410c', '#4f46e5', '#92400e'];
+    const TRUCK_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
     function truckColor(id) { const i = fleet.findIndex(t => t.id === id); return i < 0 ? '#64748b' : TRUCK_COLORS[i % TRUCK_COLORS.length]; }
     // chỉ chọn được điểm chưa giao, có GPS, và không nằm trên xe đã phát link
     function isSelectableStop(s) {
@@ -2878,35 +2822,26 @@ async function submitDriverRejectReason(reason) {
     function renderSelectModeMap(fit) {
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers(); pinsLayer.clearLayers();
-      updateMapLegend();
       const d = [warehouseDepot.lat, warehouseDepot.lon], bounds = L.latLngBounds([d]);
       fleet.forEach(t => {
-        const r = (t.stops || []).filter(x => x.isMapped && isPendingStop(x));
-        if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(x => [x.lat, x.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
+        const r = (t.stops || []).filter(s => s.isMapped && !s.archived);
+        if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(s => [s.lat, s.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
       });
-      allMergedStops.filter(x => x.isMapped && isPendingStop(x)).forEach(x => {   // đã giao / thất bại / đã đóng chuyến: ẨN
-        bounds.extend([x.lat, x.lon]);
-        const sel = selectedStopIds.has(x.canonicalId), ok = isSelectableStop(x), pin = stopPinHtml(x, sel, !ok && !sel);
-        const m = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'sel-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }), zIndexOffset: sel ? 1000 : 0 });
-        m.bindTooltip(`${esc(x.custName)} • ${x.totalQty} Thùng • ${formatMoney(x.totalCod)}${ok ? '' : ' (xe đã phát link)'}`, { direction: 'top' });
+      allMergedStops.filter(s => s.isMapped && !s.archived).forEach(s => {
+        bounds.extend([s.lat, s.lon]);
+        const sel = selectedStopIds.has(s.canonicalId), ok = isSelectableStop(s), assigned = fleet.some(t => t.id === s.truckId);
+        const col = assigned ? truckColor(s.truckId) : '#64748b', size = sel ? 26 : 20;
+        const html = `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${sel ? '#f59e0b' : col};border:${sel ? '3px solid #78350f' : '2px solid #fff'};opacity:${(ok || sel) ? 1 : 0.4};box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800">${assigned && s.stopSeq ? s.stopSeq : ''}</div>`;
+        const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className: 'sel-pin', html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }), zIndexOffset: sel ? 1000 : 0 });
+        m.bindTooltip(`${esc(s.custName)} • ${s.totalQty} Thùng • ${formatMoney(s.totalCod)}`, { direction: 'top' });
         m.on('click', () => {
           if (!ok) return;
-          if (selectedStopIds.has(x.canonicalId)) selectedStopIds.delete(x.canonicalId); else selectedStopIds.add(x.canonicalId);
+          if (selectedStopIds.has(s.canonicalId)) selectedStopIds.delete(s.canonicalId); else selectedStopIds.add(s.canonicalId);
           afterMapSelectionChange();
         });
         m.addTo(pinsLayer);
       });
       if (fit && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
-    }
-
-    let mobileView = 'list';
-    function toggleMobileView() {
-      mobileView = mobileView === 'list' ? 'map' : 'list';
-      const a = document.getElementById('leftAside'), r = document.getElementById('rightSection');
-      if (a) { a.classList.toggle('hidden', mobileView === 'map'); a.classList.toggle('md:flex', mobileView === 'map'); }
-      if (r) { r.classList.toggle('hidden', mobileView === 'list'); r.classList.toggle('flex', mobileView === 'map'); }
-      const t = document.getElementById('btnMobileViewText'); if (t) t.innerText = mobileView === 'map' ? 'Xem Danh Sách' : 'Xem Bản Đồ';
-      if (mobileView === 'map') setTimeout(() => { if (map) { map.invalidateSize(); renderRouteOnMap(); } }, 120);
     }
 
     function openStopDetail(canonicalId) {
@@ -3248,7 +3183,6 @@ async function submitDriverRejectReason(reason) {
       });
 
       _cloudHasStops = false;
-      try { refreshAllViews(); } catch (e) { console.warn(e); }
       if (db && cloudReady) {
         try { await db.from('dispatch_sessions').delete().eq('order_date', getTodayString()); } catch (err) { console.warn(err); }
         await savePermanentEdits();      // ghi phiên RỖNG (không xóa dòng) để mọi máy khác cũng thấy rỗng
@@ -3264,7 +3198,7 @@ async function submitDriverRejectReason(reason) {
       }
       if (btnSmart) {
         btnSmart.disabled = true;
-        btnSmart.className = "shrink-0 bg-slate-300 text-slate-500 font-bold text-[11px] py-1.5 px-2.5 rounded-lg flex items-center gap-1 cursor-not-allowed shadow transition";
+        btnSmart.className = "flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition";
       }
 
       renderFleetTabs();
