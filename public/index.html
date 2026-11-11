@@ -34,13 +34,7 @@
     }
   </script>
 
-<!-- Supabase JS Client v2 CDN chuẩn Browser -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    if (typeof window.supabase === 'undefined') {
-      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.8/supabase.min.js"><\/script>');
-    }
-  </script>
+<!-- Supabase JS được nạp động trong script chính (có fallback nhiều CDN) -->
 
   <style>
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -62,6 +56,14 @@
   </style>
 </head>
 <body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased select-none">
+  <div id="bootOverlay" class="fixed inset-0 z-[9999] bg-slate-900/90 flex flex-col items-center justify-center text-white text-sm gap-3">
+    <div class="animate-spin w-8 h-8 border-4 border-white/30 border-t-white rounded-full"></div>
+    <div id="bootOverlayText">Đang kết nối Cloud...</div>
+  </div>
+  <div id="cloudErrorBar" class="hidden fixed top-0 inset-x-0 z-[9000] bg-rose-600 text-white text-xs font-bold px-3 py-1.5 flex items-center justify-between gap-2">
+    <span></span>
+    <button onclick="reloadAllFromCloud()" class="bg-white/25 hover:bg-white/40 px-2 py-0.5 rounded shrink-0">Thử lại</button>
+  </div>
 
   <!-- ========================================================================= -->
   <!-- A. MÀN HÌNH ĐIỀU PHỐI (KẾ TOÁN, ADMIN, NPP) -->
@@ -77,7 +79,7 @@
         <div>
           <h1 class="text-xs md:text-sm font-bold tracking-tight flex items-center gap-1.5">
             Hệ Thống Điều Phối Tuyến & Xếp Xe NPP
-            <span id="badgeCloudStatus" class="text-[10px] bg-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+            <span id="badgeCloudStatus" onclick="reloadAllFromCloud()" title="Bấm để tải lại từ Cloud" class="cursor-pointer text-[10px] bg-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
               <i data-lucide="cloud-check" class="w-3 h-3"></i> <span id="cloudCustCount">Supabase Cloud Ready</span>
             </span>
           </h1>
@@ -711,31 +713,379 @@
     // -------------------------------------------------------------------------
     const SUPABASE_URL = "https://akjmqbmqjqyzjadzokwx.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_JMCaJ-K3W-meXRTPPfrpFg_QHG8JUr2";
-    
-    var supabase = null;
-    function getSupabase() {
-      if (supabase) return supabase;
-      try {
-        let clientFactory = null;
-        if (window.supabase && typeof window.supabase.createClient === 'function') {
-          clientFactory = window.supabase.createClient;
-        } else if (window.supabaseJs && typeof window.supabaseJs.createClient === 'function') {
-          clientFactory = window.supabaseJs.createClient;
-        } else if (typeof createClient === 'function') {
-          clientFactory = createClient;
-        }
+    const DEVICE_ID = 'dev_' + Math.random().toString(36).slice(2, 10);
 
-        if (clientFactory) {
-          supabase = clientFactory(SUPABASE_URL, SUPABASE_ANON_KEY);
-          return supabase;
-        }
-      } catch (e) {
-        console.error("Lỗi tạo Supabase client:", e);
-      }
-      return null;
+    // !!! KHÔNG BAO GIỜ khai báo biến tên "supabase": `var supabase = null` sẽ GHI ĐÈ window.supabase của thư viện CDN.
+    let db = null;                 // Supabase client
+    let cloudReady = false;        // chỉ true SAU KHI đã kéo xong dữ liệu Cloud -> mới được ghi ngược lên Cloud
+    let isDriverMode = false;
+    let cloudFleetCfg = null, _cloudHasStops = false, _savePromise = null, _saveAgain = false;
+    let _rtChannel = null, _rtTimer = null, _depotKey = '', _drvFlushing = false;
+    const pendingDriverSync = new Map();
+
+    const SB_SOURCES = [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.js',
+      'https://unpkg.com/@supabase/supabase-js@2.57.4/dist/umd/supabase.js',
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
+    ];
+    function loadScript(src) {
+      return new Promise((res, rej) => {
+        const s = document.createElement('script'); s.src = src; s.onload = res;
+        s.onerror = () => { s.remove(); rej(new Error('CDN lỗi: ' + src)); };
+        document.head.appendChild(s);
+      });
     }
-    // Khởi tạo lần đầu
-    supabase = getSupabase();
+    let _sbPromise = null;
+    function ensureSupabase() {
+      if (db) return Promise.resolve(db);
+      if (_sbPromise) return _sbPromise;
+      _sbPromise = (async () => {
+        for (let round = 0; round < 2 && !db; round++) {
+          if (!(window.supabase && typeof window.supabase.createClient === 'function')) {
+            for (const src of SB_SOURCES) {
+              try { await loadScript(src); if (window.supabase && window.supabase.createClient) break; }
+              catch (e) { console.warn(e.message); }
+            }
+          }
+          if (window.supabase && typeof window.supabase.createClient === 'function') {
+            db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+          } else await new Promise(r => setTimeout(r, 1500));
+        }
+        if (!db) _sbPromise = null;
+        return db;
+      })();
+      return _sbPromise;
+    }
+
+    function setBoot(t) { const e = document.getElementById('bootOverlayText'); if (e) e.innerText = t; const o = document.getElementById('bootOverlay'); if (o) o.classList.remove('hidden'); }
+    function hideBoot() { const o = document.getElementById('bootOverlay'); if (o) o.classList.add('hidden'); }
+    function setCloudStatus(ok, msg) {
+      const b = document.getElementById('badgeCloudStatus');
+      const on = ['bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30'], off = ['bg-rose-500/20', 'text-rose-400', 'border-rose-500/30'];
+      if (b) { b.title = msg; b.classList.remove(...(ok ? off : on)); b.classList.add(...(ok ? on : off)); }
+      const bar = document.getElementById('cloudErrorBar');
+      if (bar) { bar.classList.toggle('hidden', ok); const sp = bar.querySelector('span'); if (sp) sp.innerText = msg; }
+    }
+
+    // ---------- Cấu hình (app_settings) ----------
+    async function cloudSetSetting(key, val) {
+      if (!db || !cloudReady) return false;
+      const { error } = await db.from('app_settings').upsert({ key_name: key, setting_val: val, updated_at: new Date().toISOString() }, { onConflict: 'key_name' });
+      if (error) { console.error(error); setCloudStatus(false, 'Lỗi lưu cấu hình: ' + error.message); return false; }
+      return true;
+    }
+    function fleetConfigOnly() { return fleet.map(t => ({ id: t.id, name: t.name, plate: t.plate, driver: t.driver, phone: t.phone, maxCapacity: t.maxCapacity })); }
+    function applyFleetConfig(cfgs) {
+      const old = new Map(fleet.map(t => [t.id, t]));
+      fleet = cfgs.map(c => Object.assign({ stops: [], linkIssued: false, linkToken: null }, old.get(c.id) || {}, { id: c.id, name: c.name, plate: c.plate, driver: c.driver, phone: c.phone, maxCapacity: c.maxCapacity }));
+      fleet.forEach(t => { if (!Array.isArray(t.stops)) t.stops = []; });
+      old.forEach((t, id) => { if (!fleet.some(x => x.id === id) && t.stops && t.stops.length) fleet.push(t); });
+      if (!fleet.some(t => t.id === activeTruckId) && fleet.length) activeTruckId = fleet[0].id;
+    }
+    async function persistSettings(keys) {
+      saveLocalCache();
+      if (keys.includes('depot')) await cloudSetSetting('warehouse_depot', warehouseDepot);
+      if (keys.includes('fleet')) await cloudSetSetting('fleet_config', fleetConfigOnly());
+      if (keys.includes('aliases')) await cloudSetSetting('store_aliases', Object.fromEntries(storeAliasMap));
+    }
+    async function loadSettingsFromCloud() {
+      const { data, error } = await db.from('app_settings').select('key_name,setting_val');
+      if (error) throw error;
+      const m = {}; (data || []).forEach(r => m[r.key_name] = r.setting_val);
+      if (m.warehouse_depot && m.warehouse_depot.lat) warehouseDepot = m.warehouse_depot;
+      if (Array.isArray(m.fleet_config) && m.fleet_config.length) { cloudFleetCfg = m.fleet_config; applyFleetConfig(cloudFleetCfg); }
+      if (m.store_aliases && typeof m.store_aliases === 'object') storeAliasMap = new Map(Object.entries(m.store_aliases));
+      saveLocalCache();
+      return m;
+    }
+    function applyDepotToMap() {
+      const k = JSON.stringify(warehouseDepot); if (k === _depotKey) return; _depotKey = k;
+      if (map) { map.setView([warehouseDepot.lat, warehouseDepot.lon], 13); drawDepotPin(); }
+    }
+
+    // ---------- Chuẩn hóa / phục hồi dữ liệu (Set <-> Array) ----------
+    function hydrateStop(s) {
+      s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
+      s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
+      s.items = s.items || []; s.phone = s.phone || ''; s.addr = s.addr || ''; s.custName = s.custName || '';
+      s.totalQty = parseFloat(s.totalQty) || 0; s.totalCod = parseFloat(s.totalCod) || 0;
+      s.status = s.status || 'pending'; s.failedReason = s.failedReason || '';
+      s.truckId = (s.truckId === undefined) ? null : s.truckId;
+      return s;
+    }
+    function serializeStop(s) { return { ...s, rawIds: Array.from(s.rawIds || []), invoices: Array.from(s.invoices || []) }; }
+    // Mỗi điểm giao chỉ tồn tại 1 object duy nhất, dùng chung giữa allMergedStops và fleet[].stops
+    function applySession(sess) {
+      if (!sess) return;
+      const stops = (sess.allMergedStops || []).map(hydrateStop);
+      const byId = new Map(stops.map(s => [s.canonicalId, s]));
+      fleet = (Array.isArray(sess.fleet) ? sess.fleet : fleet).map(t => {
+        const list = (t.stops || []).map(ts => {
+          let m = byId.get(ts.canonicalId);
+          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; } return m; }
+          m = hydrateStop(ts); stops.push(m); byId.set(m.canonicalId, m); return m;
+        });
+        return { ...t, stops: list };
+      });
+      const assigned = new Set();
+      fleet.forEach(t => t.stops.forEach(s => { s.truckId = t.id; assigned.add(s.canonicalId); }));
+      stops.forEach(s => { if (!assigned.has(s.canonicalId)) s.truckId = null; });
+      allMergedStops = stops;
+      if (cloudFleetCfg) applyFleetConfig(cloudFleetCfg);
+      if (sess.activeTruckId && fleet.some(t => t.id === sess.activeTruckId)) activeTruckId = sess.activeTruckId;
+      if (!fleet.some(t => t.id === activeTruckId) && fleet.length) activeTruckId = fleet[0].id;
+    }
+    function buildSessionPayload() {
+      return {
+        v: 2, order_date: getTodayString(), meta: { deviceId: DEVICE_ID, ts: Date.now() }, activeTruckId,
+        allMergedStops: allMergedStops.map(serializeStop),
+        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, stopSeq: s.stopSeq })) }))
+      };
+    }
+    function saveLocalCache() {
+      try {
+        localStorage.setItem(STORAGE_KEY_DEPOT, JSON.stringify(warehouseDepot));
+        localStorage.setItem(STORAGE_KEY_ALIASES, JSON.stringify(Object.fromEntries(storeAliasMap)));
+        localStorage.setItem(STORAGE_KEY_FLEET, JSON.stringify(fleetConfigOnly()));
+        if (!isDriverMode) localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(buildSessionPayload()));
+      } catch (e) {}
+    }
+    function loadLocalCache() {
+      try { const d = JSON.parse(localStorage.getItem(STORAGE_KEY_DEPOT) || 'null'); if (d && d.lat && d.lon) warehouseDepot = d; } catch (e) {}
+      try { storeAliasMap = new Map(Object.entries(JSON.parse(localStorage.getItem(STORAGE_KEY_ALIASES) || '{}'))); } catch (e) {}
+      try { const fl = JSON.parse(localStorage.getItem(STORAGE_KEY_FLEET) || 'null'); if (Array.isArray(fl) && fl.length) applyFleetConfig(fl); } catch (e) {}
+      try { const mc = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || '[]'); if (Array.isArray(mc)) mc.forEach(m => masterGpsMap.set(m.id, m)); } catch (e) {}
+      try { const sess = JSON.parse(localStorage.getItem(STORAGE_KEY_SESSION) || 'null'); if (sess && sess.order_date === getTodayString()) applySession(sess); } catch (e) {}
+    }
+
+    // ---------- Lưu phiên điều phối lên Cloud (có khóa an toàn) ----------
+    function savePermanentEdits() {
+      saveLocalCache();
+      if (isDriverMode || !db || !cloudReady) return Promise.resolve();                  // chưa kéo xong Cloud => TUYỆT ĐỐI không ghi
+      if (allMergedStops.length === 0 && _cloudHasStops) return Promise.resolve();      // không ghi đè dữ liệu Cloud bằng mảng rỗng
+      if (_savePromise) { _saveAgain = true; return _savePromise; }
+      _savePromise = (async () => {
+        try {
+          do {
+            _saveAgain = false;
+            const { error } = await db.from('daily_orders').upsert({ order_date: getTodayString(), session_data: buildSessionPayload(), updated_at: new Date().toISOString() }, { onConflict: 'order_date' });
+            if (error) { console.error('LỖI LƯU daily_orders:', error); setCloudStatus(false, 'Lỗi lưu Cloud: ' + error.message); }
+            else { _cloudHasStops = allMergedStops.length > 0; setCloudStatus(true, 'Đã đồng bộ lúc ' + new Date().toLocaleTimeString('vi-VN')); }
+          } while (_saveAgain);
+        } catch (e) { console.error(e); setCloudStatus(false, 'Lỗi mạng khi lưu Cloud'); }
+        finally { _savePromise = null; }
+      })();
+      return _savePromise;
+    }
+
+    async function loadTodaySessionFromCloud() {
+      const today = getTodayString();
+      const { data, error } = await db.from('daily_orders').select('session_data').eq('order_date', today).maybeSingle();
+      if (error) throw error;
+      if (data && data.session_data && Array.isArray(data.session_data.allMergedStops)) applySession(data.session_data);
+      const { data: rows, error: e2 } = await db.from('dispatch_sessions').select('truck_id,stops').eq('order_date', today);
+      if (e2) throw e2;
+      const byId = new Map(allMergedStops.map(s => [s.canonicalId, s]));
+      (rows || []).forEach(r => (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
+        const m = byId.get(rs.canonicalId);
+        if (m && rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; }
+      }));
+      _cloudHasStops = allMergedStops.length > 0;
+      return !!data;
+    }
+
+    function refreshStopMappingFromMaster() {
+      allMergedStops.forEach(s => {
+        if (!s.isMapped) {
+          const m = masterGpsMap.get(s.canonicalId);
+          if (m) { s.lat = m.lat; s.lon = m.lon; s.isMapped = true; if (!s.addr) s.addr = m.addr || ''; if (!s.phone) s.phone = m.phone || ''; }
+        }
+      });
+    }
+    function recomputeDerivedLists() {
+      unmappedStops = allMergedStops.filter(s => !s.isMapped);
+      unassignedStops = allMergedStops.filter(s => s.truckId === null || s.truckId === undefined || !fleet.some(t => t.id === s.truckId));
+      const set = (id, v) => { const e = document.getElementById(id); if (e) e.innerText = v; };
+      set('unmappedCountBadge', unmappedStops.length); set('unassignedCountBadge', unassignedStops.length); set('allImportedCountBadge', allMergedStops.length);
+      const wp = document.getElementById('unmappedWarningPanel'); if (wp) wp.classList.toggle('hidden', unmappedStops.length === 0);
+      const btn = document.getElementById('btnSmartDispatch');
+      if (btn) {
+        const on = allMergedStops.length > 0; btn.disabled = !on;
+        btn.className = on ? "flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+                           : "flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition";
+      }
+      const sub = document.getElementById('subInvoice');
+      if (sub && allMergedStops.length > 0) { sub.innerText = `Hôm nay: ${allMergedStops.length} điểm giao • nạp thêm file sẽ tự gộp`; sub.className = "text-[10px] text-blue-600 font-bold"; }
+    }
+    function refreshAllViews() {
+      recomputeDerivedLists();
+      selectedStopIds.forEach(id => { if (!allMergedStops.some(s => s.canonicalId === id)) selectedStopIds.delete(id); });
+      updateManualTruckDropdown(); renderFleetTabs(); updateTruckSummary(); setStopTab(currentStopTab);
+      renderRouteOnMap(); updateDashboardReport(); checkButtonsState(); updateManualRoutingBarState(); applyDepotToMap(); safeRenderIcons();
+    }
+
+    // ---------- Nạp lại toàn bộ từ Cloud / Realtime ----------
+    async function reloadAllFromCloud() {
+      setBoot('Đang đồng bộ dữ liệu từ Cloud...');
+      let res = null;
+      try {
+        if (!(await ensureSupabase())) throw new Error('Không tải được thư viện Supabase (mạng/CDN bị chặn). Đang hiển thị dữ liệu cache, CHƯA đồng bộ.');
+        const m = await loadSettingsFromCloud();
+        await loadMasterDataFromCloud();
+        const row = await loadTodaySessionFromCloud();
+        cloudReady = true; res = { m, row };
+        refreshStopMappingFromMaster();
+        if (currentStopTab === 'all_imported' && fleet.some(t => t.stops.length > 0)) currentStopTab = 'route';
+        refreshAllViews();
+        setCloudStatus(true, 'Đã đồng bộ lúc ' + new Date().toLocaleTimeString('vi-VN'));
+        setupSupabaseRealtime();
+      } catch (e) {
+        console.error(e); setCloudStatus(false, (e.message || e) + ' — nếu là lỗi bảng, hãy chạy script SQL trên Supabase.'); refreshAllViews();
+      } finally { hideBoot(); }
+      return res;
+    }
+    async function seedAfterFirstLoad(res) {
+      const miss = [];
+      if (!res.m.warehouse_depot) miss.push('depot'); if (!res.m.fleet_config) miss.push('fleet'); if (!res.m.store_aliases && storeAliasMap.size) miss.push('aliases');
+      if (miss.length) await persistSettings(miss);
+      if (!res.row && allMergedStops.length > 0) {
+        if (confirm(`Máy này có phiên điều phối hôm nay (${allMergedStops.length} điểm) mà Cloud chưa có.\nĐẩy lên Cloud để các máy khác cùng thấy?\n(Cancel = bỏ dữ liệu cục bộ này)`)) await savePermanentEdits();
+        else { allMergedStops = []; fleet.forEach(t => t.stops = []); saveLocalCache(); refreshAllViews(); }
+      }
+    }
+    function scheduleRemoteRefresh(kind) {
+      clearTimeout(_rtTimer);
+      _rtTimer = setTimeout(async () => {
+        if (_savePromise) return scheduleRemoteRefresh(kind);
+        try {
+          if (kind === 'settings') await loadSettingsFromCloud();
+          if (kind === 'master') await loadMasterDataFromCloud();
+          await loadTodaySessionFromCloud(); refreshStopMappingFromMaster(); refreshAllViews();
+        } catch (e) { console.warn('Realtime refresh lỗi:', e); }
+      }, 400);
+    }
+    function setupSupabaseRealtime() {
+      if (!db || _rtChannel || isDriverMode) return;
+      const today = getTodayString();
+      _rtChannel = db.channel('fmcg-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_orders', filter: `order_date=eq.${today}` }, p => {
+          const meta = p.new && p.new.session_data && p.new.session_data.meta;
+          if (meta && meta.deviceId === DEVICE_ID) return;
+          scheduleRemoteRefresh('session');
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_sessions', filter: `order_date=eq.${today}` }, () => scheduleRemoteRefresh('session'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => scheduleRemoteRefresh('settings'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'master_customers' }, () => scheduleRemoteRefresh('master'))
+        .subscribe(st => { if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') console.warn('Realtime:', st); });
+    }
+    window.addEventListener('online', () => { if (!isDriverMode && !cloudReady) reloadAllFromCloud(); else flushDriverSync(); });
+
+    async function bootstrapApp() {
+      if (checkDriverRoutingModeSync()) { hideBoot(); return; }
+      loadLocalCache(); checkMonthlyAutoReset();
+      setTimeout(() => { try { initMap(); renderRouteOnMap(); } catch (e) {} }, 150);
+      refreshAllViews();
+      const res = await reloadAllFromCloud();
+      if (res) await seedAfterFirstLoad(res);
+    }
+
+    // ---------- App tài xế: ghi trạng thái theo kiểu "vá" (không bao giờ ghi đè daily_orders) ----------
+    function driverOrderDate() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('date') || getTodayString(); }
+    async function driverApplyStatus(canonicalId, status, reason) {
+      const truck = fleet.find(t => t.id === activeTruckId);
+      const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
+      if (!s) return;
+      s.status = status; s.failedReason = reason || '';
+      recordDeliveryHistory(s);
+      renderDriverAppCards();
+      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason });
+      await flushDriverSync();
+    }
+    async function flushDriverSync() {
+      if (_drvFlushing || pendingDriverSync.size === 0 || !isDriverMode) return;
+      if (!(await ensureSupabase())) return;
+      _drvFlushing = true;
+      const batch = new Map(pendingDriverSync);
+      try {
+        const date = driverOrderDate(), truck = fleet.find(t => t.id === activeTruckId) || {};
+        const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', date).eq('truck_id', activeTruckId).maybeSingle();
+        if (error) throw error;
+        const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.doneAt = new Date().toISOString(); } });
+        const { error: e2 } = await db.from('dispatch_sessions').upsert({
+          order_date: date, truck_id: Number(activeTruckId),
+          truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
+          driver_phone: (data && data.driver_phone) || truck.phone, plate: (data && data.plate) || truck.plate,
+          max_capacity: (data && data.max_capacity) || truck.maxCapacity, stops, updated_at: new Date().toISOString()
+        }, { onConflict: 'order_date,truck_id' });
+        if (e2) throw e2;
+        batch.forEach((v, k) => { if (pendingDriverSync.get(k) === v) pendingDriverSync.delete(k); });
+      } catch (e) { console.warn('Chưa gửi được trạng thái lên Cloud, sẽ tự thử lại:', e); }
+      finally { _drvFlushing = false; }
+    }
+    setInterval(() => { if (isDriverMode) flushDriverSync(); }, 15000);
+
+    async function driverCloudRefresh(silent) {
+      if (!(await ensureSupabase())) { if (!silent) alert('Chưa kết nối được Cloud. Đang hiển thị dữ liệu đã lưu trong link.'); return; }
+      try {
+        const dep = await db.from('app_settings').select('setting_val').eq('key_name', 'warehouse_depot').maybeSingle();
+        if (dep.data && dep.data.setting_val && dep.data.setting_val.lat) warehouseDepot = dep.data.setting_val;
+        const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', driverOrderDate()).eq('truck_id', activeTruckId).maybeSingle();
+        if (error) throw error;
+        if (data && Array.isArray(data.stops)) {
+          let truck = fleet.find(t => t.id === activeTruckId);
+          if (!truck) { truck = { id: activeTruckId, stops: [] }; fleet.push(truck); }
+          truck.stops = data.stops; truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
+          truck.plate = data.plate || truck.plate || ''; truck.phone = data.driver_phone || truck.phone || ''; truck.maxCapacity = data.max_capacity || truck.maxCapacity || 150;
+          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; } });
+        }
+        renderDriverAppCards();
+        if (!silent) alert('Đã cập nhật dữ liệu mới nhất!');
+      } catch (e) { console.warn(e); if (!silent) alert('Lỗi tải dữ liệu: ' + (e.message || e)); }
+      flushDriverSync();
+    }
+    function setupDriverRealtime() {
+      ensureSupabase().then(c => {
+        if (!c) return;
+        if (_rtChannel) { try { db.removeChannel(_rtChannel); } catch (e) {} }
+        _rtChannel = db.channel('drv-' + activeTruckId)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_sessions', filter: `truck_id=eq.${activeTruckId}` }, () => driverCloudRefresh(true))
+          .subscribe();
+      });
+    }
+
+    // ---------- Master data: helper ----------
+    async function fetchAllRows(table, cols, order) {
+      const out = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await db.from(table).select(cols).order(order).range(from, from + 999);
+        if (error) throw error; out.push(...data); if (data.length < 1000) break;
+      }
+      return out;
+    }
+    async function backupMasterToCloud() {
+      const cur = await fetchAllRows('master_customers', '*', 'id');
+      if (cur.length === 0) return 0;
+      const { error } = await db.from('master_customers_backup').upsert({ id: 1, backup_version: new Date().toISOString(), row_count: cur.length, data: cur }, { onConflict: 'id' });
+      if (error) throw error;
+      return cur.length;
+    }
+    async function upsertMasterChunks(list) {
+      for (let i = 0; i < list.length; i += 200) {
+        const chunk = list.slice(i, i + 200).map(m => ({ id: String(m.id).trim(), name: m.name || '', phone: normalizePhone(m.phone || ''), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', updated_at: new Date().toISOString() }))
+          .filter(m => m.id && !isNaN(m.lat) && !isNaN(m.lon));
+        const { error } = await db.from('master_customers').upsert(chunk, { onConflict: 'id' });
+        if (error) throw error;
+      }
+    }
+    async function deleteMasterNotIn(keep) {
+      const cur = await fetchAllRows('master_customers', 'id', 'id');
+      const del = cur.map(r => r.id).filter(id => !keep.has(id));
+      for (let i = 0; i < del.length; i += 100) {
+        const { error } = await db.from('master_customers').delete().in('id', del.slice(i, i + 100));
+        if (error) throw error;
+      }
+    }
 
     const STORAGE_KEY_MASTER_CACHE = "FMCG_MASTER_CLOUD_CACHE_V4";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
@@ -802,7 +1152,8 @@
     }
 
     function getTodayString() {
-      return new Date().toISOString().split('T')[0];
+      try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()); }
+      catch (e) { return new Date(Date.now() + 7 * 3600000).toISOString().split('T')[0]; }
     }
 
     function safeRenderIcons() {
@@ -887,113 +1238,38 @@
       }
       closeDepotModal();
 
-      // ĐẨY VỊ TRÍ KHO LÊN CLOUD SUPABASE
-      if (supabase) {
-        await supabase.from('app_settings').upsert({
-          key_name: 'warehouse_depot',
-          setting_val: warehouseDepot,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'key_name' });
-      }
-
-      alert(`ĐÃ LƯU VÀ ĐỒNG BỘ VỊ TRÍ KHO LÊN CLOUD:\n\n[${coords.lat}, ${coords.lon}]!`);
+      const ok = await cloudSetSetting('warehouse_depot', warehouseDepot);
+      alert(ok ? `ĐÃ LƯU VÀ ĐỒNG BỘ VỊ TRÍ KHO LÊN CLOUD:\n\n[${coords.lat}, ${coords.lon}]!\nMọi máy khác sẽ tự cập nhật.`
+               : `Đã lưu trên máy này nhưng CHƯA đồng bộ được lên Cloud (đang mất kết nối hoặc chưa tải xong dữ liệu). Bấm biểu tượng Cloud để thử lại rồi lưu lại.`);
     }
 
     // -------------------------------------------------------------------------
     // 4. QUẢN LÝ MASTER DATA CLOUD
     // -------------------------------------------------------------------------
     async function loadMasterDataFromCloud() {
-      // 1. Tải cấu hình Kho từ Cloud về trước
-      if (supabase) {
-        try {
-          let { data: depotConf } = await supabase.from('app_settings').select('setting_val').eq('key_name', 'warehouse_depot').maybeSingle();
-          if (depotConf && depotConf.setting_val) {
-            warehouseDepot = depotConf.setting_val;
-            localStorage.setItem(STORAGE_KEY_DEPOT, JSON.stringify(warehouseDepot));
-            if (map) {
-              map.setView([warehouseDepot.lat, warehouseDepot.lon], 13);
-              drawDepotPin();
-            }
-          }
-        } catch (e) {}
-      }
-
-      // 2. Tải Master Data GPS từ Cloud
-      if (!supabase) return;
-      try {
-        let { data, error } = await supabase.from('master_customers').select('*');
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          masterGpsMap.clear();
-          data.forEach(m => {
-            masterGpsMap.set(m.id, {
-              id: m.id,
-              name: m.name,
-              phone: normalizePhone(m.phone),
-              lat: parseFloat(m.lat),
-              lon: parseFloat(m.lon),
-              addr: m.addr || ''
-            });
-          });
-          localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
-          updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
-        } else {
-          // Nếu Cloud chưa có, lấy từ Cache máy lên
-          let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
-          if (Array.isArray(cached) && cached.length > 0) {
-            cached.forEach(m => masterGpsMap.set(m.id, m));
-            updateMasterCountBadge(masterGpsMap.size, "Cache máy");
-          }
-        }
-      } catch (err) {
-        console.warn("Không thể tải Master Data từ Supabase:", err);
-      }
+      if (!db) return;
+      const data = await fetchAllRows('master_customers', '*', 'id');
+      if (data.length > 0) {
+        masterGpsMap.clear();
+        data.forEach(m => masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '' }));
+        localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
+        updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
+      } else if (masterGpsMap.size > 0) {
+        updateMasterCountBadge(masterGpsMap.size, "Cache máy - CHƯA lên Cloud");
+      } else updateMasterCountBadge(0, "Cloud trống");
     }
 
     // HÀM ĐẨY TOÀN BỘ 624 ĐIỂM MAP HIỆN CÓ LÊN CLOUD
    async function forcePushLocalMasterToCloud() {
-      let sb = getSupabase();
-      if (!sb) {
-        return alert("Trình duyệt chưa tải xong thư viện Supabase! Vui lòng kiểm tra lại đường truyền và F5 lại trang.");
-      }
-
-      let list = Array.from(masterGpsMap.values());
-      if (list.length === 0) {
-        // Nếu bộ nhớ tạm rỗng, thử đọc từ cache máy
-        let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
-        if (Array.isArray(cached) && cached.length > 0) {
-          cached.forEach(m => masterGpsMap.set(m.id, m));
-          list = cached;
-        }
-      }
-
-      if (list.length === 0) {
-        return alert("Không tìm thấy dữ liệu tọa độ nào trong bộ nhớ máy này để đẩy lên Cloud!");
-      }
-
-      if (!confirm(`Tìm thấy ${list.length} điểm map trên máy này. Bắt đầu đẩy toàn bộ lên Cloud Supabase?`)) return;
-
-      let successCount = 0;
-      for (let i = 0; i < list.length; i += 100) {
-        let chunk = list.slice(i, i + 100).map(m => ({
-          id: String(m.id).trim(),
-          name: m.name || '',
-          phone: normalizePhone(m.phone || ''),
-          lat: parseFloat(m.lat),
-          lon: parseFloat(m.lon),
-          addr: m.addr || ''
-        })).filter(m => m.id && !isNaN(m.lat) && !isNaN(m.lon));
-
-        let { error } = await sb.from('master_customers').upsert(chunk, { onConflict: 'id' });
-        if (error) {
-          return alert("Lỗi khi lưu lên Cloud: " + error.message);
-        }
-        successCount += chunk.length;
-      }
-
-      alert(`ĐÃ ĐẨY THÀNH CÔNG ${successCount} KHÁCH HÀNG LÊN CLOUD SUPABASE!\nBây giờ mọi thiết bị khác mở lên đều sẽ có chung dữ liệu.`);
-      await loadMasterDataFromCloud();
+      if (!(await ensureSupabase())) return alert("Trình duyệt chưa tải được thư viện Supabase! Kiểm tra mạng rồi F5 lại trang.");
+      const list = Array.from(masterGpsMap.values());
+      if (list.length === 0) return alert("Không tìm thấy dữ liệu tọa độ nào trên máy này để đẩy lên Cloud!");
+      if (!confirm(`Tìm thấy ${list.length} điểm map trên máy này. Đẩy toàn bộ lên Cloud Supabase?`)) return;
+      try {
+        await upsertMasterChunks(list);
+        await loadMasterDataFromCloud(); refreshStopMappingFromMaster(); refreshAllViews();
+        alert(`ĐÃ ĐẨY THÀNH CÔNG ${list.length} KHÁCH HÀNG LÊN CLOUD!\nMọi thiết bị khác mở lên sẽ có chung dữ liệu.`);
+      } catch (e) { alert("Lỗi khi lưu lên Cloud: " + (e.message || e)); }
     }
 
     function updateMasterCountBadge(count, source) {
@@ -1017,66 +1293,32 @@
       document.getElementById('masterAdminModal').classList.add('hidden');
     }
 
-    document.getElementById('fileOverwriteMaster').addEventListener('change', function(e) {
-      let file = e.target.files[0];
+    document.getElementById('fileOverwriteMaster').addEventListener('change', function (e) {
+      const input = e.target, file = input.files[0];
       if (!file) return;
-
-      let reader = new FileReader();
-      reader.onload = async function(evt) {
+      if (!db || !cloudReady) { input.value = ''; return alert("Chưa kết nối Cloud nên chưa thể ghi đè Master. Vui lòng bấm biểu tượng Cloud để đồng bộ lại."); }
+      const reader = new FileReader();
+      reader.onload = async evt => {
         try {
-          let data = new Uint8Array(evt.target.result);
-          let workbook = XLSX.read(data, { type: 'array' });
-          let rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
-          // 1. TỰ ĐỘNG SAO LƯU DỮ LIỆU HIỆN CÓ LÊN BẢNG BACKUP
-          if (supabase) {
-            let { data: curData } = await supabase.from('master_customers').select('*');
-            if (curData && curData.length > 0) {
-              await supabase.from('master_customers_backup').upsert({
-                id: 1,
-                backup_version: new Date().toISOString(),
-                data: curData
-              });
-            }
-          }
-
-          let count = 0;
-          let batchUpsert = [];
+          const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+          const list = [];
           rows.forEach(r => {
-            let id = String(r['Mã khách hàng KiotViet'] || r['Mã KH'] || '').trim();
-            let lat = parseFloat(r['Vĩ độ (Lat)'] || r['Lat'] || r['Vĩ độ']);
-            let lon = parseFloat(r['Kinh độ (Long)'] || r['Long'] || r['Kinh độ']);
-
-            if (id && !isNaN(lat) && !isNaN(lon)) {
-              let item = {
-                id,
-                name: r['Tên khách hàng KiotViet'] || r['Tên KH'] || '',
-                phone: normalizePhone(r['SĐT chuẩn'] || r['SĐT'] || ''),
-                lat,
-                lon,
-                addr: r['Địa chỉ thực tế tại Bình Dương'] || r['Địa chỉ'] || ''
-              };
-              masterGpsMap.set(id, item);
-              batchUpsert.push(item);
-              count++;
-            }
+            const id = String(r['Mã khách hàng KiotViet'] || r['Mã KH'] || '').trim();
+            let lat = parseFloat(r['Vĩ độ (Lat)'] || r['Lat'] || r['Vĩ độ']), lon = parseFloat(r['Kinh độ (Long)'] || r['Long'] || r['Kinh độ']);
+            if ((isNaN(lat) || isNaN(lon)) && r['Tọa độ GPS']) { const c = parseCoords(r['Tọa độ GPS']); if (c) { lat = c.lat; lon = c.lon; } }
+            if (id && !isNaN(lat) && !isNaN(lon)) list.push({ id, name: r['Tên khách hàng KiotViet'] || r['Tên KH'] || '', phone: normalizePhone(r['SĐT chuẩn'] || r['SĐT'] || ''), lat, lon, addr: r['Địa chỉ thực tế tại Bình Dương'] || r['Địa chỉ'] || '' });
           });
-
-          if (supabase && batchUpsert.length > 0) {
-            for (let i = 0; i < batchUpsert.length; i += 100) {
-              let chunk = batchUpsert.slice(i, i + 100);
-              let { error } = await supabase.from('master_customers').upsert(chunk, { onConflict: 'id' });
-              if (error) console.error("Lỗi batch upsert:", error);
-            }
-          }
-
-          localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
-          updateMasterCountBadge(masterGpsMap.size, "Cloud Đã Ghi Đè");
-          alert(`ĐÃ GHI ĐÈ THÀNH CÔNG ${count} TỌA ĐỘ LÊN SUPABASE CLOUD VĨNH VIỄN!`);
+          if (list.length === 0) return alert("File không có dòng hợp lệ (cần Mã KH + Vĩ độ + Kinh độ). Không có gì bị thay đổi.");
+          if (!confirm(`File có ${list.length} khách hàng.\n\nGHI ĐÈ toàn bộ Master hiện tại bằng file này?\n(Bản hiện tại sẽ được SAO LƯU TỰ ĐỘNG trước - có nút Restore để khôi phục.)`)) return;
+          const nBackup = await backupMasterToCloud();         // lỗi sao lưu => dừng, không ghi đè
+          await upsertMasterChunks(list);
+          await deleteMasterNotIn(new Set(list.map(x => x.id)));
+          await loadMasterDataFromCloud(); refreshStopMappingFromMaster(); refreshAllViews();
+          alert(`ĐÃ GHI ĐÈ THÀNH CÔNG ${list.length} TỌA ĐỘ LÊN CLOUD!\nĐã sao lưu ${nBackup} khách của bản cũ.`);
           closeMasterAdminModal();
-        } catch (err) {
-          alert("Lỗi đọc file: " + err.message);
-        }
+        } catch (err) { alert("Lỗi ghi đè Master (dữ liệu cũ vẫn an toàn trong backup): " + (err.message || err)); }
+        finally { input.value = ''; }
       };
       reader.readAsArrayBuffer(file);
     });
@@ -1096,9 +1338,7 @@
       let newRecord = { id, name, phone: normalizePhone(phone), lat: coords.lat, lon: coords.lon, addr };
       masterGpsMap.set(id, newRecord);
 
-      if (supabase) {
-        await supabase.from('master_customers').upsert(newRecord, { onConflict: 'id' });
-      }
+      if (db) { const { error } = await db.from('master_customers').upsert(newRecord, { onConflict: 'id' }); if (error) return alert("Lỗi lưu Cloud: " + error.message); }
 
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
       alert(`Đã lưu vĩnh viễn khách hàng [${id} - ${name}] lên Cloud!`);
@@ -1126,178 +1366,117 @@
       XLSX.writeFile(wb, "Data_KhachHang_Master_KiotViet_Cloud.xlsx");
     }
 async function restoreMasterBackupFromCloud() {
-      if (!supabase) return;
-      let { data } = await supabase.from('master_customers_backup').select('*').eq('id', 1).maybeSingle();
-      if (!data || !data.data) return alert("Chưa có bản sao lưu dự phòng nào trên Cloud!");
-
-      if (!confirm(`Khôi phục lại dữ liệu Master từ bản sao lưu lúc ${new Date(data.backup_version).toLocaleString()}?`)) return;
-
-      for (let i = 0; i < data.data.length; i += 100) {
-        await supabase.from('master_customers').upsert(data.data.slice(i, i + 100), { onConflict: 'id' });
-      }
-
-      alert("ĐÃ KHÔI PHỤC THÀNH CÔNG BẢN MASTER TRƯỚC ĐÓ!");
-      closeMasterAdminModal();
-      await loadMasterDataFromCloud();
+      if (!db || !cloudReady) return alert("Chưa kết nối Cloud.");
+      const { data, error } = await db.from('master_customers_backup').select('*').eq('id', 1).maybeSingle();
+      if (error) return alert("Lỗi đọc bản sao lưu: " + error.message);
+      if (!data || !Array.isArray(data.data) || data.data.length === 0) return alert("Chưa có bản sao lưu dự phòng nào trên Cloud!");
+      if (!confirm(`Khôi phục Master từ bản sao lưu lúc ${new Date(data.backup_version).toLocaleString('vi-VN')} (${data.data.length} khách)?\nBản Master hiện tại sẽ được đổi vào mục sao lưu (có thể hoàn tác).`)) return;
+      try {
+        await backupMasterToCloud();
+        await upsertMasterChunks(data.data);
+        await deleteMasterNotIn(new Set(data.data.map(x => x.id)));
+        await loadMasterDataFromCloud(); refreshStopMappingFromMaster(); refreshAllViews();
+        alert("ĐÃ KHÔI PHỤC THÀNH CÔNG BẢN MASTER TRƯỚC ĐÓ!");
+        closeMasterAdminModal();
+      } catch (e) { alert("Lỗi khôi phục: " + (e.message || e)); }
     }
     // -------------------------------------------------------------------------
     // 5. NẠP HÓA ĐƠN KIOTVIET & TỰ ĐỘNG HIỂN THỊ DANH SÁCH
     // -------------------------------------------------------------------------
-    document.getElementById('fileInvoice').addEventListener('change', function(e) {
-      let file = e.target.files[0];
+    document.getElementById('fileInvoice').addEventListener('change', function (e) {
+      const input = e.target, file = input.files[0];
       if (!file) return;
-
+      if (!db || !cloudReady) { input.value = ''; return alert("Chưa đồng bộ xong với Cloud nên chưa nạp đơn (tránh làm mất đơn các máy khác). Hãy đợi vài giây hoặc bấm biểu tượng Cloud để tải lại."); }
       document.getElementById('labelInvoice').innerText = file.name.substring(0, 18) + '...';
-      let reader = new FileReader();
-      reader.onload = function(evt) {
+      const reader = new FileReader();
+      reader.onload = async evt => {
         try {
-          let data = new Uint8Array(evt.target.result);
-          let workbook = XLSX.read(data, { type: 'array' });
-          dailyInvoicesRaw = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
-          document.getElementById('subInvoice').innerText = `Đã nạp ${dailyInvoicesRaw.length} dòng đơn`;
-          document.getElementById('subInvoice').className = "text-[10px] text-blue-600 font-bold";
-
-          let btn = document.getElementById('btnSmartDispatch');
-          btn.disabled = false;
-          btn.className = "flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition cursor-pointer";
-
-          groupInvoicesIntoInitialStops();
-          
-          // Khắc phục lỗi 1: Tự động chuyển qua xem toàn bộ đơn vừa nạp
-          let hasAssignedTrucks = fleet.some(t => t.stops.length > 0);
-          if (!hasAssignedTrucks) {
-            setStopTab('all_imported');
-          }
-        } catch (err) {
-          alert("Lỗi đọc file: " + err.message);
-        }
+          const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+          dailyInvoicesRaw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+          await loadTodaySessionFromCloud();                    // lấy đợt mới nhất do máy khác nạp trước khi gộp
+          const st = mergeInvoiceRows(dailyInvoicesRaw);
+          if (fleet.some(t => t.stops.length > 0)) currentStopTab = 'unassigned';
+          else currentStopTab = 'all_imported';
+          refreshAllViews();
+          await savePermanentEdits();
+          for (const t of fleet) if (t.stops.length > 0) await syncTruckStopsToCloud(t);
+          alert(`ĐÃ GỘP ĐỢT NẠP MỚI:\n• +${st.newInv} hóa đơn mới (${st.newStops} điểm giao mới)\n• Bỏ qua ${st.dupInv} hóa đơn đã nạp từ trước\n` +
+                (st.reopened ? `• ${st.reopened} điểm đã giao được mở lại do phát sinh đơn mới\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
+        } catch (err) { alert("Lỗi đọc file: " + err.message); }
+        finally { input.value = ''; }
       };
       reader.readAsArrayBuffer(file);
     });
 
-    function groupInvoicesIntoInitialStops() {
-  let physicalStopsMap = new Map();
-  let invoiceCodMap = new Map();
-
-  // BỔ SUNG: Giữ lại các đơn đã nạp từ các file trước đó trong ngày
-  allMergedStops.forEach(s => {
-    physicalStopsMap.set(s.canonicalId, s);
-  });
-
-  dailyInvoicesRaw.forEach(row => {
-    let invId = String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim();
-    let rawCustId = String(row['Mã khách hàng'] || row['Mã KH'] || '').trim();
-    if (!invId || !rawCustId || invId.toLowerCase().includes('tổng')) return;
-
-    let codVal = parseFloat(String(row['Còn cần thu (COD)'] || row['Khách cần trả'] || row['Thành tiền'] || 0).replace(/,/g, ''));
-    if (!isNaN(codVal) && !invoiceCodMap.has(invId)) {
-      invoiceCodMap.set(invId, codVal);
-    }
-  });
-
-  dailyInvoicesRaw.forEach(row => {
-    let rawCustId = String(row['Mã khách hàng'] || row['Mã KH'] || '').trim();
-    let invId = String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim();
-    // Bỏ qua dòng tổng cộng của KiotViet
-    if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
-
-    let custName = row['Tên khách hàng'] || row['Tên KH'] || '';
-    let itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
-    let rawQty = parseFloat(String(row['Số lượng'] || 1).replace(/,/g, '')) || 0;
-    let unit = String(row['ĐVT'] || row['Đơn vị tính'] || 'Thùng').trim();
-    let lineAmount = parseFloat(String(row['Thành tiền'] || 0).replace(/,/g, '')) || 0;
-
-    // Quy đổi thông minh các đơn vị lẻ (Lon, Chai, Lốc, Gói) ra Thùng để không bị vọt lên 41.845 thùng
-    let uLower = unit.toLowerCase();
-    let boxEquivalent = rawQty;
-    if (uLower.includes('lon') || uLower.includes('chai') || uLower.includes('gói') || uLower.includes('hộp') || uLower.includes('ly')) {
-      boxEquivalent = rawQty / 24;
-    } else if (uLower.includes('lốc') || uLower.includes('vỉ') || uLower.includes('bịch')) {
-      boxEquivalent = rawQty / 4;
-    }
-    // Nếu 1 dòng đơn vị không rõ mà số lượng > 300 thì tự động tính quy đổi chia 24
-    if (boxEquivalent > 300) {
-      boxEquivalent = boxEquivalent / 24;
-    }
-
-    let canonicalId = rawCustId;
-    let aliasTarget = storeAliasMap.get(rawCustId);
-    if (aliasTarget) canonicalId = aliasTarget.targetId;
-
-    if (!physicalStopsMap.has(canonicalId)) {
-      let master = masterGpsMap.get(canonicalId) || masterGpsMap.get(rawCustId);
-      let targetName = aliasTarget ? aliasTarget.name : (master ? master.name : custName);
-      let targetLat = aliasTarget ? aliasTarget.lat : (master ? master.lat : null);
-      let targetLon = aliasTarget ? aliasTarget.lon : (master ? master.lon : null);
-      let targetAddr = master ? master.addr : (row['Địa chỉ (Khách hàng)'] || '');
-      let phoneRaw = master ? master.phone : (row['Điện thoại'] || '');
-
-      physicalStopsMap.set(canonicalId, {
-        canonicalId,
-        rawIds: new Set([rawCustId]),
-        custName: targetName,
-        phone: normalizePhone(phoneRaw),
-        addr: targetAddr,
-        lat: targetLat,
-        lon: targetLon,
-        isMapped: !!(targetLat && targetLon),
-        totalQty: 0,
-        totalCod: 0,
-        items: [],
-        invoices: new Set(),
-        status: 'pending',
-        failedReason: '',
-        truckId: null
+    function mergeInvoiceRows(rows) {
+      const byId = new Map(allMergedStops.map(s => [s.canonicalId, s]));
+      const known = new Set(); allMergedStops.forEach(s => s.invoices.forEach(i => known.add(i)));
+      const keyOf = row => ({ inv: String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim(), cust: String(row['Mã khách hàng'] || row['Mã KH'] || '').trim() });
+      const codByInv = new Map();
+      rows.forEach(row => {
+        const { inv, cust } = keyOf(row);
+        if (!inv || !cust || inv.toLowerCase().includes('tổng')) return;
+        const cod = parseFloat(String(row['Còn cần thu (COD)'] || row['Khách cần trả'] || row['Thành tiền'] || 0).replace(/,/g, ''));
+        if (!isNaN(cod) && !codByInv.has(inv)) codByInv.set(inv, cod);
       });
+      const newInv = new Set(), dupInv = new Set(), touched = new Set(); let newStops = 0, reopened = 0;
+      rows.forEach(row => {
+        const { inv: invId, cust: rawCustId } = keyOf(row);
+        if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
+        if (known.has(invId)) { dupInv.add(invId); return; }      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
+        const custName = row['Tên khách hàng'] || row['Tên KH'] || '';
+        const itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
+        const rawQty = parseFloat(String(row['Số lượng'] || 1).replace(/,/g, '')) || 0;
+        const unit = String(row['ĐVT'] || row['Đơn vị tính'] || 'Thùng').trim();
+        const lineAmount = parseFloat(String(row['Thành tiền'] || 0).replace(/,/g, '')) || 0;
+        const uLower = unit.toLowerCase();
+        let boxEquivalent = rawQty;
+        if (uLower.includes('lon') || uLower.includes('chai') || uLower.includes('gói') || uLower.includes('hộp') || uLower.includes('ly')) boxEquivalent = rawQty / 24;
+        else if (uLower.includes('lốc') || uLower.includes('vỉ') || uLower.includes('bịch')) boxEquivalent = rawQty / 4;
+        if (boxEquivalent > 300) boxEquivalent = boxEquivalent / 24;
+
+        let canonicalId = rawCustId;
+        const aliasTarget = storeAliasMap.get(rawCustId);
+        if (aliasTarget) canonicalId = aliasTarget.targetId;
+        if (!byId.has(canonicalId)) {
+          const master = masterGpsMap.get(canonicalId) || masterGpsMap.get(rawCustId);
+          const lat = aliasTarget ? aliasTarget.lat : (master ? master.lat : null), lon = aliasTarget ? aliasTarget.lon : (master ? master.lon : null);
+          const stop = hydrateStop({
+            canonicalId, rawIds: [rawCustId], custName: aliasTarget ? aliasTarget.name : (master ? master.name : custName),
+            phone: normalizePhone(master ? master.phone : (row['Điện thoại'] || '')), addr: master ? master.addr : (row['Địa chỉ (Khách hàng)'] || ''),
+            lat, lon, isMapped: !!(lat && lon), totalQty: 0, totalCod: 0, items: [], invoices: [], status: 'pending', failedReason: '', truckId: null
+          });
+          byId.set(canonicalId, stop); allMergedStops.push(stop); newStops++;
+        }
+        const s = byId.get(canonicalId);
+        if (s.status !== 'pending') { s.status = 'pending'; s.failedReason = ''; reopened++; }   // phát sinh đơn mới cho điểm đã giao
+        s.rawIds.add(rawCustId);
+        s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
+        s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
+        if (!s.invoices.has(invId)) { s.invoices.add(invId); s.totalCod = (s.totalCod || 0) + (codByInv.get(invId) || 0); }
+        newInv.add(invId); touched.add(s);
+      });
+      touched.forEach(s => { s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10); });
+      refreshStopMappingFromMaster();
+      return { newInv: newInv.size, dupInv: dupInv.size, newStops, reopened };
     }
-
-    let s = physicalStopsMap.get(canonicalId);
-    if (!s.rawIds || !(s.rawIds instanceof Set)) s.rawIds = new Set();
-    if (!s.invoices || !(s.invoices instanceof Set)) s.invoices = new Set();
-
-    s.rawIds.add(rawCustId);
-    s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
-    s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
-    if (invId) s.invoices.add(invId);
-  });
-
-  physicalStopsMap.forEach(s => {
-    s.totalCod = 0;
-    s.invoices.forEach(invId => s.totalCod += (invoiceCodMap.get(invId) || 0));
-    s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10);
-  });
-
-  allMergedStops = Array.from(physicalStopsMap.values());
-  unmappedStops = allMergedStops.filter(s => !s.isMapped);
-  unassignedStops = allMergedStops.filter(s => s.truckId === null);
-
-  let warnPanel = document.getElementById('unmappedWarningPanel');
-  if (unmappedStops.length > 0) {
-    warnPanel.classList.remove('hidden');
-    document.getElementById('unmappedCountBadge').innerText = unmappedStops.length;
-  } else {
-    warnPanel.classList.add('hidden');
-  }
-
-  document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
-  let badgeAll = document.getElementById('allImportedCountBadge');
-  if (badgeAll) badgeAll.innerText = allMergedStops.length;
-
-  renderStopsList();
-  renderRouteOnMap();
-  updateDashboardReport();
-}
 
     // -------------------------------------------------------------------------
     // 6. THUẬT TOÁN ĐIỀU PHỐI TỰ ĐỘNG & CÂN BẰNG TẢI TRỌNG
     // -------------------------------------------------------------------------
    async function runSmartFleetDispatch() {
   if (allMergedStops.length === 0) return;
-  fleet.forEach(t => t.stops = []);
-  allMergedStops.forEach(s => s.truckId = null);
+  if (!cloudReady) return alert("Chưa đồng bộ xong với Cloud, vui lòng thử lại sau vài giây.");
+  if (fleet.some(t => t.stops.length > 0)) {
+    let fullReset = !confirm("Đã có đơn được xếp xe.\n\nOK = CHỈ xếp các đơn CHƯA XẾP vào chỗ trống của các xe (giữ nguyên xe đã xếp).\nCancel = xem tùy chọn xếp lại toàn bộ.");
+    if (fullReset) {
+      if (!confirm("Xếp lại TOÀN BỘ các đơn chưa giao từ đầu?\n(Đơn đã giao / đã hủy vẫn giữ nguyên trên xe cũ.)")) return;
+      fleet.forEach(t => { t.stops = t.stops.filter(s => s.status !== 'pending'); });
+    }
+  }
+  allMergedStops.forEach(s => { if (!fleet.some(t => t.stops.includes(s))) s.truckId = null; });
 
-  let mappedStops = allMergedStops.filter(s => s.isMapped);
+  let mappedStops = allMergedStops.filter(s => s.isMapped && s.truckId === null);
   unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
   // Sắp xếp các điểm theo góc quét địa lý quanh Kho để các điểm cùng hướng đi chung 1 xe
@@ -1312,13 +1491,12 @@ async function restoreMasterBackupFromCloud() {
   // Phân bổ thông minh: Đi từng xe, chọn điểm hạt nhân và gom các điểm lân cận vừa khít tải trọng
   for (let tIdx = 0; tIdx < fleet.length; tIdx++) {
     let truck = fleet[tIdx];
-    let currentLoad = 0;
+    let currentLoad = truck.stops.reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0);
 
     while (remaining.length > 0) {
       // Tìm điểm gần nhất với điểm vừa giao (hoặc gần kho nếu là điểm đầu tiên của xe)
-      let refPos = truck.stops.length > 0
-        ? { lat: truck.stops[truck.stops.length - 1].lat, lon: truck.stops[truck.stops.length - 1].lon }
-        : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
+      let lastMapped = [...truck.stops].reverse().find(x => x.isMapped);
+      let refPos = lastMapped ? { lat: lastMapped.lat, lon: lastMapped.lon } : { lat: warehouseDepot.lat, lon: warehouseDepot.lon };
 
       let bestIdx = -1;
       let bestScore = Infinity;
@@ -1329,7 +1507,7 @@ async function restoreMasterBackupFromCloud() {
         if (currentLoad + s.totalQty <= truck.maxCapacity) {
           let distFromLast = calcDistanceKm(refPos.lat, refPos.lon, s.lat, s.lon);
           // Nếu là điểm mở đầu của xe thì lấy điểm đầu dải quạt góc cực
-          let score = truck.stops.length === 0 ? i * 0.1 : distFromLast;
+          let score = !lastMapped ? i * 0.1 : distFromLast;
           if (score < bestScore) {
             bestScore = score;
             bestIdx = i;
@@ -1374,9 +1552,9 @@ async function restoreMasterBackupFromCloud() {
   renderRouteOnMap();
   updateDashboardReport();
   checkButtonsState();
-  savePermanentEdits();
+  await savePermanentEdits();
 
-  if (supabase) {
+  if (db) {
     for (let t of fleet) {
       if (t.stops.length > 0) await syncTruckStopsToCloud(t);
     }
@@ -1537,7 +1715,7 @@ async function restoreMasterBackupFromCloud() {
     }
   });
 
-  optimizeTruckSequence(targetTruck);
+  fleet.forEach(t => optimizeTruckSequence(t));
   selectedStopIds.clear();
   updateManualRoutingBarState();
   unassignedStops = allMergedStops.filter(s => s.truckId === null);
@@ -1552,7 +1730,7 @@ async function restoreMasterBackupFromCloud() {
   checkButtonsState();
   savePermanentEdits();
 
-  await syncTruckStopsToCloud(targetTruck);
+  for (const t of fleet) await syncTruckStopsToCloud(t);
   alert(`ĐÃ GÁN VÀO ${targetTruck.name.toUpperCase()} THÀNH CÔNG!`);
 }
 
@@ -1581,7 +1759,7 @@ async function restoreMasterBackupFromCloud() {
       checkButtonsState();
       savePermanentEdits();
 
-      if (supabase) {
+      if (db) {
         for (let t of fleet) await syncTruckStopsToCloud(t);
       }
     }
@@ -1589,32 +1767,8 @@ async function restoreMasterBackupFromCloud() {
     // -------------------------------------------------------------------------
     // 8. KHỞI CHẠY HỆ THỐNG AN TOÀN & SUPABASE REALTIME
     // -------------------------------------------------------------------------
-   window.addEventListener('DOMContentLoaded', async () => {
-      try {
-        let isDriver = checkDriverRoutingModeSync();
-        if (!isDriver) {
-          // 1. Tải kho và alias cục bộ làm mặc định tạm
-          loadPermanentData();
-          checkMonthlyAutoReset();
-          renderFleetTabs();
-          updateManualTruckDropdown();
-          safeRenderIcons();
-
-          setTimeout(() => {
-            try { initMap(); } catch (e) {}
-          }, 150);
-
-          // 2. Đảm bảo Supabase Client sẵn sàng
-          getSupabase();
-
-          // 3. Kéo toàn bộ dữ liệu Cloud về đè lên dữ liệu máy trước khi bật tính năng lưu
-          await loadMasterDataFromCloud();
-          await backgroundSyncSupabase();
-          setupSupabaseRealtime();
-        }
-      } catch (err) {
-        console.error("Lỗi khởi tạo tổng thể:", err);
-      }
+window.addEventListener('DOMContentLoaded', () => {
+      bootstrapApp().catch(err => { console.error(err); hideBoot(); setCloudStatus(false, 'Lỗi khởi tạo: ' + (err.message || err)); });
     });
 
     window.addEventListener('resize', () => {
@@ -1622,92 +1776,11 @@ async function restoreMasterBackupFromCloud() {
       if (drvMap) drvMap.invalidateSize();
     });
 
-    function setupSupabaseRealtime() {
-      if (!supabase) return;
-      try {
-        let today = getTodayString();
-        supabase
-          .channel('public:daily_orders')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_orders', filter: `order_date=eq.${today}` }, payload => {
-            backgroundSyncSupabase();
-          })
-          .subscribe();
-      } catch (err) {
-        console.warn("Lỗi đăng ký Supabase Realtime:", err);
-      }
-    }
+    
 
-    function applyRemoteTruckUpdate(record) {
-  let truck = fleet.find(t => t.id === record.truck_id);
-  if (truck) {
-    truck.stops = record.stops || [];
+    
 
-    // Cập nhật trạng thái từng đơn vào danh sách tổng để Dashboard tự nhảy tiền & %
-    truck.stops.forEach(remoteStop => {
-      let mainStop = allMergedStops.find(s => s.canonicalId === remoteStop.canonicalId);
-      if (mainStop) {
-        mainStop.status = remoteStop.status;
-        mainStop.failedReason = remoteStop.failedReason;
-      }
-    });
-
-    updateDashboardReport();
-    renderStopsList();
-    renderFleetTabs();
-    if (record.truck_id === activeTruckId) renderRouteOnMap();
-  }
-}
-
-    async function backgroundSyncSupabase() {
-      if (!supabase) return;
-      try {
-        let today = getTodayString();
-
-        // 1. Kéo phiên làm việc đầy đủ của ngày hôm nay từ Cloud
-        let { data: sessionRecord } = await supabase
-          .from('daily_orders')
-          .select('session_data')
-          .eq('order_date', today)
-          .maybeSingle();
-
-        if (sessionRecord && sessionRecord.session_data) {
-          let sess = sessionRecord.session_data;
-          if (sess.fleet) fleet = sess.fleet;
-          if (sess.activeTruckId) activeTruckId = sess.activeTruckId;
-          if (sess.allMergedStops) {
-            allMergedStops = sess.allMergedStops.map(s => {
-              s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
-              s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
-              return s;
-            });
-          }
-          if (sess.unmappedStops) unmappedStops = sess.unmappedStops;
-          if (sess.unassignedStops) unassignedStops = sess.unassignedStops;
-
-          // Cập nhật các badge số lượng trên giao diện
-          let badgeAll = document.getElementById('allImportedCountBadge');
-          if (badgeAll) badgeAll.innerText = allMergedStops.length;
-          let badgeUnassigned = document.getElementById('unassignedCountBadge');
-          if (badgeUnassigned) badgeUnassigned.innerText = unassignedStops.length;
-          let badgeUnmap = document.getElementById('unmappedCountBadge');
-          let warnPanel = document.getElementById('unmappedWarningPanel');
-          if (badgeUnmap && warnPanel) {
-            badgeUnmap.innerText = unmappedStops.length;
-            if (unmappedStops.length > 0) warnPanel.classList.remove('hidden');
-            else warnPanel.classList.add('hidden');
-          }
-        }
-
-        renderFleetTabs();
-        updateTruckSummary();
-        renderStopsList();
-        renderRouteOnMap();
-        updateDashboardReport();
-        checkButtonsState();
-      } catch (e) {
-        console.warn("Lỗi sync phiên điều phối:", e);
-      }
-    }
+    
 
     // -------------------------------------------------------------------------
     // 9. APP ĐỘC LẬP TÀI XẾ & BẢN ĐỒ THU NHỎ
@@ -1723,6 +1796,7 @@ function checkDriverRoutingModeSync() {
   let hash = window.location.hash || '';
   if (!hash.startsWith('#/driver')) return false;
 
+  isDriverMode = true;
   let elDispatch = document.getElementById('dispatchAppContainer');
   let elDriver = document.getElementById('driverStandaloneApp');
   if (elDispatch) elDispatch.classList.add('hidden');
@@ -1735,7 +1809,7 @@ function checkDriverRoutingModeSync() {
   let orderDate = urlParams.get('date') || getTodayString();
   let embeddedData = urlParams.get('d') || '';
 
-  loadPermanentData();
+  loadLocalCache();
   activeTruckId = paramTruckId;
 
   // 2. Đổi ngay tiêu đề trên thanh màu xanh theo đúng xe (Không bao giờ bị kẹt chữ Xe 1 nữa)
@@ -1776,30 +1850,9 @@ function checkDriverRoutingModeSync() {
   // Vẽ ngay nếu đã có dữ liệu từ gói nhúng hoặc bộ nhớ
   renderDriverAppCards();
 
-  // 4. Đồng bộ thêm trạng thái mới nhất từ Cloud Supabase
-  if (supabase) {
-    supabase.from('dispatch_sessions')
-      .select('*')
-      .eq('order_date', orderDate)
-      .eq('truck_id', activeTruckId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data && Array.isArray(data.stops) && data.stops.length > 0) {
-          let truck = fleet.find(t => t.id === activeTruckId);
-          if (!truck) {
-            truck = { id: activeTruckId, name: data.truck_name || `Xe ${activeTruckId}`, plate: data.plate || '', driver: data.driver_name || '', phone: data.driver_phone || '', maxCapacity: data.max_capacity || 150, stops: [] };
-            fleet.push(truck);
-          }
-          truck.stops = data.stops;
-          truck.driver = data.driver_name || truck.driver;
-          truck.plate = data.plate || truck.plate;
-          truck.name = data.truck_name || truck.name;
-
-          renderDriverAppCards();
-          setTimeout(() => renderDriverMiniMapRoute(truck.stops), 200);
-        }
-      }).catch(err => console.warn("Lỗi tải Supabase:", err));
-  }
+  // 4. Đồng bộ trạng thái mới nhất + vị trí kho từ Cloud, nghe realtime
+  driverCloudRefresh(true);
+  setupDriverRealtime();
   return true;
 }
 
@@ -2032,7 +2085,7 @@ function renderDriverAppCards() {
   safeRenderIcons();
 }
     async function syncTruckStopsToCloud(truck) {
-  if (!supabase || !truck) return;
+  if (!db || !truck || !cloudReady) return;
   let today = getTodayString();
   try {
     // CHUYỂN ĐỔI BẮT BUỘC: Biến Set() thành mảng Array thường để Supabase lưu không bị rỗng
@@ -2056,7 +2109,7 @@ function renderDriverAppCards() {
       invoices: Array.from(s.invoices || [])
     }));
 
-    let { error } = await supabase.from('dispatch_sessions').upsert({
+    let { error } = await db.from('dispatch_sessions').upsert({
       order_date: today,
       truck_id: Number(truck.id),
       truck_name: truck.name,
@@ -2074,25 +2127,7 @@ function renderDriverAppCards() {
   }
 }
 
- async function driverMarkSuccess(canonicalId) {
-  let truck = fleet.find(t => t.id === activeTruckId);
-  let s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
-  if (!s) return;
-  s.status = 'success';
-  s.failedReason = '';
-
-  // Cập nhật ngay vào danh mục tổng
-  let mainStop = allMergedStops.find(x => x.canonicalId === canonicalId);
-  if (mainStop) {
-    mainStop.status = 'success';
-    mainStop.failedReason = '';
-  }
-
-  recordDeliveryHistory(s);
-  savePermanentEdits();
-  renderDriverAppCards();
-  await syncTruckStopsToCloud(truck);
-}
+ async function driverMarkSuccess(canonicalId) { await driverApplyStatus(canonicalId, 'success', ''); }
 
 function openDriverRejectPicker(canonicalId) {
   rejectingStopCanonicalId = canonicalId;
@@ -2109,24 +2144,9 @@ function closeDriverRejectModal() {
 
 async function submitDriverRejectReason(reason) {
   if (!rejectingStopCanonicalId) return;
-  let truck = fleet.find(t => t.id === activeTruckId);
-  let s = truck ? truck.stops.find(x => x.canonicalId === rejectingStopCanonicalId) : null;
-  if (!s) return;
-  s.status = 'failed';
-  s.failedReason = reason;
-
-  // Cập nhật ngay vào danh mục tổng
-  let mainStop = allMergedStops.find(x => x.canonicalId === rejectingStopCanonicalId);
-  if (mainStop) {
-    mainStop.status = 'failed';
-    mainStop.failedReason = reason;
-  }
-
-  recordDeliveryHistory(s);
+  const id = rejectingStopCanonicalId;
   closeDriverRejectModal();
-  savePermanentEdits();
-  renderDriverAppCards();
-  await syncTruckStopsToCloud(truck);
+  await driverApplyStatus(id, 'failed', reason);
 }
 
 
@@ -2154,21 +2174,7 @@ async function submitDriverRejectReason(reason) {
       renderDriverAppCards();
     }
 
-    async function refreshDriverData() {
-      let urlParams = new URLSearchParams((window.location.hash || '').split('?')[1] || '');
-      let orderDate = urlParams.get('date') || getTodayString();
-      if (supabase) {
-        try {
-          let { data } = await supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle();
-          if (data && data.stops) {
-            let truck = fleet.find(t => t.id === activeTruckId);
-            if (truck) truck.stops = data.stops;
-          }
-        } catch (e) {}
-      }
-      renderDriverAppCards();
-      alert("Đã cập nhật dữ liệu mới nhất!");
-    }
+    async function refreshDriverData() { await driverCloudRefresh(false); }
 
     // -------------------------------------------------------------------------
     // 10. GIAO DIỆN BÁO CÁO & HIỂN THỊ DANH SÁCH ĐƠN
@@ -2675,9 +2681,7 @@ async function submitDriverRejectReason(reason) {
       let item = { id: canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr };
       masterGpsMap.set(canonicalId, item);
 
-      if (supabase) {
-        await supabase.from('master_customers').upsert(item, { onConflict: 'id' });
-      }
+      if (db) { const { error } = await db.from('master_customers').upsert(item, { onConflict: 'id' }); if (error) return alert("Lỗi lưu tọa độ lên Cloud: " + error.message); }
 
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
 
@@ -2727,7 +2731,7 @@ async function submitDriverRejectReason(reason) {
       if (!targetMaster) return alert(`Không tìm thấy mã gốc "${tgt}" trong Master Data!`);
 
       storeAliasMap.set(src, { targetId: tgt, name: targetMaster.name, lat: targetMaster.lat, lon: targetMaster.lon });
-      savePermanentEdits();
+      persistSettings(['aliases']);
       alert(`ĐÃ LƯU VĨNH VIỄN:\n\nMã "${src}" từ nay sẽ tự động gom về điểm "${tgt}" (${targetMaster.name})!`);
       openAliasModal();
     }
@@ -2735,7 +2739,7 @@ async function submitDriverRejectReason(reason) {
     function removeAliasMapping(srcId) {
       if (confirm(`Xóa cấu hình gộp cho mã ${srcId}?`)) {
         storeAliasMap.delete(srcId);
-        savePermanentEdits();
+        persistSettings(['aliases']);
         openAliasModal();
       }
     }
@@ -2765,7 +2769,7 @@ async function submitDriverRejectReason(reason) {
       document.getElementById('fleetModal').classList.add('hidden');
       renderFleetTabs();
       updateManualTruckDropdown();
-      savePermanentEdits();
+      persistSettings(['fleet']); savePermanentEdits();
     }
 
     function updateVehicle(id, field, val) {
@@ -2781,7 +2785,7 @@ async function submitDriverRejectReason(reason) {
 
     function removeVehicle(id) {
       if (fleet.length <= 1) return alert("Cần giữ lại ít nhất 1 xe trong đội!");
-      fleet = fleet.filter(t => t.id !== id);
+      const gone = fleet.find(t => t.id === id); if (gone) gone.stops.forEach(s => s.truckId = null); fleet = fleet.filter(t => t.id !== id);
       if (activeTruckId === id) activeTruckId = fleet[0].id;
       openFleetConfigModal();
     }
@@ -2826,51 +2830,27 @@ async function submitDriverRejectReason(reason) {
     }
 
     function copySyncDataToClipboard() {
-      let serializableStops = allMergedStops.map(s => ({
-        ...s,
-        rawIds: Array.from(s.rawIds || []),
-        invoices: Array.from(s.invoices || [])
-      }));
-
-      let payload = {
-        depot: warehouseDepot,
-        aliases: Object.fromEntries(storeAliasMap),
-        fleet,
-        activeTruckId,
-        allMergedStops: serializableStops,
-        unmappedStops,
-        unassignedStops
-      };
+      const payload = { depot: warehouseDepot, aliases: Object.fromEntries(storeAliasMap), session: buildSessionPayload() };
       navigator.clipboard.writeText(JSON.stringify(payload)).then(() => {
-        alert("ĐÃ COPY MÃ ĐỒNG BỘ TOÀN BỘ!\n\nMở máy khác và dán vào ô 'Máy nhận' để đồng bộ ngay lập tức.");
+        alert("ĐÃ COPY MÃ ĐỒNG BỘ TOÀN BỘ!\n\nMở máy khác và dán vào ô 'Máy nhận' (dự phòng - bình thường Cloud tự đồng bộ).");
       });
     }
 
-    function applySyncDataFromText() {
-      let raw = (document.getElementById('syncDataInputArea').value || '').trim();
+    async function applySyncDataFromText() {
+      const raw = (document.getElementById('syncDataInputArea').value || '').trim();
       if (!raw) return alert("Vui lòng dán mã đồng bộ vào ô trước!");
+      if (!cloudReady) return alert("Chưa kết nối Cloud, không thể nạp lúc này.");
       try {
-        let p = JSON.parse(raw);
+        const p = JSON.parse(raw);
         if (p.depot) warehouseDepot = p.depot;
-        if (p.aliases) Object.entries(p.aliases).forEach(([k, v]) => storeAliasMap.set(k, v));
-        if (p.fleet) fleet = p.fleet;
-        if (p.activeTruckId) activeTruckId = p.activeTruckId;
-        if (p.allMergedStops) {
-          allMergedStops = p.allMergedStops.map(s => {
-            s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
-            s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
-            return s;
-          });
-        }
-        if (p.unmappedStops) unmappedStops = p.unmappedStops;
-        if (p.unassignedStops) unassignedStops = p.unassignedStops;
-
-        savePermanentEdits();
-        alert("ĐỒNG BỘ THÀNH CÔNG VĨNH VIỄN VÀO MÁY NÀY!");
+        if (p.aliases) storeAliasMap = new Map(Object.entries(p.aliases));
+        applySession(p.session || p);
+        _cloudHasStops = false;
+        await persistSettings(['depot', 'aliases']);
+        await savePermanentEdits();
+        alert("ĐỒNG BỘ THÀNH CÔNG VÀ ĐÃ LƯU LÊN CLOUD!");
         location.reload();
-      } catch (err) {
-        alert("Mã đồng bộ không hợp lệ: " + err.message);
-      }
+      } catch (err) { alert("Mã đồng bộ không hợp lệ: " + err.message); }
     }
 
     function openGoogleNavMultiStop() {
@@ -2953,7 +2933,7 @@ async function submitDriverRejectReason(reason) {
       if (confirm("Làm mới lại toàn bộ trang web?")) location.reload();
     }
 
-    function clearTodayTestOrders() {
+    async function clearTodayTestOrders() {
       if (!confirm("Anh có chắc muốn XÓA HẾT ĐƠN HÀNG HÔM NAY để test lại từ đầu không?")) return;
 
       allMergedStops = [];
@@ -2967,14 +2947,11 @@ async function submitDriverRejectReason(reason) {
         t.linkToken = null;
       });
 
-      localStorage.removeItem(STORAGE_KEY_SESSION);
-
-      if (supabase) {
-        let today = getTodayString();
-        supabase.from('dispatch_sessions').delete().eq('order_date', today).then(() => {
-          console.log("Đã dọn dẹp Supabase session hôm nay");
-        }).catch(err => console.warn(err));
-      }
+      _cloudHasStops = false;
+      if (db && cloudReady) {
+        try { await db.from('dispatch_sessions').delete().eq('order_date', getTodayString()); } catch (err) { console.warn(err); }
+        await savePermanentEdits();      // ghi phiên RỖNG (không xóa dòng) để mọi máy khác cũng thấy rỗng
+      } else localStorage.removeItem(STORAGE_KEY_SESSION);
 
       let labelInv = document.getElementById('labelInvoice');
       let subInv = document.getElementById('subInvoice');
@@ -3032,100 +3009,9 @@ async function submitDriverRejectReason(reason) {
       } catch (e) {}
     }
 
-    function loadPermanentData() {
-      try {
-        let savedDepot = JSON.parse(localStorage.getItem(STORAGE_KEY_DEPOT) || "null");
-        if (savedDepot?.lat && savedDepot?.lon) warehouseDepot = savedDepot;
-      } catch (e) {}
+    
 
-      try {
-        let aliases = JSON.parse(localStorage.getItem(STORAGE_KEY_ALIASES) || "{}");
-        Object.entries(aliases).forEach(([k, v]) => storeAliasMap.set(k, v));
-      } catch (e) {}
-
-      try {
-        let fl = JSON.parse(localStorage.getItem(STORAGE_KEY_FLEET) || "null");
-        if (Array.isArray(fl)) fleet = fl;
-      } catch (e) {}
-
-      try {
-        let sess = JSON.parse(localStorage.getItem(STORAGE_KEY_SESSION) || "null");
-        if (sess) {
-          if (sess.fleet) fleet = sess.fleet;
-          if (sess.activeTruckId) activeTruckId = sess.activeTruckId;
-          if (sess.allMergedStops) {
-            allMergedStops = sess.allMergedStops.map(s => {
-              s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
-              s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
-              return s;
-            });
-          }
-          if (sess.unmappedStops) unmappedStops = sess.unmappedStops;
-          if (sess.unassignedStops) unassignedStops = sess.unassignedStops;
-        }
-      } catch (e) {}
-    }
-
-   async function savePermanentEdits() {
-      try {
-        let aliasObj = {};
-        storeAliasMap.forEach((v, k) => aliasObj[k] = v);
-        localStorage.setItem(STORAGE_KEY_ALIASES, JSON.stringify(aliasObj));
-        localStorage.setItem(STORAGE_KEY_FLEET, JSON.stringify(fleet));
-
-        // CHUYỂN ĐỔI BẮT BUỘC: Biến Set() thành Array [] để Supabase và JSON hiểu được
-        let serializableStops = allMergedStops.map(s => ({
-          ...s,
-          rawIds: Array.from(s.rawIds || []),
-          invoices: Array.from(s.invoices || [])
-        }));
-
-        let serializableFleet = fleet.map(t => ({
-          ...t,
-          stops: (t.stops || []).map(s => ({
-            ...s,
-            rawIds: Array.from(s.rawIds || []),
-            invoices: Array.from(s.invoices || [])
-          }))
-        }));
-
-        let sessionPayload = {
-          fleet: serializableFleet,
-          activeTruckId,
-          allMergedStops: serializableStops,
-          unmappedStops: unmappedStops.map(s => ({
-            ...s,
-            rawIds: Array.from(s.rawIds || []),
-            invoices: Array.from(s.invoices || [])
-          })),
-          unassignedStops: unassignedStops.map(s => ({
-            ...s,
-            rawIds: Array.from(s.rawIds || []),
-            invoices: Array.from(s.invoices || [])
-          }))
-        };
-
-        localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(sessionPayload));
-
-        // GỬI LÊN CLOUD SUPABASE
-        if (supabase) {
-          let today = getTodayString();
-          let { error } = await supabase.from('daily_orders').upsert({
-            order_date: today,
-            session_data: sessionPayload,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'order_date' });
-
-          if (error) {
-            console.error("LỖI GỬI LÊN SUPABASE:", error);
-          } else {
-            console.log("ĐÃ LƯU CLOUD THÀNH CÔNG VÀO BẢNG daily_orders!");
-          }
-        }
-      } catch (e) {
-        console.error("Lỗi savePermanentEdits:", e);
-      }
-    }
+   
   </script>
 </body>
 </html>
