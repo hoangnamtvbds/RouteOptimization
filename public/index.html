@@ -272,6 +272,7 @@
               <button onclick="clearMapSelection()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded font-semibold">Bỏ chọn</button>
             </div>
           </div>
+          <div id="mapLegend" class="absolute bottom-6 left-2 z-[1000] pointer-events-none bg-white/95 border border-slate-300 rounded-lg shadow px-2 py-1 text-[10px] text-slate-700 max-w-[70%]"></div>
           <div id="map"></div>
         </div>
 
@@ -1761,7 +1762,7 @@ async function restoreMasterBackupFromCloud() {
           (currentStopTab === 'unmapped') ? unmappedStops : (truck ? truck.stops : [])
         )
       );
-      currentList.forEach(s => checked ? selectedStopIds.add(s.canonicalId) : selectedStopIds.delete(s.canonicalId));
+      currentList.filter(isPendingStop).forEach(s => checked ? selectedStopIds.add(s.canonicalId) : selectedStopIds.delete(s.canonicalId));
       renderStopsList();
       updateManualRoutingBarState();
     }
@@ -2404,7 +2405,7 @@ async function submitDriverRejectReason(reason) {
           return `
             <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
               <td class="p-2">
-                <strong class="text-slate-800">${esc(t.name)}</strong>
+                <strong class="text-slate-800 flex items-center gap-1.5">${truckDot(t.id)}${esc(t.name)}</strong>
                 <div class="text-[10px] text-slate-400 font-mono">${esc(t.plate)} • Chuyến ${t.tripNo || 1}</div>
               </td>
               <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
@@ -2435,7 +2436,7 @@ async function submitDriverRejectReason(reason) {
         return `
           <button onclick="selectTruck(${t.id})" class="px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 transition flex flex-col items-start gap-0.5 ${activeClass}">
             <div class="flex items-center gap-1.5">
-              <span>${esc(t.name)}</span>
+              ${truckDot(t.id)}<span>${esc(t.name)}</span>
               ${isOverloaded ? '<span class="w-2 h-2 rounded-full bg-rose-400"></span>' : ''}
             </div>
             <div class="text-[10px] opacity-80 font-normal">
@@ -2504,7 +2505,7 @@ async function submitDriverRejectReason(reason) {
 
       // Tab 1: Toàn bộ đơn vừa nạp từ file Excel (Khắc phục lỗi 1)
       if (currentStopTab === 'all_imported') {
-        let list = [...allMergedStops];
+        let list = allMergedStops.filter(x => !mapSelectMode || isPendingStop(x));
         if (query) list = list.filter(s => s.custName.toLowerCase().includes(query) || s.canonicalId.toLowerCase().includes(query) || s.phone.includes(query));
         if (summaryText) summaryText.innerText = `${list.length} đơn đã nạp`;
         
@@ -2516,12 +2517,12 @@ async function submitDriverRejectReason(reason) {
         container.innerHTML = list.map((s, idx) => {
           let assignedTruck = fleet.find(t => t.id === s.truckId);
           let truckBadge = s.archived ? `<span class="text-[10px] bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">${s.status === 'success' ? 'Đã giao' : 'Đã đóng'} • Chuyến ${s.tripNo || ''}</span>` : assignedTruck 
-            ? `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">${assignedTruck.name}</span>`
+            ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded border" style="color:${truckColor(assignedTruck.id)};border-color:${truckColor(assignedTruck.id)}">${esc(assignedTruck.name)}</span>`
             : `<span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded">Chưa xếp xe</span>`;
 
           return `
-            <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
-              <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+            <div style="${rowStyle(s)}" class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
+              <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0" ${isPendingStop(s) ? '' : 'disabled style="visibility:hidden"'}>
               <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-1">
                   <span class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${esc(s.custName)}</span>
@@ -2533,7 +2534,7 @@ async function submitDriverRejectReason(reason) {
                 </div>
                 <div class="text-[10px] text-slate-400 truncate mt-0.5">${esc(s.addr || 'Chưa có địa chỉ')}</div>
                 <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
-                  <div>${truckBadge}</div>
+                  <div class="flex items-center gap-1">${statusPill(s)} ${truckBadge}</div>
                   <span class="text-[10px] ${s.isMapped ? 'text-emerald-600' : 'text-rose-600'} font-semibold">${s.isMapped ? 'Đã có GPS' : 'Chưa có GPS'}</span>
                 </div>
               </div>
@@ -2584,8 +2585,8 @@ async function submitDriverRejectReason(reason) {
           return;
         }
         container.innerHTML = unassignedStops.map(s => `
-          <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
-            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+          <div style="${rowStyle(s)}" class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
+            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0" ${isPendingStop(s) ? '' : 'disabled style="visibility:hidden"'}>
             <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
                 <span class="text-xs font-bold text-slate-900 truncate">${esc(s.custName)}</span>
@@ -2611,7 +2612,7 @@ async function submitDriverRejectReason(reason) {
         return;
       }
 
-      let list = [...truck.stops];
+      let list = truck.stops.filter(x => !mapSelectMode || isPendingStop(x));
       if (currentStopTab === 'lifo') list.sort((a, b) => b.stopSeq - a.stopSeq);
       else list.sort((a, b) => a.stopSeq - b.stopSeq);
 
@@ -2621,7 +2622,7 @@ async function submitDriverRejectReason(reason) {
 
       container.innerHTML = list.map(s => {
         let seqBadge = currentStopTab === 'route'
-          ? `<span class="w-6 h-6 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">#${s.stopSeq}</span>`
+          ? `<span style="background:${stopColor(s)}" class="w-6 h-6 rounded-full text-white font-extrabold text-xs flex items-center justify-center shrink-0">${s.status === 'success' ? '✓' : (s.status === 'failed' ? '✕' : '#' + s.stopSeq)}</span>`
           : `<span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">LIFO ${s.lifoSeq}</span>`;
 
         let statusBadge = s.status === 'success'
@@ -2635,8 +2636,8 @@ async function submitDriverRejectReason(reason) {
         let multiCodesBadge = s.rawIds?.size > 1 ? `<span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1 py-0.2 rounded">Gộp ${s.rawIds.size} mã</span>` : '';
 
         return `
-          <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
-            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+          <div style="${rowStyle(s)}" class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
+            <input type="checkbox" onchange="handleStopCheckboxToggle(${jsq(s.canonicalId)}, this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0" ${isPendingStop(s) ? '' : 'disabled style="visibility:hidden"'}>
             ${seqBadge}
             <div onclick="openStopDetail(${jsq(s.canonicalId)})" class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
@@ -2674,73 +2675,79 @@ async function submitDriverRejectReason(reason) {
     function renderRouteOnMap() {
       if (mapSelectMode && map) { renderSelectModeMap(false); return; }
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
-      routeLayer.clearLayers();
-      pinsLayer.clearLayers();
-
-      let truck = fleet.find(t => t.id === activeTruckId);
-      
-      // Nếu chưa xếp đơn vào xe, hiển thị toàn bộ các điểm giao chưa gán lên bản đồ (marker xám)
-      if (!truck || truck.stops.length === 0) {
-        let unassignedMapped = allMergedStops.filter(s => s.isMapped);
-        if (unassignedMapped.length === 0) return;
-
-        let bounds = L.latLngBounds([[warehouseDepot.lat, warehouseDepot.lon]]);
-        unassignedMapped.forEach(s => {
-          bounds.extend([s.lat, s.lon]);
-          let icon = L.divIcon({
-            className: 'unassigned-map-pin',
-            html: `<div class="w-5 h-5 rounded-full bg-slate-500 border border-white shadow flex items-center justify-center text-white text-[9px] font-bold">•</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-          });
-          L.marker([s.lat, s.lon], { icon }).bindPopup(`
-            <b>${esc(s.custName)}</b><br>${esc(s.addr)}<br>Hàng: <b>${s.totalQty} Thùng</b><br>COD: <b>${formatMoney(s.totalCod)}</b>
-          `).addTo(pinsLayer);
-        });
-        map.fitBounds(bounds, { padding: [30, 30] });
-        return;
-      }
-
-      let validStops = truck.stops.filter(s => s.isMapped);
-      if (validStops.length === 0) return;
-
-      let latlngs = [[warehouseDepot.lat, warehouseDepot.lon]];
-      validStops.forEach(s => {
-        latlngs.push([s.lat, s.lon]);
-        let icon = L.divIcon({
-          className: 'stop-map-pin',
-          html: `<div class="w-6 h-6 rounded-full ${s.status === 'success' ? 'bg-emerald-600' : (s.status === 'failed' ? 'bg-rose-600' : 'bg-blue-600')} border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-extrabold">${s.stopSeq}</div>`,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        });
-        L.marker([s.lat, s.lon], { icon }).bindPopup(`
-          <div class="space-y-1">
-            <div class="font-bold text-blue-600">#${s.stopSeq} • ${esc(s.custName)}</div>
-            <div class="text-[11px] text-slate-500">${esc(s.addr)}</div>
-            <div class="text-[11px] font-bold text-slate-800">Giao: ${s.totalQty} Thùng</div>
-            <div class="text-[11px] font-bold text-amber-700">Thu COD: ${formatMoney(s.totalCod)}</div>
-            <button onclick="openStopDetail(${jsq(s.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
-          </div>
-        `).addTo(pinsLayer);
+      routeLayer.clearLayers(); pinsLayer.clearLayers();
+      updateMapLegend();
+      const d = [warehouseDepot.lat, warehouseDepot.lon], truck = fleet.find(t => t.id === activeTruckId);
+      let actLine = null, actLatLngs = null;
+      fleet.forEach(t => {
+        const r = (t.stops || []).filter(x => x.isMapped && !x.archived);
+        if (!r.length) return;
+        const isAct = t.id === activeTruckId, pts = [d, ...r.map(x => [x.lat, x.lon]), d];
+        const line = L.polyline(pts, { color: truckColor(t.id), weight: isAct ? 4 : 2.5, opacity: isAct ? 0.9 : 0.5, dashArray: isAct ? '4,4' : '2,7', interactive: false });
+        routeLayer.addLayer(line);
+        if (isAct) { actLine = line; actLatLngs = pts; }
       });
-      latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
-
-      let polyline = L.polyline(latlngs, { color: '#2563eb', weight: 3.5, opacity: 0.8, dashArray: '4, 4' });
-      routeLayer.addLayer(polyline);
-      map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-      const myToken = ++routeDrawToken;                         // có OSRM: thay đường thẳng bằng đường đi thật
-      fetchRoadGeometry(latlngs).then(pts => {
-        if (!pts || myToken !== routeDrawToken || !routeLayer) return;
-        routeLayer.clearLayers(); routeLayer.addLayer(L.polyline(pts, { color: '#2563eb', weight: 4, opacity: 0.85 }));
-      }).catch(() => {});
+      const bounds = L.latLngBounds([d]);
+      const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
+      allMergedStops.filter(x => x.isMapped).forEach(x => {
+        if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
+        const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
+        const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
+        L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(`
+          <div class="space-y-1">
+            <div class="font-bold" style="color:${stopColor(x)}">${x.stopSeq && tr ? '#' + x.stopSeq + ' • ' : ''}${esc(x.custName)}</div>
+            <div class="text-[11px] text-slate-500">${esc(x.addr)}</div>
+            <div class="text-[11px]"><b>${tr ? esc(tr.name) : 'Chưa xếp xe'}</b> • ${stTxt}</div>
+            <div class="text-[11px] font-bold text-slate-800">Giao: ${x.totalQty} Thùng • COD: ${formatMoney(x.totalCod)}</div>
+            <button onclick="openStopDetail(${jsq(x.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
+          </div>`).addTo(pinsLayer);
+      });
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+      if (actLine && actLatLngs) {
+        const myToken = ++routeDrawToken;                         // có OSRM: thay đường thẳng bằng đường đi thật
+        fetchRoadGeometry(actLatLngs).then(pts => {
+          if (!pts || myToken !== routeDrawToken || !routeLayer) return;
+          routeLayer.removeLayer(actLine); routeLayer.addLayer(L.polyline(pts, { color: truckColor(activeTruckId), weight: 4, opacity: 0.85, interactive: false }));
+        }).catch(() => {});
+      }
     }
 
     // -------------------------------------------------------------------------
     // 11. CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ GPS & GỘP ĐIỂM BÁN TRÙNG
     // -------------------------------------------------------------------------
+    // ===== MÀU TRẠNG THÁI: Chưa giao = màu của xe • Đã giao = xanh lá ✓ • Thất bại = đỏ ✕ • Chưa xếp xe = xám =====
+    function stopColor(s) {
+      if (s.status === 'success') return '#16a34a';
+      if (s.status === 'failed') return '#dc2626';
+      return fleet.some(t => t.id === s.truckId) ? truckColor(s.truckId) : '#64748b';
+    }
+    function rowStyle(s) {
+      const bg = s.status === 'success' ? '#ecfdf5' : (s.status === 'failed' ? '#fff1f2' : '#ffffff');
+      return `border-left:5px solid ${stopColor(s)};background:${bg}`;
+    }
+    function statusPill(s) {
+      if (s.status === 'success') return '<span class="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded">✓ Đã giao</span>';
+      if (s.status === 'failed') return '<span class="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded">✕ Thất bại</span>';
+      return `<span class="text-[10px] text-white font-bold px-1.5 py-0.5 rounded" style="background:${stopColor(s)}">Chưa giao</span>`;
+    }
+    function truckDot(id) { return `<span style="background:${truckColor(id)}" class="w-2.5 h-2.5 rounded-full inline-block border border-white shrink-0"></span>`; }
+    function isPendingStop(s) { return !s.archived && s.status === 'pending'; }
+    function stopPinHtml(s, sel, dim) {
+      const done = s.status === 'success', bad = s.status === 'failed', assigned = fleet.some(t => t.id === s.truckId);
+      const label = done ? '✓' : bad ? '✕' : (assigned && s.stopSeq ? s.stopSeq : '');
+      const size = sel ? 28 : 24;
+      return { size, html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${sel ? '#f59e0b' : stopColor(s)};border:${sel ? '3px solid #78350f' : '2px solid #fff'};opacity:${dim ? 0.45 : 1};box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800">${label}</div>` };
+    }
+    function updateMapLegend() {
+      const el = document.getElementById('mapLegend'); if (!el) return;
+      const chips = fleet.filter(t => (t.stops || []).some(x => !x.archived)).map(t => `<span class="inline-flex items-center gap-1">${truckDot(t.id)}${esc(t.name.split('(')[0].trim())}</span>`).join('');
+      el.innerHTML = `<div class="font-bold text-slate-700 mb-0.5">${mapSelectMode ? 'Chỉ hiện đơn CHƯA GIAO' : 'Chú thích'}</div>`
+        + `<div class="flex flex-wrap gap-x-2 gap-y-0.5">${chips}${mapSelectMode ? '' : '<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#16a34a"></span>Đã giao ✓</span><span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#dc2626"></span>Thất bại ✕</span>'}<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#64748b"></span>Chưa xếp xe</span>${mapSelectMode ? '<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#f59e0b"></span>Đang chọn</span>' : ''}</div>`;
+    }
+
     // ===== QUÉT CHỌN CỤM TRÊN MAP =====
     let mapSelectMode = false, lassoPts = [], lassoShape = null, lassoLayer = null, lassoActive = false;
-    const TRUCK_COLORS = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
+    const TRUCK_COLORS = ['#2563eb', '#ca8a04', '#7c3aed', '#db2777', '#0891b2', '#c2410c', '#4f46e5', '#92400e'];
     function truckColor(id) { const i = fleet.findIndex(t => t.id === id); return i < 0 ? '#64748b' : TRUCK_COLORS[i % TRUCK_COLORS.length]; }
     // chỉ chọn được điểm chưa giao, có GPS, và không nằm trên xe đã phát link
     function isSelectableStop(s) {
@@ -2822,21 +2829,20 @@ async function submitDriverRejectReason(reason) {
     function renderSelectModeMap(fit) {
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers(); pinsLayer.clearLayers();
+      updateMapLegend();
       const d = [warehouseDepot.lat, warehouseDepot.lon], bounds = L.latLngBounds([d]);
       fleet.forEach(t => {
-        const r = (t.stops || []).filter(s => s.isMapped && !s.archived);
-        if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(s => [s.lat, s.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
+        const r = (t.stops || []).filter(x => x.isMapped && isPendingStop(x));
+        if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(x => [x.lat, x.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
       });
-      allMergedStops.filter(s => s.isMapped && !s.archived).forEach(s => {
-        bounds.extend([s.lat, s.lon]);
-        const sel = selectedStopIds.has(s.canonicalId), ok = isSelectableStop(s), assigned = fleet.some(t => t.id === s.truckId);
-        const col = assigned ? truckColor(s.truckId) : '#64748b', size = sel ? 26 : 20;
-        const html = `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${sel ? '#f59e0b' : col};border:${sel ? '3px solid #78350f' : '2px solid #fff'};opacity:${(ok || sel) ? 1 : 0.4};box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800">${assigned && s.stopSeq ? s.stopSeq : ''}</div>`;
-        const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className: 'sel-pin', html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }), zIndexOffset: sel ? 1000 : 0 });
-        m.bindTooltip(`${esc(s.custName)} • ${s.totalQty} Thùng • ${formatMoney(s.totalCod)}`, { direction: 'top' });
+      allMergedStops.filter(x => x.isMapped && isPendingStop(x)).forEach(x => {   // đã giao / thất bại / đã đóng chuyến: ẨN
+        bounds.extend([x.lat, x.lon]);
+        const sel = selectedStopIds.has(x.canonicalId), ok = isSelectableStop(x), pin = stopPinHtml(x, sel, !ok && !sel);
+        const m = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'sel-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }), zIndexOffset: sel ? 1000 : 0 });
+        m.bindTooltip(`${esc(x.custName)} • ${x.totalQty} Thùng • ${formatMoney(x.totalCod)}${ok ? '' : ' (xe đã phát link)'}`, { direction: 'top' });
         m.on('click', () => {
           if (!ok) return;
-          if (selectedStopIds.has(s.canonicalId)) selectedStopIds.delete(s.canonicalId); else selectedStopIds.add(s.canonicalId);
+          if (selectedStopIds.has(x.canonicalId)) selectedStopIds.delete(x.canonicalId); else selectedStopIds.add(x.canonicalId);
           afterMapSelectionChange();
         });
         m.addTo(pinsLayer);
