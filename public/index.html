@@ -1443,10 +1443,10 @@
         let t = fleet.find(x => x.id === record.truck_id);
         if (t) {
           t.stops = record.stops || [];
-          // Giữ nguyên trạng thái link, không tự động bật link khi chưa được cấp
-          let localTruck = fleet.find(f => f.id === t.id);
-          t.linkIssued = localTruck ? !!localTruck.linkIssued : false;
-          t.linkToken = localTruck ? localTruck.linkToken : null;
+          // Giữ nguyên trạng thái link từ bộ nhớ máy, không tự động bật link
+          let savedTruck = fleet.find(f => f.id === t.id);
+          t.linkIssued = savedTruck ? !!savedTruck.linkIssued : false;
+          t.linkToken = savedTruck ? savedTruck.linkToken : null;
         }
       });
       renderFleetTabs();
@@ -1465,40 +1465,47 @@
     // 9. APP ĐỘC LẬP TÀI XẾ & BẢN ĐỒ THU NHỎ
     // -------------------------------------------------------------------------
     function checkDriverRoutingModeSync() {
-      let hash = window.location.hash || '';
-      if (!hash.startsWith('#/driver')) return false;
+  let hash = window.location.hash || '';
+  if (!hash.startsWith('#/driver')) return false;
 
-      let elDispatch = document.getElementById('dispatchAppContainer');
-      let elDriver = document.getElementById('driverStandaloneApp');
-      if (elDispatch) elDispatch.classList.add('hidden');
-      if (elDriver) elDriver.classList.remove('hidden');
+  let elDispatch = document.getElementById('dispatchAppContainer');
+  let elDriver = document.getElementById('driverStandaloneApp');
+  if (elDispatch) elDispatch.classList.add('hidden');
+  if (elDriver) elDriver.classList.remove('hidden');
 
-      let urlParams = new URLSearchParams(hash.split('?')[1] || '');
-      activeTruckId = parseInt(urlParams.get('truck') || 1);
-      let orderDate = urlParams.get('date') || getTodayString();
-      let token = urlParams.get('token') || '';
+  // Nạp dữ liệu offline trước
+  loadPermanentData();
 
-      let isExpired = false;
-      if (token) {
-        isExpired = isTokenExpired(token);
-      } else if (orderDate) {
-        let orderTime = new Date(orderDate).getTime();
-        if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) {
-          isExpired = true;
-        }
-      }
+  // Lấy đúng ID xe từ URL tham số và gán đè sau cùng
+  let urlParams = new URLSearchParams(hash.split('?')[1] || '');
+  let paramTruckId = parseInt(urlParams.get('truck') || 0);
+  if (paramTruckId > 0) {
+    activeTruckId = paramTruckId;
+  }
 
-      if (isExpired) {
-        let elExp = document.getElementById('drvExpiredBanner');
-        let elCards = document.getElementById('driverAppCardsList');
-        if (elExp) elExp.classList.remove('hidden');
-        if (elCards) elCards.innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
-        safeRenderIcons();
-        return true;
-      }
+  let orderDate = urlParams.get('date') || getTodayString();
+  let token = urlParams.get('token') || '';
 
-      loadPermanentData();
-      renderDriverAppCards();
+  let isExpired = false;
+  if (token) {
+    isExpired = isTokenExpired(token);
+  } else if (orderDate) {
+    let orderTime = new Date(orderDate).getTime();
+    if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) {
+      isExpired = true;
+    }
+  }
+
+  if (isExpired) {
+    let elExp = document.getElementById('drvExpiredBanner');
+    let elCards = document.getElementById('driverAppCardsList');
+    if (elExp) elExp.classList.remove('hidden');
+    if (elCards) elCards.innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
+    safeRenderIcons();
+    return true;
+  }
+
+  renderDriverAppCards();
       setTimeout(() => initDriverMiniMap(), 200);
 
       if (supabase) {
@@ -1570,11 +1577,12 @@
     }
 
     function openDriverLinkDirect(truckId) {
-      let truck = fleet.find(t => t.id === truckId);
-      if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
-      let today = truck.linkToken || getTodayString();
-      window.open(`${window.location.origin + window.location.pathname}#/driver?truck=${truck.id}&date=${today}`, '_blank');
-    }
+  let truck = fleet.find(t => t.id === truckId);
+  if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
+  let today = truck.linkToken || getTodayString();
+  let baseCleanUrl = window.location.origin + window.location.pathname;
+  window.open(`${baseCleanUrl}#/driver?truck=${truck.id}&date=${today}`, '_blank');
+}
 
     function initDriverMiniMap() {
       if (drvMap || typeof L === 'undefined') return;
