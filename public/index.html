@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Điều Phối Tuyến & Quản Trị Đội Xe NPP - KiotViet Logistics Cloud</title>
+  <title>Điều Phối Tuyến & Quản Trị Đội Xe KiotViet - Logistics Pro</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- SheetJS CDN Dự Phòng Đa Tầng -->
+  <!-- SheetJS CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     if (typeof XLSX === 'undefined') {
@@ -16,7 +16,7 @@
     }
   </script>
 
-  <!-- Leaflet CSS & JS CDN Dự Phòng Kép -->
+  <!-- Leaflet CSS & JS CDN -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
   <script>
@@ -26,7 +26,7 @@
     }
   </script>
 
-  <!-- Lucide Icons CDN Dự Phòng -->
+  <!-- Lucide Icons CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
   <script>
     if (typeof lucide === 'undefined') {
@@ -43,7 +43,12 @@
     #map { height: 100%; width: 100%; min-height: 240px; background: #e2e8f0; }
     #drvMiniMap { height: 190px; width: 100%; background: #e2e8f0; }
     .leaflet-popup-content-wrapper { border-radius: 12px; font-size: 12px; }
-    .safe-bottom-padding { padding-bottom: 160px !important; }
+    
+    /* Khắc phục triệt để lỗi khuất nút trên Mobile do dính Bottom Bar */
+    .driver-scroll-container {
+      padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
+    }
+    
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
@@ -51,7 +56,7 @@
     }
   </style>
 </head>
-<body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased">
+<body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased select-none">
 
   <!-- ========================================================================= -->
   <!-- A. MÀN HÌNH ĐIỀU PHỐI (KẾ TOÁN, ADMIN, NPP) -->
@@ -71,43 +76,37 @@
               <i data-lucide="cloud-check" class="w-3 h-3"></i> <span id="cloudCustCount">Supabase Cloud Ready</span>
             </span>
           </h1>
-          <p class="text-[10px] text-slate-400">Phân tuyến tối ưu • Master Data trên Cloud • Đồng bộ thời gian thực</p>
+          <p class="text-[10px] text-slate-400">Phân tuyến thông minh • Khớp địa chỉ Master Cloud • Giám sát trực tiếp</p>
         </div>
       </div>
 
       <!-- Quick Actions -->
       <div class="flex items-center space-x-1.5">
-        <!-- Vị Trí Kho -->
         <button onclick="openDepotModal()" title="Cập nhật mốc kho NPP" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
           <i data-lucide="warehouse" class="w-3.5 h-3.5 text-amber-400"></i>
           <span class="hidden sm:inline">Vị Trí Kho</span>
         </button>
 
-        <!-- Quản Trị Master (Password: 1111) -->
         <button onclick="promptMasterAdmin()" title="Quản trị Master Data GPS" class="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 shadow transition">
           <i data-lucide="shield" class="w-3.5 h-3.5"></i>
           <span>Quản Trị Master</span>
         </button>
 
-        <!-- Gộp Mã Trùng -->
         <button onclick="openAliasModal()" title="Bảng gom mã KiotViet trùng" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
           <i data-lucide="git-merge" class="w-3.5 h-3.5 text-blue-400"></i>
           <span class="hidden sm:inline">Gộp Trùng</span>
         </button>
 
-        <!-- Đồng Bộ Cloud / Session -->
         <button onclick="openSyncModal()" title="Đồng bộ giữa các thiết bị" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
           <i data-lucide="cloud" class="w-3.5 h-3.5 text-emerald-400"></i>
           <span class="hidden sm:inline">Đồng Bộ</span>
         </button>
 
-        <!-- Xóa Đơn Test Hôm Nay (Tính năng từ 222) -->
         <button onclick="clearTodayTestOrders()" title="Xóa toàn bộ đơn test để nạp lại từ đầu" class="bg-rose-900/60 hover:bg-rose-700 text-rose-300 hover:text-white text-[11px] px-2 py-1 rounded border border-rose-600/50 flex items-center gap-1 transition">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           <span class="hidden sm:inline">Xóa Đơn Test</span>
         </button>
 
-        <!-- Làm Mới -->
         <button onclick="resetApp()" title="Làm mới lại ứng dụng" class="bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-rose-200 text-[11px] p-1.5 rounded border border-slate-700 transition">
           <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
         </button>
@@ -140,7 +139,7 @@
           <div class="flex items-center gap-1.5">
             <button id="btnSmartDispatch" onclick="runSmartFleetDispatch()" disabled class="flex-1 bg-slate-300 text-slate-500 font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed shadow transition">
               <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
-              <span>Gợi Ý Xếp Đơn Tự Động (Tải Trọng + Vòng Tuyến)</span>
+              <span>Gợi Ý Xếp Đơn Tự Động (Cân Tải & Tuyến)</span>
             </button>
             <button onclick="openFleetConfigModal()" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs py-2 px-2 rounded-lg flex items-center gap-1 shadow-sm shrink-0">
               <i data-lucide="settings" class="w-3.5 h-3.5"></i>
@@ -193,15 +192,16 @@
           </div>
         </div>
 
-        <!-- SEARCH & SUB-TABS -->
+        <!-- SEARCH & SUB-TABS (Đã bổ sung tab "Tất Cả Đơn") -->
         <div class="p-2 bg-white border-b border-slate-200 flex items-center justify-between gap-1.5 shrink-0">
           <div class="relative flex-1">
             <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"></i>
             <input type="text" id="searchInput" oninput="filterCurrentStops()" placeholder="Tìm quán, SĐT, mã đơn..." class="w-full pl-8 pr-2 py-1 text-xs bg-slate-100 rounded border focus:outline-none focus:border-blue-500">
           </div>
           <div class="flex gap-1 text-[11px] font-semibold shrink-0">
-            <button onclick="setStopTab('route')" id="tabBtnRoute" class="px-2 py-1 rounded bg-blue-600 text-white font-bold">Lộ Trình (#1 &rarr; #N)</button>
-            <button onclick="setStopTab('lifo')" id="tabBtnLifo" class="px-2 py-1 rounded bg-slate-100 text-slate-600">LIFO Kho</button>
+            <button onclick="setStopTab('all_imported')" id="tabBtnAllImported" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Tất Cả Đơn (<span id="allImportedCountBadge">0</span>)</button>
+            <button onclick="setStopTab('route')" id="tabBtnRoute" class="px-2 py-1 rounded bg-blue-600 text-white font-bold">Lộ Trình Xe</button>
+            <button onclick="setStopTab('lifo')" id="tabBtnLifo" class="px-2 py-1 rounded bg-slate-100 text-slate-600">LIFO</button>
             <button onclick="setStopTab('unassigned')" id="tabBtnUnassigned" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Chưa Xếp (<span id="unassignedCountBadge">0</span>)</button>
             <button onclick="setStopTab('unmapped')" id="tabBtnUnmapped" class="px-2 py-1 rounded bg-slate-100 text-slate-600">Điểm Mới</button>
           </div>
@@ -220,17 +220,17 @@
         <div id="stopsListView" class="flex-1 overflow-y-auto divide-y divide-slate-100">
           <div class="p-8 text-center text-xs text-slate-400 space-y-2">
             <i data-lucide="truck" class="w-10 h-10 mx-auto text-slate-300"></i>
-            <p>Kéo file <strong>Hóa Đơn KiotViet</strong> vào ô trên để phân xe và tối ưu lộ trình.</p>
+            <p>Kéo file <strong>Hóa Đơn KiotViet</strong> vào ô trên để kiểm tra và xếp tuyến.</p>
           </div>
         </div>
 
         <!-- BOTTOM ACTIONS -->
         <div class="p-2.5 bg-slate-900 text-white border-t border-slate-800 text-xs shrink-0 flex items-center justify-between gap-2">
-          <button onclick="generateStandaloneDriverLink()" id="btnGenDriverLink" disabled class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed shadow">
+          <button onclick="generateStandaloneDriverLink()" id="btnGenDriverLink" disabled class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-30 disabled:cursor-not-allowed shadow">
             <i data-lucide="link" class="w-3.5 h-3.5"></i>
             <span id="btnDriverLinkText">Tạo Link Tài Xế Xe Này (Copy Link Zalo)</span>
           </button>
-          <button onclick="printLifoPackingSlip()" id="btnPrint" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onclick="printLifoPackingSlip()" id="btnPrint" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-30 disabled:cursor-not-allowed">
             <i data-lucide="printer" class="w-3.5 h-3.5"></i>
             <span>In Phiếu LIFO</span>
           </button>
@@ -270,7 +270,7 @@
                 <option value="30d">30 ngày qua (1 tháng)</option>
               </select>
             </div>
-            <span class="text-[10px] text-slate-400">Tự động lưu trữ & làm mới vào mùng 1 đầu tháng</span>
+            <span class="text-[10px] text-slate-400">Tự động làm mới và đồng bộ thời gian thực</span>
           </div>
 
           <!-- KPI SUMMARY CARDS -->
@@ -320,14 +320,14 @@
             </div>
           </div>
 
-          <!-- BẢNG THEO DÕI TẤT CẢ CÁC XE -->
+          <!-- BẢNG THEO DÕI TẤT CẢ CÁC XE & QUẢN TRỊ LINK TÀI XẾ -->
           <div class="border rounded-xl overflow-hidden shadow-sm">
             <div class="bg-slate-100 px-3 py-1.5 border-b flex items-center justify-between text-xs font-bold text-slate-700">
               <span>BẢNG THEO DÕI ĐỘI XE, TIẾN ĐỘ & QUẢN TRỊ LINK TÀI XẾ</span>
-              <span class="text-[10px] text-slate-500 font-normal">Click vào hàng để chuyển xem chi tiết xe</span>
+              <span class="text-[10px] text-slate-500 font-normal">Chỉ xe có đơn mới mở hoặc copy link</span>
             </div>
             <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs min-w-[600px]">
+              <table class="w-full text-left text-xs min-w-[620px]">
                 <thead class="bg-slate-50 text-slate-500 text-[10px] uppercase border-b">
                   <tr>
                     <th class="p-2">Xe / Biển Số</th>
@@ -349,61 +349,70 @@
       </section>
     </div>
   </div>
-
   <!-- ========================================================================= -->
   <!-- B. GIAO DIỆN APP ĐỘC LẬP CHO TÀI XẾ (#/driver?truck=X&date=...) -->
   <!-- ========================================================================= -->
-  <div id="driverStandaloneApp" class="hidden h-full w-full flex flex-col bg-slate-100 overflow-hidden">
+  <div id="driverStandaloneApp" class="hidden h-full w-full flex flex-col bg-slate-100 overflow-hidden relative">
     
-    <header class="bg-blue-700 text-white px-3 py-2 shadow flex items-center justify-between shrink-0 z-20">
+    <!-- HEADER TÀI XẾ -->
+    <header class="bg-blue-700 text-white px-3 py-2.5 shadow flex items-center justify-between shrink-0 z-20">
       <div class="flex items-center gap-2 truncate">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
         <div class="truncate">
-          <span class="font-bold text-xs md:text-sm truncate" id="drvAppTruckTitle">Xe 1 • Nguyễn Văn Tuấn</span>
-          <span class="text-[10px] text-blue-200 ml-1 font-mono">Tự hủy sau 48h</span>
+          <span class="font-bold text-xs md:text-sm truncate block" id="drvAppTruckTitle">Xe 1 • Nguyễn Văn Tuấn</span>
+          <span class="text-[10px] text-blue-200 font-mono">Phiên giao hàng trực tiếp</span>
         </div>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
-        <button onclick="toggleDriverMiniMap()" id="btnToggleMiniMap" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] px-2 py-1 rounded-lg border border-blue-600 flex items-center gap-1 transition">
+        <button onclick="toggleDriverMiniMap()" id="btnToggleMiniMap" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-600 flex items-center gap-1 transition">
           <i data-lucide="map" class="w-3.5 h-3.5"></i> <span id="textToggleMiniMap">Ẩn Map</span>
         </button>
-        <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] p-1.5 rounded-lg border border-blue-600">
+        <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] p-2 rounded-lg border border-blue-600">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         </button>
       </div>
     </header>
 
+    <!-- BẢN ĐỒ THU NHỎ CHO TÀI XẾ -->
     <div id="drvMiniMapContainer" class="relative shrink-0 border-b border-slate-300 shadow-inner">
       <div id="drvMiniMap"></div>
     </div>
 
+    <!-- BANNER HẾT HẠN LINK -->
     <div id="drvExpiredBanner" class="hidden p-4 bg-rose-600 text-white text-center text-xs font-bold">
       <i data-lucide="clock-alert" class="w-6 h-6 mx-auto mb-1"></i>
       Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!
     </div>
 
+    <!-- BỘ LỌC TRẠNG THÁI GIAO HÀNG -->
     <div class="bg-white p-2 border-b border-slate-200 flex gap-1.5 text-xs shrink-0">
-      <button onclick="setDriverAppFilter('all')" id="fltAppAll" class="flex-1 py-1 rounded bg-blue-100 text-blue-800 font-bold">Tất cả</button>
-      <button onclick="setDriverAppFilter('pending')" id="fltAppPending" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Chưa giao</button>
-      <button onclick="setDriverAppFilter('success')" id="fltAppSuccess" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Đã xong</button>
-      <button onclick="setDriverAppFilter('failed')" id="fltAppFailed" class="flex-1 py-1 rounded bg-slate-100 text-slate-600">Thất bại</button>
+      <button onclick="setDriverAppFilter('all')" id="fltAppAll" class="flex-1 py-1.5 rounded-lg bg-blue-100 text-blue-800 font-bold transition">Tất cả</button>
+      <button onclick="setDriverAppFilter('pending')" id="fltAppPending" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-medium transition">Chưa giao</button>
+      <button onclick="setDriverAppFilter('success')" id="fltAppSuccess" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-medium transition">Đã xong</button>
+      <button onclick="setDriverAppFilter('failed')" id="fltAppFailed" class="flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-medium transition">Thất bại</button>
     </div>
 
-    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 space-y-2.5 safe-bottom-padding"></div>
+    <!-- DANH SÁCH THẺ ĐƠN HÀNG (Áp dụng class driver-scroll-container chống che khuất nút thao tác) -->
+    <div id="driverAppCardsList" class="flex-1 overflow-y-auto p-2.5 space-y-3 driver-scroll-container"></div>
 
-    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur text-white p-2.5 shadow-2xl border-t border-slate-800 flex items-center justify-between z-[1000] gap-2">
+    <!-- THANH BOTTOM BAR CỐ ĐỊNH Ở ĐÁY MÀN HÌNH -->
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur text-white px-3 py-2.5 shadow-2xl border-t border-slate-800 flex items-center justify-between z-[1000] gap-2">
       <div>
-        <div class="text-[10px] text-slate-400 uppercase font-semibold">Tiền COD trong túi:</div>
+        <div class="text-[10px] text-slate-400 uppercase font-semibold">Tiền COD thực thu:</div>
         <div id="drvDockCodCollected" class="text-sm font-black text-emerald-400">0 đ</div>
       </div>
-      <button onclick="openNextPendingStopNavigation()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition">
+      <button onclick="openNextPendingStopNavigation()" class="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition active:scale-95">
         <i data-lucide="navigation" class="w-4 h-4"></i>
-        <span>Dẫn Đường Điểm Tiếp Theo</span>
+        <span>Dẫn Điểm Kế Tiếp</span>
       </button>
     </div>
   </div>
 
-  <!-- MODAL: GỢI Ý 7 LÝ DO HỦY ĐƠN THỰC CHIẾN -->
+  <!-- ========================================================================= -->
+  <!-- C. CÁC MODAL HỆ THỐNG & TIỆN ÍCH -->
+  <!-- ========================================================================= -->
+
+  <!-- MODAL: GỢI Ý 7 LÝ DO HỦY ĐƠN THỰC CHIẾN CHO TÀI XẾ -->
   <div id="driverRejectModal" class="fixed inset-0 bg-black/60 z-[3000] hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3 animate-in slide-in-from-bottom-5">
       <div class="flex justify-between items-center border-b pb-2">
@@ -415,7 +424,7 @@
         </button>
       </div>
 
-      <p class="text-[11px] text-slate-500">Chạm vào 1 lý do để báo cáo ngay về cho kế toán kho:</p>
+      <p class="text-[11px] text-slate-500">Chạm vào 1 lý do để báo cáo ngay về cho kế toán và kho:</p>
 
       <div class="grid grid-cols-1 gap-1.5 text-xs font-semibold">
         <button onclick="submitDriverRejectReason('Quán đóng cửa / Nghỉ trưa')" class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 hover:border-rose-300 text-left flex items-center justify-between transition">
@@ -449,7 +458,7 @@
       </div>
 
       <div class="flex justify-end pt-1">
-        <button onclick="closeDriverRejectModal()" class="w-full py-2 bg-slate-100 text-slate-600 font-semibold text-xs rounded-xl">Hủy Bỏ</button>
+        <button onclick="closeDriverRejectModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs rounded-xl">Hủy Bỏ</button>
       </div>
     </div>
   </div>
@@ -459,7 +468,7 @@
     <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-amber-700">
-          <i data-lucide="warehouse" class="w-4 h-4"></i> Cập Nhật Vị Trí Kho Xuất Phát (Lưu Vĩnh Viễn)
+          <i data-lucide="warehouse" class="w-4 h-4"></i> Cập Nhật Vị Trí Kho Xuất Phát
         </h3>
         <button onclick="closeDepotModal()" class="text-slate-400 hover:text-slate-600">
           <i data-lucide="x" class="w-4 h-4"></i>
@@ -467,7 +476,7 @@
       </div>
 
       <p class="text-[11px] text-slate-600">
-        Tọa độ này sẽ dùng làm mốc <strong>Khởi hành & Quay về (Round-trip TSP)</strong> cho toàn bộ đội xe để tính toán cung đường khép kín.
+        Tọa độ này sẽ dùng làm mốc <strong>Khởi hành & Quay về (Round-trip)</strong> cho toàn bộ đội xe để tính toán cung đường khép kín.
       </p>
 
       <div class="space-y-2 text-xs">
@@ -479,7 +488,7 @@
           <label class="font-bold text-slate-700">Tọa độ GPS (Lat, Long) hoặc Link Google Maps của Kho:</label>
           <input type="text" id="inputDepotCoords" placeholder="Ví dụ: 11.1550, 106.6150 hoặc 11,1550, 106,6150" class="w-full p-2 border rounded-xl text-xs bg-slate-50 mt-0.5">
         </div>
-        <button onclick="saveDepotCoordinates()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs shadow">
+        <button onclick="saveDepotCoordinates()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-xl text-xs shadow transition">
           Lưu Vị Trí Kho Vĩnh Viễn
         </button>
       </div>
@@ -491,7 +500,7 @@
     <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-amber-700">
-          <i data-lucide="shield-check" class="w-4 h-4"></i> Quản Trị Master Data Cloud (Đã Xác Thực)
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Quản Trị Master Data Cloud
         </h3>
         <button onclick="closeMasterAdminModal()" class="text-slate-400 hover:text-slate-600">
           <i data-lucide="x" class="w-4 h-4"></i>
@@ -499,7 +508,7 @@
       </div>
 
       <p class="text-[11px] text-slate-600">
-        Cho phép <strong>Ghi đè file Excel Master trực tiếp lên Cloud Supabase</strong>. Tải lên file mới sẽ tự động ghi đè hoặc bổ sung tọa độ vào Cloud vĩnh viễn.
+        Cho phép <strong>Ghi đè file Excel Master trực tiếp lên Cloud Supabase</strong>. Tải lên file mới sẽ tự động bổ sung hoặc cập nhật tọa độ vĩnh viễn.
       </p>
 
       <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-2">
@@ -518,16 +527,16 @@
           <input type="text" id="adminNewPhone" placeholder="Số điện thoại" class="p-1.5 border rounded text-xs bg-white">
         </div>
         <input type="text" id="adminNewAddr" placeholder="Địa chỉ thực tế tại Bình Dương" class="w-full p-1.5 border rounded text-xs bg-white">
-        <button onclick="saveSingleMasterFromAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 rounded-lg shadow">
+        <button onclick="saveSingleMasterFromAdmin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 rounded-lg shadow transition">
           Lưu Lên Cloud Supabase
         </button>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t text-xs">
-        <button onclick="exportCurrentMasterExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+        <button onclick="exportCurrentMasterExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition">
           <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất File Master Excel Chuẩn
         </button>
-        <button onclick="closeMasterAdminModal()" class="px-3 py-1.5 border rounded-lg text-slate-600">Đóng</button>
+        <button onclick="closeMasterAdminModal()" class="px-3 py-1.5 border rounded-lg text-slate-600 hover:bg-slate-50">Đóng</button>
       </div>
     </div>
   </div>
@@ -582,7 +591,7 @@
       </div>
 
       <div class="flex justify-end pt-1 border-t">
-        <button onclick="closeStopDetailModal()" class="px-4 py-1.5 rounded-lg border text-xs text-slate-600">Đóng</button>
+        <button onclick="closeStopDetailModal()" class="px-4 py-1.5 rounded-lg border text-xs text-slate-600 hover:bg-slate-50">Đóng</button>
       </div>
     </div>
   </div>
@@ -600,7 +609,7 @@
       </div>
 
       <p class="text-[11px] text-slate-500">
-        Nhiều Sale lên đơn tạo các mã KiotViet khác nhau (như Đại Phú: KH076223, KH075859, 00633982). Khi gộp tại đây, sau này <strong>bất kỳ Sale nào lên đơn ở mã nào</strong> cũng tự động gom chung về 1 điểm dừng trên bản đồ!
+        Nhiều Sale lên đơn tạo các mã KiotViet khác nhau cho cùng một quán. Khi gộp tại đây, bất kỳ Sale nào lên đơn ở mã nào cũng tự động gom chung về 1 điểm dừng trên bản đồ.
       </p>
 
       <div id="aliasListContainer" class="space-y-1.5 max-h-[220px] overflow-y-auto"></div>
@@ -611,7 +620,7 @@
           <input type="text" id="newAliasSourceCode" placeholder="Mã KiotViet phụ (VD: KH076223)" class="p-1.5 border rounded bg-white text-xs">
           <input type="text" id="newAliasTargetCode" placeholder="Mã KiotViet gốc (VD: KH075859)" class="p-1.5 border rounded bg-white text-xs">
         </div>
-        <button onclick="addManualAliasMapping()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 rounded-lg text-xs shadow">
+        <button onclick="addManualAliasMapping()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 rounded-lg text-xs shadow transition">
           Xác Nhận Gộp & Lưu Lên Cloud
         </button>
       </div>
@@ -627,14 +636,14 @@
     <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-          <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i> Cấu Hình Đội Xe Sẵn Có Trong Kho
+          <i data-lucide="truck" class="w-4 h-4 text-blue-600"></i> Cấu Hình Đội Xe Sẵn Có
         </h3>
         <button onclick="closeFleetModal()" class="text-slate-400 hover:text-slate-600">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
       <div id="fleetListContainer" class="space-y-2 max-h-[300px] overflow-y-auto"></div>
-      <button onclick="addNewVehicle()" class="w-full border-2 border-dashed border-blue-300 hover:border-blue-500 text-blue-600 font-semibold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1">
+      <button onclick="addNewVehicle()" class="w-full border-2 border-dashed border-blue-300 hover:border-blue-500 text-blue-600 font-semibold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1 transition">
         <i data-lucide="plus" class="w-3.5 h-3.5"></i> Thêm Xe Mới
       </button>
       <div class="flex justify-end gap-2 pt-2 border-t">
@@ -657,14 +666,14 @@
       <div class="space-y-2 text-xs">
         <div class="p-2 bg-slate-50 border rounded-xl space-y-1.5">
           <div class="font-bold text-slate-700">1. Máy gửi (Kế toán sau khi xếp xong):</div>
-          <button onclick="copySyncDataToClipboard()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded-lg font-bold shadow">
+          <button onclick="copySyncDataToClipboard()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded-lg font-bold shadow transition">
             Sao Chép Mã Đồng Bộ Toàn Bộ
           </button>
         </div>
         <div class="p-2 bg-slate-50 border rounded-xl space-y-1.5">
-          <div class="font-bold text-slate-700">2. Máy nhận (Quản lý / Máy khác):</div>
+          <div class="font-bold text-slate-700">2. Máy nhận (Quản lý / Thiết bị khác):</div>
           <textarea id="syncDataInputArea" rows="3" placeholder="Dán mã đồng bộ vào đây rồi bấm Nạp..." class="w-full p-2 border rounded-lg text-xs bg-white"></textarea>
-          <button onclick="applySyncDataFromText()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-lg font-bold shadow">
+          <button onclick="applySyncDataFromText()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-lg font-bold shadow transition">
             Nạp & Đồng Bộ Vĩnh Viễn
           </button>
         </div>
@@ -693,7 +702,6 @@
       console.warn("Không thể khởi tạo Supabase Client:", e);
     }
 
-    // Các khóa lưu trữ bộ nhớ đệm cục bộ (Cache dự phòng khi offline)
     const STORAGE_KEY_MASTER_CACHE = "FMCG_MASTER_CLOUD_CACHE_V4";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
     const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V4";
@@ -716,7 +724,7 @@
     let unmappedStops = [];
     let unassignedStops = [];
     let selectedStopIds = new Set();
-    let currentStopTab = 'route';
+    let currentStopTab = 'all_imported';
     let currentDetailStop = null;
     let driverAppFilter = 'all';
     let rejectingStopCanonicalId = null;
@@ -728,7 +736,7 @@
     let windowDepotMarker = null;
 
     // -------------------------------------------------------------------------
-    // 2. CÁC HÀM TIỆN ÍCH & CHUẨN HÓA DỮ LIỆU
+    // 2. TIỆN ÍCH & CHUẨN HÓA DỮ LIỆU
     // -------------------------------------------------------------------------
     function normalizePhone(raw) {
       if (!raw) return "";
@@ -771,7 +779,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 3. KHỞI TẠO BẢN ĐỒ AN TOÀN (LEAFLET + GOOGLE TILES TIẾNG VIỆT)
+    // 3. KHỞI TẠO BẢN ĐỒ
     // -------------------------------------------------------------------------
     function initMap() {
       if (map || typeof L === 'undefined') return;
@@ -847,10 +855,9 @@
     }
 
     // -------------------------------------------------------------------------
-    // 4. QUẢN LÝ MASTER DATA CLOUD (KHÔNG NHÚNG MẢNG CỨNG VÀO CODE)
+    // 4. QUẢN LÝ MASTER DATA CLOUD
     // -------------------------------------------------------------------------
     async function loadMasterDataFromCloud() {
-      // B1: Đọc nhanh từ Local Cache để ứng dụng sẵn sàng ngay lập tức
       try {
         let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
         if (Array.isArray(cached) && cached.length > 0) {
@@ -859,7 +866,6 @@
         }
       } catch (e) {}
 
-      // B2: Đồng bộ ngầm với Supabase Cloud
       if (!supabase) return;
       try {
         let { data, error } = await supabase.from('master_customers').select('*');
@@ -876,7 +882,6 @@
               addr: m.addr || ''
             });
           });
-          // Cập nhật lại Cache cục bộ
           localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
           updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
         }
@@ -906,7 +911,6 @@
       document.getElementById('masterAdminModal').classList.add('hidden');
     }
 
-    // Nạp File Excel Master Mới & Ghi Đè Lên Supabase Cloud
     document.getElementById('fileOverwriteMaster').addEventListener('change', function(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -940,7 +944,6 @@
             }
           });
 
-          // Ghi đè lên Supabase theo từng đợt 100 dòng để chống quá tải
           if (supabase && batchUpsert.length > 0) {
             for (let i = 0; i < batchUpsert.length; i += 100) {
               let chunk = batchUpsert.slice(i, i + 100);
@@ -949,7 +952,6 @@
             }
           }
 
-          // Cập nhật bộ nhớ đệm
           localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
           updateMasterCountBadge(masterGpsMap.size, "Cloud Đã Ghi Đè");
           alert(`ĐÃ GHI ĐÈ THÀNH CÔNG ${count} TỌA ĐỘ LÊN SUPABASE CLOUD VĨNH VIỄN!`);
@@ -1007,7 +1009,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 5. NẠP HÓA ĐƠN KIOTVIET & TỰ ĐỘNG GOM ĐƠN THEO ĐIỂM DỪNG
+    // 5. NẠP HÓA ĐƠN KIOTVIET & TỰ ĐỘNG HIỂN THỊ DANH SÁCH
     // -------------------------------------------------------------------------
     document.getElementById('fileInvoice').addEventListener('change', function(e) {
       let file = e.target.files[0];
@@ -1029,6 +1031,12 @@
           btn.className = "flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow transition cursor-pointer";
 
           groupInvoicesIntoInitialStops();
+          
+          // Khắc phục lỗi 1: Tự động chuyển qua xem toàn bộ đơn vừa nạp
+          let hasAssignedTrucks = fleet.some(t => t.stops.length > 0);
+          if (!hasAssignedTrucks) {
+            setStopTab('all_imported');
+          }
         } catch (err) {
           alert("Lỗi đọc file: " + err.message);
         }
@@ -1040,14 +1048,12 @@
       let physicalStopsMap = new Map();
       let invoiceCodMap = new Map();
 
-      // Đọc trước COD của từng hóa đơn
       dailyInvoicesRaw.forEach(row => {
         let invId = String(row['Mã hóa đơn'] || row['Mã đơn'] || '').trim();
         let codVal = parseFloat(row['Còn cần thu (COD)'] || row['Khách cần trả'] || row['Thành tiền'] || 0);
         if (invId && !invoiceCodMap.has(invId)) invoiceCodMap.set(invId, codVal);
       });
 
-      // Gom đơn vào các điểm giao vật lý
       dailyInvoicesRaw.forEach(row => {
         let rawCustId = String(row['Mã khách hàng'] || row['Mã KH'] || '').trim();
         if (!rawCustId) return;
@@ -1100,7 +1106,6 @@
         if (invId) s.invoices.add(invId);
       });
 
-      // Tính tổng COD cho từng điểm giao dựa trên tập hóa đơn
       physicalStopsMap.forEach(s => {
         s.totalCod = 0;
         s.invoices.forEach(invId => s.totalCod += (invoiceCodMap.get(invId) || 0));
@@ -1119,12 +1124,16 @@
       }
 
       document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+      let badgeAll = document.getElementById('allImportedCountBadge');
+      if (badgeAll) badgeAll.innerText = allMergedStops.length;
+
       renderStopsList();
+      renderRouteOnMap();
       updateDashboardReport();
     }
 
     // -------------------------------------------------------------------------
-    // 6. THUẬT TOÁN ĐIỀU PHỐI ĐỘI XE TỰ ĐỘNG & TỐI ƯU TUYẾN
+    // 6. THUẬT TOÁN ĐIỀU PHỐI TỰ ĐỘNG & CÂN BẰNG TẢI TRỌNG
     // -------------------------------------------------------------------------
     async function runSmartFleetDispatch() {
       if (allMergedStops.length === 0) return;
@@ -1133,7 +1142,7 @@
       let mappedStops = allMergedStops.filter(s => s.isMapped);
       unmappedStops = allMergedStops.filter(s => !s.isMapped);
 
-      // Quét theo góc cực quanh vị trí kho xuất phát
+      // Sắp xếp theo góc cực quét đều quanh mốc kho
       mappedStops.sort((a, b) => {
         let angleA = Math.atan2(a.lat - warehouseDepot.lat, a.lon - warehouseDepot.lon);
         let angleB = Math.atan2(b.lat - warehouseDepot.lat, b.lon - warehouseDepot.lon);
@@ -1143,6 +1152,7 @@
       let curTruckIdx = 0;
       let remaining = [...mappedStops];
 
+      // Giai đoạn 1: Gom đơn vào từng xe theo giới hạn tải trọng
       while (remaining.length > 0 && curTruckIdx < fleet.length) {
         let truck = fleet[curTruckIdx];
         let currentLoad = truck.stops.reduce((sum, s) => sum + s.totalQty, 0);
@@ -1155,7 +1165,7 @@
 
         for (let i = 0; i < remaining.length; i++) {
           let s = remaining[i];
-          if (currentLoad + s.totalQty <= truck.maxCapacity * 1.05) {
+          if (currentLoad + s.totalQty <= truck.maxCapacity * 1.1) {
             let d = calcDistanceKm(lastPos.lat, lastPos.lon, s.lat, s.lon);
             if (d < minDist) {
               minDist = d;
@@ -1173,13 +1183,13 @@
         }
       }
 
-      // Xử lý các điểm còn lại vào xe còn dư tải lớn nhất
+      // Giai đoạn 2: Cân bằng tải cho các đơn dôi dư, chia đều thay vì dồn 1 xe
       remaining.forEach(s => {
-        let bestTruck = fleet.reduce((prev, curr) => {
-          let prevLoad = prev.stops.reduce((sum, x) => sum + x.totalQty, 0);
-          let currLoad = curr.stops.reduce((sum, x) => sum + x.totalQty, 0);
-          return (curr.maxCapacity - currLoad) > (prev.maxCapacity - prevLoad) ? curr : prev;
-        }, fleet[0]);
+        let bestTruck = fleet.slice().sort((a, b) => {
+          let loadA = a.stops.reduce((sum, x) => sum + x.totalQty, 0) / a.maxCapacity;
+          let loadB = b.stops.reduce((sum, x) => sum + x.totalQty, 0) / b.maxCapacity;
+          return loadA - loadB;
+        })[0];
         s.truckId = bestTruck.id;
         bestTruck.stops.push(s);
       });
@@ -1187,6 +1197,13 @@
       fleet.forEach(t => optimizeTruckSequence(t));
       unassignedStops = allMergedStops.filter(s => s.truckId === null);
       document.getElementById('unassignedCountBadge').innerText = unassignedStops.length;
+
+      // Chuyển sang xem lộ trình xe 1 sau khi xếp xong
+      currentStopTab = 'route';
+      ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
+        let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
+        if (b) b.className = (k === 'route') ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
+      });
 
       renderFleetTabs();
       updateTruckSummary();
@@ -1196,17 +1213,13 @@
       checkButtonsState();
       savePermanentEdits();
 
-      // Đồng bộ đồng loạt các chuyến xe hôm nay lên Supabase
       if (supabase) {
-        let today = getTodayString();
         for (let t of fleet) {
-          if (t.stops.length > 0) {
-            await syncTruckStopsToCloud(t);
-          }
+          if (t.stops.length > 0) await syncTruckStopsToCloud(t);
         }
       }
 
-      alert(`ĐÃ GỢI Ý XẾP XE HOÀN TẤT!\n\nĐã tối ưu lộ trình khép kín kho cho ${fleet.length} xe.`);
+      alert(`ĐÃ GỢI Ý XẾP XE HOÀN TẤT!\n\nĐã cân tải và tối ưu lộ trình khép kín kho cho toàn bộ đội xe.`);
     }
 
     function optimizeTruckSequence(truck) {
@@ -1242,7 +1255,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 7. PHÂN TUYẾN THỦ CÔNG & CHUYỂN ĐƠN GIỮA CÁC XE
+    // 7. PHÂN TUYẾN THỦ CÔNG
     // -------------------------------------------------------------------------
     function updateManualTruckDropdown() {
       let select = document.getElementById('selectTargetTruckManual');
@@ -1257,7 +1270,11 @@
 
     function toggleSelectAllStops(checked) {
       let truck = fleet.find(t => t.id === activeTruckId);
-      let currentList = (currentStopTab === 'unassigned') ? unassignedStops : (currentStopTab === 'unmapped' ? unmappedStops : (truck ? truck.stops : []));
+      let currentList = (currentStopTab === 'all_imported') ? allMergedStops : (
+        (currentStopTab === 'unassigned') ? unassignedStops : (
+          (currentStopTab === 'unmapped') ? unmappedStops : (truck ? truck.stops : [])
+        )
+      );
       currentList.forEach(s => checked ? selectedStopIds.add(s.canonicalId) : selectedStopIds.delete(s.canonicalId));
       renderStopsList();
       updateManualRoutingBarState();
@@ -1305,6 +1322,7 @@
       renderStopsList();
       renderRouteOnMap();
       updateDashboardReport();
+      checkButtonsState();
       savePermanentEdits();
 
       await syncTruckStopsToCloud(targetTruck);
@@ -1333,12 +1351,14 @@
       renderStopsList();
       renderRouteOnMap();
       updateDashboardReport();
+      checkButtonsState();
       savePermanentEdits();
 
       if (supabase) {
         for (let t of fleet) await syncTruckStopsToCloud(t);
       }
     }
+
     // -------------------------------------------------------------------------
     // 8. KHỞI CHẠY HỆ THỐNG AN TOÀN & SUPABASE REALTIME
     // -------------------------------------------------------------------------
@@ -1346,7 +1366,6 @@
       try {
         let isDriver = checkDriverRoutingModeSync();
         if (!isDriver) {
-          // BƯỚC 1: Dựng giao diện tức thì từ cache cục bộ
           loadPermanentData();
           checkMonthlyAutoReset();
           renderFleetTabs();
@@ -1354,16 +1373,10 @@
           updateDashboardReport();
           safeRenderIcons();
 
-          // BƯỚC 2: Khởi tạo bản đồ an toàn
           setTimeout(() => {
-            try {
-              initMap();
-            } catch (errMap) {
-              console.warn("Khởi tạo bản đồ lỗi (bỏ qua an toàn):", errMap);
-            }
+            try { initMap(); } catch (e) {}
           }, 150);
 
-          // BƯỚC 3: Đồng bộ Master Data từ Cloud Supabase và kích hoạt Realtime
           setTimeout(async () => {
             await loadMasterDataFromCloud();
             await backgroundSyncSupabase();
@@ -1437,7 +1450,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 9. APP ĐỘC LẬP TÀI XẾ & ĐỒNG BỘ TIẾN ĐỘ THỜI GIAN THỰC
+    // 9. APP ĐỘC LẬP TÀI XẾ & BẢN ĐỒ THU NHỎ
     // -------------------------------------------------------------------------
     function checkDriverRoutingModeSync() {
       let hash = window.location.hash || '';
@@ -1476,7 +1489,6 @@
       renderDriverAppCards();
       setTimeout(() => initDriverMiniMap(), 200);
 
-      // Kéo đơn trực tiếp từ Supabase cho tài xế
       if (supabase) {
         Promise.race([
           supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle(),
@@ -1547,7 +1559,7 @@
 
     function openDriverLinkDirect(truckId) {
       let truck = fleet.find(t => t.id === truckId);
-      if (!truck) return alert("Không tìm thấy thông tin xe!");
+      if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
       let today = truck.linkToken || getTodayString();
       window.open(`${window.location.origin + window.location.pathname}#/driver?truck=${truck.id}&date=${today}`, '_blank');
     }
@@ -1632,20 +1644,25 @@
         let borderClass = s.status === 'success' ? "border-l-4 border-emerald-500 bg-emerald-50/40" : (s.status === 'failed' ? "border-l-4 border-rose-500 bg-rose-50/40" : "bg-white");
         let phoneNorm = normalizePhone(s.phone);
 
+        // Khắc phục lỗi 3: Cơ chế Map Fallback - nếu không có tọa độ GPS, mở tìm kiếm Google Maps theo Địa chỉ thực tế
+        let mapLink = s.isMapped 
+          ? `https://maps.google.com/?q=${s.lat},${s.lon}` 
+          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((s.custName || '') + ' ' + (s.addr || '') + ' Bình Dương')}`;
+
         return `
-          <div class="p-3 rounded-2xl shadow-sm border border-slate-200 ${borderClass} space-y-2">
+          <div class="p-3.5 rounded-2xl shadow-sm border border-slate-200 ${borderClass} space-y-2.5">
             <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">#${s.stopSeq}</span>
                 <div>
                   <h4 class="font-bold text-slate-900 text-xs">${s.custName}</h4>
-                  <p class="text-[11px] text-slate-500">${s.addr}</p>
+                  <p class="text-[11px] text-slate-500">${s.addr || 'Chưa có địa chỉ chi tiết'}</p>
                 </div>
               </div>
               <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
             </div>
 
-            <div class="flex items-center justify-between bg-slate-50 p-2 rounded-xl text-xs">
+            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl text-xs">
               <div>
                 <span class="text-[10px] text-slate-400 uppercase font-bold">Cần thu COD:</span>
                 <strong class="font-extrabold text-amber-800 text-sm block">${formatMoney(s.totalCod)}</strong>
@@ -1659,25 +1676,23 @@
                     <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> Zalo
                   </a>
                 ` : ''}
-                ${s.isMapped ? `
-                  <a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
-                    <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Map
-                  </a>
-                ` : ''}
+                <a href="${mapLink}" target="_blank" class="${s.isMapped ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'} px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
+                  <i data-lucide="navigation" class="w-3.5 h-3.5"></i> ${s.isMapped ? 'Map' : 'Tìm Map'}
+                </a>
               </div>
             </div>
 
-            <div class="text-[11px] text-slate-600 border-t pt-1.5">
+            <div class="text-[11px] text-slate-600 border-t pt-1.5 space-y-0.5">
               ${s.items.map(it => `• <strong>${it.qty} ${it.unit}</strong> ${it.itemName}`).join('<br>')}
             </div>
 
             ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${s.failedReason}</div>` : ''}
 
             <div class="flex items-center gap-2 pt-1 border-t">
-              <button onclick="driverMarkSuccess('${s.canonicalId}')" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+              <button onclick="driverMarkSuccess('${s.canonicalId}')" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
                 <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã Giao & Thu Tiền
               </button>
-              <button onclick="openDriverRejectPicker('${s.canonicalId}')" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+              <button onclick="openDriverRejectPicker('${s.canonicalId}')" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
                 <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Không Giao Được
               </button>
             </div>
@@ -1751,9 +1766,13 @@
     function openNextPendingStopNavigation() {
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck) return;
-      let nextStop = truck.stops.find(s => s.status === 'pending' && s.isMapped);
+      let nextStop = truck.stops.find(s => s.status === 'pending');
       if (nextStop) {
-        window.open(`https://www.google.com/maps/dir/?api=1&destination=${nextStop.lat},${nextStop.lon}&travelmode=driving`, '_blank');
+        if (nextStop.isMapped) {
+          window.open(`https://www.google.com/maps/dir/?api=1&destination=${nextStop.lat},${nextStop.lon}&travelmode=driving`, '_blank');
+        } else {
+          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((nextStop.custName || '') + ' ' + (nextStop.addr || '') + ' Bình Dương')}`, '_blank');
+        }
       } else {
         alert("Đã hoàn tất tất cả các điểm giao trong lộ trình!");
       }
@@ -1763,7 +1782,7 @@
       driverAppFilter = f;
       ['all', 'pending', 'success', 'failed'].forEach(k => {
         let b = document.getElementById('fltApp' + k.charAt(0).toUpperCase() + k.slice(1));
-        if (b) b.className = (k === f) ? "flex-1 py-1 rounded bg-blue-100 text-blue-800 font-bold" : "flex-1 py-1 rounded bg-slate-100 text-slate-600";
+        if (b) b.className = (k === f) ? "flex-1 py-1.5 rounded-lg bg-blue-100 text-blue-800 font-bold transition" : "flex-1 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-medium transition";
       });
       renderDriverAppCards();
     }
@@ -1785,7 +1804,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 10. GIAO DIỆN ĐIỀU PHỐI, BÁO CÁO & LỘ TRÌNH BẢN ĐỒ
+    // 10. GIAO DIỆN BÁO CÁO & HIỂN THỊ DANH SÁCH ĐƠN
     // -------------------------------------------------------------------------
     function changeDashboardDateRange(range) {
       currentHistoryRange = range;
@@ -1868,6 +1887,7 @@
         }
       }
 
+      // Khắc phục lỗi 2: Khóa hoàn toàn nút "Mở" và "Copy" nếu xe chưa có đơn
       let tbody = document.getElementById('dashFleetTableBody');
       if (tbody) {
         tbody.innerHTML = fleet.map(t => {
@@ -1876,21 +1896,24 @@
           let doneCount = t.stops.filter(s => s.status === 'success').length;
           let failCount = t.stops.filter(s => s.status === 'failed').length;
           let pct = t.stops.length > 0 ? Math.round((doneCount / t.stops.length) * 100) : 0;
+          let hasStops = t.stops.length > 0;
 
-          let statusText = t.stops.length === 0 
+          let statusText = !hasStops 
             ? '<span class="text-slate-400 font-semibold">Xe trống tại kho</span>'
             : `<span class="font-bold text-blue-700">${doneCount}/${t.stops.length} (${pct}%)</span>${failCount > 0 ? ' • <span class="text-rose-600 font-bold">' + failCount + ' hủy</span>' : ''}`;
 
-          let linkStatusBadge = t.linkIssued
+          let linkStatusBadge = (t.linkIssued && hasStops)
             ? '<span class="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Đã cấp link</span>'
             : '<span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Chưa cấp</span>';
 
-          let linkActions = `
+          let linkActions = hasStops ? `
             <div class="flex items-center justify-center gap-1">
               <button onclick="event.stopPropagation(); openDriverLinkDirect(${t.id});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-200">Mở</button>
               <button onclick="event.stopPropagation(); selectTruck(${t.id}); generateStandaloneDriverLink();" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
               <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
             </div>
+          ` : `
+            <span class="text-[10px] text-slate-300 italic select-none">Chưa có đơn</span>
           `;
 
           return `
@@ -1900,7 +1923,7 @@
                 <div class="text-[10px] text-slate-400 font-mono">${t.plate}</div>
               </td>
               <td class="p-2">${t.driver}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
-              <td class="p-2 text-center font-bold text-blue-600">${Math.round(truckLoad)}/${t.maxCapacity}</td>
+              <td class="p-2 text-center font-bold ${truckLoad > t.maxCapacity ? 'text-rose-600' : 'text-blue-600'}">${Math.round(truckLoad)}/${t.maxCapacity}</td>
               <td class="p-2 text-center font-bold text-slate-800">${t.stops.length}</td>
               <td class="p-2 text-right font-bold text-amber-800 font-mono">${formatMoney(truckCod)}</td>
               <td class="p-2 text-center">${statusText}</td>
@@ -1975,8 +1998,8 @@
 
     function setStopTab(tab) {
       currentStopTab = tab;
-      ['route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
-        let b = document.getElementById('tabBtn' + k.charAt(0).toUpperCase() + k.slice(1));
+      ['all_imported', 'route', 'lifo', 'unassigned', 'unmapped'].forEach(k => {
+        let b = document.getElementById('tabBtn' + k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(''));
         if (b) b.className = (k === tab) ? "px-2 py-1 rounded bg-blue-600 text-white font-bold" : "px-2 py-1 rounded bg-slate-100 text-slate-600";
       });
       renderStopsList();
@@ -1991,6 +2014,51 @@
       let summaryText = document.getElementById('listStopsSummaryText');
       if (!container) return;
 
+      let query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+
+      // Tab 1: Toàn bộ đơn vừa nạp từ file Excel (Khắc phục lỗi 1)
+      if (currentStopTab === 'all_imported') {
+        let list = [...allMergedStops];
+        if (query) list = list.filter(s => s.custName.toLowerCase().includes(query) || s.canonicalId.toLowerCase().includes(query) || s.phone.includes(query));
+        if (summaryText) summaryText.innerText = `${list.length} đơn đã nạp`;
+        
+        if (list.length === 0) {
+          container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Chưa có đơn hàng nào được nạp từ file.</div>';
+          return;
+        }
+
+        container.innerHTML = list.map((s, idx) => {
+          let assignedTruck = fleet.find(t => t.id === s.truckId);
+          let truckBadge = assignedTruck 
+            ? `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">${assignedTruck.name}</span>`
+            : `<span class="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded">Chưa xếp xe</span>`;
+
+          return `
+            <div class="p-2.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2.5">
+              <input type="checkbox" onchange="handleStopCheckboxToggle('${s.canonicalId}', this.checked)" ${selectedStopIds.has(s.canonicalId) ? 'checked' : ''} class="mt-1 rounded text-blue-600 shrink-0">
+              <div onclick="openStopDetail('${s.canonicalId}')" class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-bold text-slate-900 truncate">${idx + 1}. ${s.custName}</span>
+                  <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
+                </div>
+                <div class="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
+                  <span>Mã: <strong class="text-slate-700">${s.canonicalId}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'}</span>
+                  <span class="font-bold text-amber-700">COD: ${formatMoney(s.totalCod)}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 truncate mt-0.5">${s.addr || 'Chưa có địa chỉ'}</div>
+                <div class="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                  <div>${truckBadge}</div>
+                  <span class="text-[10px] ${s.isMapped ? 'text-emerald-600' : 'text-rose-600'} font-semibold">${s.isMapped ? 'Đã có GPS' : 'Chưa có GPS'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        safeRenderIcons();
+        return;
+      }
+
+      // Tab 2: Đơn chưa có tọa độ GPS
       if (currentStopTab === 'unmapped') {
         if (summaryText) summaryText.innerText = `${unmappedStops.length} đơn chưa map`;
         if (unmappedStops.length === 0) {
@@ -2022,6 +2090,7 @@
         return;
       }
 
+      // Tab 3: Đơn chưa được xếp xe
       if (currentStopTab === 'unassigned') {
         if (summaryText) summaryText.innerText = `${unassignedStops.length} đơn chưa xếp xe`;
         if (unassignedStops.length === 0) {
@@ -2048,14 +2117,14 @@
         return;
       }
 
+      // Tab 4: Lộ trình và LIFO của xe đang chọn
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck || truck.stops.length === 0) {
         if (summaryText) summaryText.innerText = "0 đơn";
-        container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Xe này chưa có đơn hàng nào được xếp.</div>';
+        container.innerHTML = '<div class="p-8 text-center text-xs text-slate-400">Xe này chưa có đơn hàng nào được xếp. Hãy chọn gợi ý tự động hoặc tick chọn đơn để gán xe.</div>';
         return;
       }
 
-      let query = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
       let list = [...truck.stops];
       if (currentStopTab === 'lifo') list.sort((a, b) => b.stopSeq - a.stopSeq);
       else list.sort((a, b) => a.stopSeq - b.stopSeq);
@@ -2111,7 +2180,28 @@
       pinsLayer.clearLayers();
 
       let truck = fleet.find(t => t.id === activeTruckId);
-      if (!truck || truck.stops.length === 0) return;
+      
+      // Nếu chưa xếp đơn vào xe, hiển thị toàn bộ các điểm giao chưa gán lên bản đồ (marker xám)
+      if (!truck || truck.stops.length === 0) {
+        let unassignedMapped = allMergedStops.filter(s => s.isMapped);
+        if (unassignedMapped.length === 0) return;
+
+        let bounds = L.latLngBounds([[warehouseDepot.lat, warehouseDepot.lon]]);
+        unassignedMapped.forEach(s => {
+          bounds.extend([s.lat, s.lon]);
+          let icon = L.divIcon({
+            className: 'unassigned-map-pin',
+            html: `<div class="w-5 h-5 rounded-full bg-slate-500 border border-white shadow flex items-center justify-center text-white text-[9px] font-bold">•</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+          L.marker([s.lat, s.lon], { icon }).bindPopup(`
+            <b>${s.custName}</b><br>${s.addr}<br>Hàng: <b>${s.totalQty} Thùng</b><br>COD: <b>${formatMoney(s.totalCod)}</b>
+          `).addTo(pinsLayer);
+        });
+        map.fitBounds(bounds, { padding: [30, 30] });
+        return;
+      }
 
       let validStops = truck.stops.filter(s => s.isMapped);
       if (validStops.length === 0) return;
@@ -2143,7 +2233,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 11. MODAL CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ GPS & MÃ TRÙNG
+    // 11. CHI TIẾT ĐƠN HÀNG, TỌA ĐỘ GPS & GỘP ĐIỂM BÁN TRÙNG
     // -------------------------------------------------------------------------
     function openStopDetail(canonicalId) {
       let stop = allMergedStops.find(s => s.canonicalId === canonicalId);
@@ -2205,12 +2295,10 @@
       let item = { id: canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr };
       masterGpsMap.set(canonicalId, item);
 
-      // Lưu ngay lập tức lên Cloud Supabase
       if (supabase) {
         await supabase.from('master_customers').upsert(item, { onConflict: 'id' });
       }
 
-      // Cập nhật bộ nhớ đệm
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
 
       unmappedStops = allMergedStops.filter(s => !s.isMapped);
@@ -2273,7 +2361,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 12. CẤU HÌNH ĐỘI XE, IN PHIẾU LIFO & QUẢN TRỊ DỮ LIỆU
+    // 12. CẤU HÌNH ĐỘI XE, IN PHIẾU LIFO & TIỆN ÍCH HỆ THỐNG
     // -------------------------------------------------------------------------
     function openFleetConfigModal() {
       let container = document.getElementById('fleetListContainer');
@@ -2339,6 +2427,7 @@
           renderStopsList();
           renderRouteOnMap();
           updateDashboardReport();
+          checkButtonsState();
           savePermanentEdits();
 
           await syncTruckStopsToCloud(curTruck);
@@ -2472,7 +2561,8 @@
     }
 
     function checkButtonsState() {
-      let hasData = fleet.some(t => t.stops.length > 0);
+      let truck = fleet.find(t => t.id === activeTruckId);
+      let hasData = truck && truck.stops.length > 0;
       let btnDriver = document.getElementById('btnGenDriverLink');
       let btnPrint = document.getElementById('btnPrint');
       if (btnDriver) btnDriver.disabled = !hasData;
