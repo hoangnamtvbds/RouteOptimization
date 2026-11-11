@@ -86,7 +86,7 @@
           <i data-lucide="warehouse" class="w-3.5 h-3.5 text-amber-400"></i>
           <span class="hidden sm:inline">Vị Trí Kho</span>
         </button>
-
+      
         <button onclick="promptMasterAdmin()" title="Quản trị Master Data GPS" class="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 shadow transition">
           <i data-lucide="shield" class="w-3.5 h-3.5"></i>
           <span>Quản Trị Master</span>
@@ -541,11 +541,16 @@
         </button>
       </div>
 
-      <div class="flex items-center justify-between pt-2 border-t text-xs">
-        <button onclick="exportCurrentMasterExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất File Master Excel Chuẩn
-        </button>
-        <button onclick="closeMasterAdminModal()" class="px-3 py-1.5 border rounded-lg text-slate-600 hover:bg-slate-50">Đóng</button>
+      <div class="flex items-center justify-between pt-2 border-t text-xs gap-2">
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="forcePushLocalMasterToCloud()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition">
+            <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Đẩy Map Máy Này Lên Cloud
+          </button>
+          <button type="button" onclick="exportCurrentMasterExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Xuất Excel Chuẩn
+          </button>
+        </div>
+        <button type="button" onclick="closeMasterAdminModal()" class="px-3 py-1.5 border rounded-lg text-slate-600 hover:bg-slate-50">Đóng</button>
       </div>
     </div>
   </div>
@@ -847,7 +852,7 @@
       document.getElementById('depotModal').classList.add('hidden');
     }
 
-    function saveDepotCoordinates() {
+    async function saveDepotCoordinates() {
       let name = (document.getElementById('inputDepotName').value || '').trim();
       let coordsStr = (document.getElementById('inputDepotCoords').value || '').trim();
       let coords = parseCoords(coordsStr);
@@ -860,25 +865,44 @@
         drawDepotPin();
       }
       closeDepotModal();
-      alert(`ĐÃ LƯU VĨNH VIỄN VỊ TRÍ KHO:\n\n[${coords.lat}, ${coords.lon}]!`);
+
+      // ĐẨY VỊ TRÍ KHO LÊN CLOUD SUPABASE
+      if (supabase) {
+        await supabase.from('app_settings').upsert({
+          key_name: 'warehouse_depot',
+          setting_val: warehouseDepot,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key_name' });
+      }
+
+      alert(`ĐÃ LƯU VÀ ĐỒNG BỘ VỊ TRÍ KHO LÊN CLOUD:\n\n[${coords.lat}, ${coords.lon}]!`);
     }
 
     // -------------------------------------------------------------------------
     // 4. QUẢN LÝ MASTER DATA CLOUD
     // -------------------------------------------------------------------------
     async function loadMasterDataFromCloud() {
-      try {
-        let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
-        if (Array.isArray(cached) && cached.length > 0) {
-          cached.forEach(m => masterGpsMap.set(m.id, m));
-          updateMasterCountBadge(masterGpsMap.size, "Cache máy");
-        }
-      } catch (e) {}
+      // 1. Tải cấu hình Kho từ Cloud về trước
+      if (supabase) {
+        try {
+          let { data: depotConf } = await supabase.from('app_settings').select('setting_val').eq('key_name', 'warehouse_depot').maybeSingle();
+          if (depotConf && depotConf.setting_val) {
+            warehouseDepot = depotConf.setting_val;
+            localStorage.setItem(STORAGE_KEY_DEPOT, JSON.stringify(warehouseDepot));
+            if (map) {
+              map.setView([warehouseDepot.lat, warehouseDepot.lon], 13);
+              drawDepotPin();
+            }
+          }
+        } catch (e) {}
+      }
 
+      // 2. Tải Master Data GPS từ Cloud
       if (!supabase) return;
       try {
         let { data, error } = await supabase.from('master_customers').select('*');
         if (error) throw error;
+        
         if (data && data.length > 0) {
           masterGpsMap.clear();
           data.forEach(m => {
@@ -893,10 +917,33 @@
           });
           localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
           updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
+        } else {
+          // Nếu Cloud chưa có, lấy từ Cache máy lên
+          let cached = JSON.parse(localStorage.getItem(STORAGE_KEY_MASTER_CACHE) || "[]");
+          if (Array.isArray(cached) && cached.length > 0) {
+            cached.forEach(m => masterGpsMap.set(m.id, m));
+            updateMasterCountBadge(masterGpsMap.size, "Cache máy");
+          }
         }
       } catch (err) {
         console.warn("Không thể tải Master Data từ Supabase:", err);
       }
+    }
+
+    // HÀM ĐẨY TOÀN BỘ 624 ĐIỂM MAP HIỆN CÓ LÊN CLOUD
+    async function forcePushLocalMasterToCloud() {
+      if (!supabase) return alert("Chưa kết nối được Supabase!");
+      let list = Array.from(masterGpsMap.values());
+      if (list.length === 0) return alert("Máy này chưa có dữ liệu map nào để đẩy!");
+
+      if (!confirm(`Đẩy toàn bộ ${list.length} điểm map từ trình duyệt này lên Cloud Supabase?`)) return;
+
+      for (let i = 0; i < list.length; i += 100) {
+        let chunk = list.slice(i, i + 100);
+        await supabase.from('master_customers').upsert(chunk, { onConflict: 'id' });
+      }
+      alert(`ĐÃ ĐẨY THÀNH CÔNG ${list.length} KHÁCH HÀNG LÊN CLOUD!\nBây giờ mở điện thoại hay máy tính khác lên sẽ có đủ 100%.`);
+      await loadMasterDataFromCloud();
     }
 
     function updateMasterCountBadge(count, source) {
