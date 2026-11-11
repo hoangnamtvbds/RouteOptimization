@@ -1520,46 +1520,51 @@
   if (elDispatch) elDispatch.classList.add('hidden');
   if (elDriver) elDriver.classList.remove('hidden');
 
-  loadPermanentData();
-
-  let urlParams = new URLSearchParams(hash.split('?')[1] || '');
-  let paramTruckId = parseInt(urlParams.get('truck') || 0);
-  if (paramTruckId > 0) activeTruckId = paramTruckId;
-
+  // 1. Tách chính xác ID xe từ thanh địa chỉ URL
+  let queryPart = hash.includes('?') ? hash.split('?')[1] : '';
+  let urlParams = new URLSearchParams(queryPart);
+  let paramTruckId = parseInt(urlParams.get('truck') || '0', 10);
   let orderDate = urlParams.get('date') || getTodayString();
-  let token = urlParams.get('token') || '';
 
-  let isExpired = false;
-  if (token) {
-    isExpired = isTokenExpired(token);
-  } else if (orderDate) {
-    let orderTime = new Date(orderDate).getTime();
-    if (!isNaN(orderTime) && (Date.now() - orderTime) > (48 * 3600 * 1000)) {
-      isExpired = true;
-    }
+  // 2. Nạp dữ liệu offline nhưng KHÔNG ĐƯỢC để LocalStorage ghi đè làm mất ID xe
+  loadPermanentData();
+  if (paramTruckId > 0) {
+    activeTruckId = paramTruckId;
   }
 
-  if (isExpired) {
-    let elExp = document.getElementById('drvExpiredBanner');
-    let elCards = document.getElementById('driverAppCardsList');
-    if (elExp) elExp.classList.remove('hidden');
-    if (elCards) elCards.innerHTML = '<div class="p-8 text-center text-rose-600 font-bold text-xs"><i data-lucide="clock-alert" class="w-8 h-8 mx-auto mb-2"></i>Chuyến giao hàng này đã kết thúc quá 48h và link đã tự hủy theo quy định bảo mật!</div>';
+  // 3. Khởi tạo ngay khung bản đồ mini
+  setTimeout(() => {
+    initDriverMiniMap();
+  }, 100);
+
+  // Hiển thị trạng thái đang tải dữ liệu cho tài xế
+  let container = document.getElementById('driverAppCardsList');
+  if (container) {
+    container.innerHTML = '<div class="p-8 text-center text-blue-600 font-bold text-xs"><i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 animate-spin"></i>Đang tải dữ liệu chuyến xe từ Cloud...</div>';
     safeRenderIcons();
-    return true;
   }
 
-  // Khởi tạo khung bản đồ trước
-  initDriverMiniMap();
-  renderDriverAppCards();
-
-  // Kéo dữ liệu tươi mới nhất từ Cloud Supabase và vẽ lại thẻ + map ngay lập tức
+  // 4. Kéo dữ liệu thực từ Cloud Supabase theo đúng xe và ngày
   if (supabase) {
-    supabase.from('dispatch_sessions').select('*').eq('order_date', orderDate).eq('truck_id', activeTruckId).maybeSingle()
-      .then(({ data }) => {
-        if (data && data.stops && data.stops.length > 0) {
+    supabase.from('dispatch_sessions')
+      .select('*')
+      .eq('order_date', orderDate)
+      .eq('truck_id', activeTruckId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.warn("Lỗi Supabase driver:", error);
+        if (data && Array.isArray(data.stops) && data.stops.length > 0) {
           let truck = fleet.find(t => t.id === activeTruckId);
           if (!truck) {
-            truck = { id: activeTruckId, name: data.truck_name || `Xe ${activeTruckId}`, plate: data.plate || '', driver: data.driver_name || '', phone: data.driver_phone || '', maxCapacity: data.max_capacity || 150, stops: [] };
+            truck = { 
+              id: activeTruckId, 
+              name: data.truck_name || `Xe ${activeTruckId}`, 
+              plate: data.plate || '', 
+              driver: data.driver_name || '', 
+              phone: data.driver_phone || '', 
+              maxCapacity: data.max_capacity || 150, 
+              stops: [] 
+            };
             fleet.push(truck);
           }
           truck.stops = data.stops;
@@ -1568,9 +1573,23 @@
           truck.name = data.truck_name || truck.name;
 
           renderDriverAppCards();
-          renderDriverMiniMapRoute(truck.stops);
+          setTimeout(() => {
+            renderDriverMiniMapRoute(truck.stops);
+          }, 200);
+        } else {
+          // Nếu Supabase chưa có, kiểm tra xe trong cache máy
+          renderDriverAppCards();
+          let localTruck = fleet.find(t => t.id === activeTruckId);
+          if (localTruck && localTruck.stops && localTruck.stops.length > 0) {
+            setTimeout(() => renderDriverMiniMapRoute(localTruck.stops), 200);
+          }
         }
-      }).catch(err => console.warn("Lỗi tải đơn tài xế:", err));
+      }).catch(err => {
+        console.warn("Lỗi fetch đơn:", err);
+        renderDriverAppCards();
+      });
+  } else {
+    renderDriverAppCards();
   }
   return true;
 }
@@ -1584,44 +1603,49 @@
       }
     }
 
-    async function generateStandaloneDriverLink() {
-      let truck = fleet.find(t => t.id === activeTruckId);
-      if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
+    async function generateStandaloneDriverLink(targetTruckId) {
+  let tid = targetTruckId ? targetTruckId : activeTruckId;
+  let truck = fleet.find(t => t.id === tid);
+  if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
 
-      let today = getTodayString();
-      await syncTruckStopsToCloud(truck);
+  let today = getTodayString();
+  // Đẩy dữ liệu đơn của chính xe này lên Cloud ngay lập tức
+  await syncTruckStopsToCloud(truck);
 
-      let driverUrl = `${window.location.origin + window.location.pathname}#/driver?truck=${truck.id}&date=${today}`;
-      truck.linkIssued = true;
-      truck.linkToken = today;
-      savePermanentEdits();
-      renderFleetTabs();
-      updateDashboardReport();
+  // Tạo URL chuẩn xác tuyệt đối gắn ID của chính xe đó
+  let baseCleanUrl = window.location.origin + window.location.pathname;
+  let driverUrl = `${baseCleanUrl}#/driver?truck=${truck.id}&date=${today}`;
 
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(driverUrl).then(() => {
-          alert(`ĐÃ TẠO VÀ COPY LINK CLOUD CHO ${truck.name}!\n\n${driverUrl}\n\nAnh chỉ cần dán (Paste) link này qua Zalo cho tài xế ${truck.driver}.`);
-        }).catch(() => {
-          prompt("Copy link tài xế dưới đây:", driverUrl);
-        });
-      } else {
-        prompt("Copy link tài xế dưới đây:", driverUrl);
-      }
-    }
+  truck.linkIssued = true;
+  truck.linkToken = today;
+  savePermanentEdits();
+  renderFleetTabs();
+  updateDashboardReport();
 
-    function revokeDriverLink(truckId) {
-      let truck = fleet.find(t => t.id === truckId);
-      if (!truck) return;
-      if (confirm(`Thu hồi và hủy link của ${truck.name}? Tài xế sẽ không thể vào xem đơn nữa.`)) {
-        truck.linkIssued = false;
-        truck.linkToken = null;
-        savePermanentEdits();
-        renderFleetTabs();
-        updateDashboardReport();
-      }
-    }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(driverUrl).then(() => {
+      alert(`ĐÃ TẠO & COPY LINK CHO ${truck.name.toUpperCase()}!\n\n${driverUrl}\n\nAnh dán (Paste) gửi Zalo cho tài xế ${truck.driver} là xong!`);
+    }).catch(() => {
+      prompt(`Copy link tài xế của ${truck.name} dưới đây:`, driverUrl);
+    });
+  } else {
+    prompt(`Copy link tài xế của ${truck.name} dưới đây:`, driverUrl);
+  }
+}
 
-    function openDriverLinkDirect(truckId) {
+function revokeDriverLink(truckId) {
+  let truck = fleet.find(t => t.id === truckId);
+  if (!truck) return;
+  if (confirm(`Thu hồi và hủy link của ${truck.name}? Tài xế sẽ không thể vào xem đơn nữa.`)) {
+    truck.linkIssued = false;
+    truck.linkToken = null;
+    savePermanentEdits();
+    renderFleetTabs();
+    updateDashboardReport();
+  }
+}
+
+function openDriverLinkDirect(truckId) {
   let truck = fleet.find(t => t.id === truckId);
   if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
   let today = truck.linkToken || getTodayString();
@@ -2003,8 +2027,9 @@ async function submitDriverRejectReason(reason) {
           let linkActions = hasStops ? `
             <div class="flex items-center justify-center gap-1">
               <button onclick="event.stopPropagation(); openDriverLinkDirect(${t.id});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-200">Mở</button>
-              <button onclick="event.stopPropagation(); selectTruck(${t.id}); generateStandaloneDriverLink();" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
-              <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
+            <button onclick="event.stopPropagation(); generateStandaloneDriverLink(${t.id});" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
+ 
+            <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Hủy</button>
             </div>
           ` : `
             <span class="text-[10px] text-slate-300 italic select-none">Chưa có đơn</span>
