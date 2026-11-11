@@ -34,8 +34,13 @@
     }
   </script>
 
-  <!-- Supabase JS Client v2 CDN -->
+<!-- Supabase JS Client v2 CDN kèm dự phòng -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    if (typeof window.supabase === 'undefined') {
+      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');
+    }
+  </script>
 
   <style>
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -708,13 +713,18 @@
     const SUPABASE_ANON_KEY = "sb_publishable_JMCaJ-K3W-meXRTPPfrpFg_QHG8JUr2";
     
     var supabase = null;
-    try {
-      if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    function initSupabaseClient() {
+      try {
+        if (window.supabase && typeof window.supabase.createClient === 'function') {
+          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } else if (window.supabaseJs && typeof window.supabaseJs.createClient === 'function') {
+          supabase = window.supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+      } catch (e) {
+        console.error("Lỗi khởi tạo Supabase:", e);
       }
-    } catch (e) {
-      console.warn("Không thể khởi tạo Supabase Client:", e);
     }
+    initSupabaseClient();
 
     const STORAGE_KEY_MASTER_CACHE = "FMCG_MASTER_CLOUD_CACHE_V4";
     const STORAGE_KEY_ALIASES = "FMCG_STORE_ALIASES_V4";
@@ -931,18 +941,24 @@
     }
 
     // HÀM ĐẨY TOÀN BỘ 624 ĐIỂM MAP HIỆN CÓ LÊN CLOUD
-    async function forcePushLocalMasterToCloud() {
-      if (!supabase) return alert("Chưa kết nối được Supabase!");
+   async function forcePushLocalMasterToCloud() {
+      if (!supabase) initSupabaseClient();
+      if (!supabase) {
+        return alert("Không thể tải thư viện Supabase! Vui lòng tạm tắt 'Brave Shields' (biểu tượng sư tử) trên thanh địa chỉ rồi bấm lại.");
+      }
       let list = Array.from(masterGpsMap.values());
-      if (list.length === 0) return alert("Máy này chưa có dữ liệu map nào để đẩy!");
+      if (list.length === 0) return alert("Không tìm thấy dữ liệu map trong bộ nhớ máy này!");
 
-      if (!confirm(`Đẩy toàn bộ ${list.length} điểm map từ trình duyệt này lên Cloud Supabase?`)) return;
+      if (!confirm(`Đẩy toàn bộ ${list.length} điểm map lên Cloud Supabase?`)) return;
 
       for (let i = 0; i < list.length; i += 100) {
         let chunk = list.slice(i, i + 100);
-        await supabase.from('master_customers').upsert(chunk, { onConflict: 'id' });
+        let { error } = await supabase.from('master_customers').upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          return alert("Lỗi gửi dữ liệu lên Cloud: " + error.message);
+        }
       }
-      alert(`ĐÃ ĐẨY THÀNH CÔNG ${list.length} KHÁCH HÀNG LÊN CLOUD!\nBây giờ mở điện thoại hay máy tính khác lên sẽ có đủ 100%.`);
+      alert(`ĐÃ ĐẨY THÀNH CÔNG ${list.length} KHÁCH HÀNG LÊN CLOUD!`);
       await loadMasterDataFromCloud();
     }
 
