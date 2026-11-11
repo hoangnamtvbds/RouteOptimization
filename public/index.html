@@ -1492,26 +1492,24 @@ async function restoreMasterBackupFromCloud() {
     // -------------------------------------------------------------------------
     // 8. KHỞI CHẠY HỆ THỐNG AN TOÀN & SUPABASE REALTIME
     // -------------------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', async () => {
+   window.addEventListener('DOMContentLoaded', async () => {
       try {
         let isDriver = checkDriverRoutingModeSync();
         if (!isDriver) {
-          loadPermanentData();
+          loadPermanentData(); // Tải cấu hình xe, kho, alias từ máy trước
           checkMonthlyAutoReset();
           renderFleetTabs();
           updateManualTruckDropdown();
-          updateDashboardReport();
           safeRenderIcons();
 
           setTimeout(() => {
             try { initMap(); } catch (e) {}
           }, 150);
 
-          setTimeout(async () => {
-            await loadMasterDataFromCloud();
-            await backgroundSyncSupabase();
-            setupSupabaseRealtime();
-          }, 350);
+          // TẢI DỮ LIỆU CLOUD TRƯỚC RỒI MỚI VẼ GIAO DIỆN
+          await loadMasterDataFromCloud();
+          await backgroundSyncSupabase(); // Kéo đơn từ Cloud về
+          setupSupabaseRealtime();        // Bật lắng nghe thay đổi
         }
       } catch (err) {
         console.error("Lỗi khởi tạo tổng thể:", err);
@@ -2967,39 +2965,65 @@ async function submitDriverRejectReason(reason) {
       } catch (e) {}
     }
 
-    function savePermanentEdits() {
+   async function savePermanentEdits() {
       try {
         let aliasObj = {};
         storeAliasMap.forEach((v, k) => aliasObj[k] = v);
         localStorage.setItem(STORAGE_KEY_ALIASES, JSON.stringify(aliasObj));
         localStorage.setItem(STORAGE_KEY_FLEET, JSON.stringify(fleet));
 
+        // CHUYỂN ĐỔI BẮT BUỘC: Biến Set() thành Array [] để Supabase và JSON hiểu được
         let serializableStops = allMergedStops.map(s => ({
           ...s,
           rawIds: Array.from(s.rawIds || []),
           invoices: Array.from(s.invoices || [])
         }));
 
+        let serializableFleet = fleet.map(t => ({
+          ...t,
+          stops: (t.stops || []).map(s => ({
+            ...s,
+            rawIds: Array.from(s.rawIds || []),
+            invoices: Array.from(s.invoices || [])
+          }))
+        }));
+
         let sessionPayload = {
-          fleet,
+          fleet: serializableFleet,
           activeTruckId,
           allMergedStops: serializableStops,
-          unmappedStops,
-          unassignedStops
+          unmappedStops: unmappedStops.map(s => ({
+            ...s,
+            rawIds: Array.from(s.rawIds || []),
+            invoices: Array.from(s.invoices || [])
+          })),
+          unassignedStops: unassignedStops.map(s => ({
+            ...s,
+            rawIds: Array.from(s.rawIds || []),
+            invoices: Array.from(s.invoices || [])
+          }))
         };
 
         localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(sessionPayload));
 
-        // TỰ ĐỘNG ĐẨY TOÀN BỘ PHIÊN LÊN SUPABASE CLOUD
+        // GỬI LÊN CLOUD SUPABASE
         if (supabase) {
           let today = getTodayString();
-          supabase.from('daily_orders').upsert({
+          let { error } = await supabase.from('daily_orders').upsert({
             order_date: today,
             session_data: sessionPayload,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'order_date' }).then(() => {}).catch(err => console.warn("Lỗi lưu Cloud:", err));
+          }, { onConflict: 'order_date' });
+
+          if (error) {
+            console.error("LỖI GỬI LÊN SUPABASE:", error);
+          } else {
+            console.log("ĐÃ LƯU CLOUD THÀNH CÔNG VÀO BẢNG daily_orders!");
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Lỗi savePermanentEdits:", e);
+      }
     }
   </script>
 </body>
