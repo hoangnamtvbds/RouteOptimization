@@ -1410,44 +1410,56 @@
     }
 
     function applyRemoteTruckUpdate(record) {
-      let truck = fleet.find(t => t.id === record.truck_id);
-      if (truck) {
-        truck.stops = record.stops || [];
-        updateDashboardReport();
-        renderStopsList();
-        renderFleetTabs();
-        if (record.truck_id === activeTruckId) renderRouteOnMap();
+  let truck = fleet.find(t => t.id === record.truck_id);
+  if (truck) {
+    truck.stops = record.stops || [];
+
+    // Cập nhật trạng thái từng đơn vào danh sách tổng để Dashboard tự nhảy tiền & %
+    truck.stops.forEach(remoteStop => {
+      let mainStop = allMergedStops.find(s => s.canonicalId === remoteStop.canonicalId);
+      if (mainStop) {
+        mainStop.status = remoteStop.status;
+        mainStop.failedReason = remoteStop.failedReason;
       }
-    }
+    });
+
+    updateDashboardReport();
+    renderStopsList();
+    renderFleetTabs();
+    if (record.truck_id === activeTruckId) renderRouteOnMap();
+  }
+}
 
     async function backgroundSyncSupabase() {
-      if (!supabase) return;
-      try {
-        let today = getTodayString();
-        let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
-        let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
+  if (!supabase) return;
+  try {
+    let today = getTodayString();
+    let dispatchPromise = supabase.from('dispatch_sessions').select('*').eq('order_date', today);
+    let timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
 
-        let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
-        if (res && res.data && res.data.length > 0) {
-          res.data.forEach(record => {
-            let t = fleet.find(x => x.id === record.truck_id);
-            if (t) {
-              t.stops = record.stops || [];
-              t.linkIssued = true;
-              t.linkToken = today;
-            }
-          });
-          renderFleetTabs();
-          updateTruckSummary();
-          renderStopsList();
-          renderRouteOnMap();
-          updateDashboardReport();
-          checkButtonsState();
+    let res = await Promise.race([dispatchPromise, timeoutPromise]).catch(() => null);
+    if (res && res.data && res.data.length > 0) {
+      res.data.forEach(record => {
+        let t = fleet.find(x => x.id === record.truck_id);
+        if (t) {
+          t.stops = record.stops || [];
+          // Giữ nguyên trạng thái link, không tự động bật link khi chưa được cấp
+          let localTruck = fleet.find(f => f.id === t.id);
+          t.linkIssued = localTruck ? !!localTruck.linkIssued : false;
+          t.linkToken = localTruck ? localTruck.linkToken : null;
         }
-      } catch (e) {
-        console.warn("Lỗi sync phiên điều phối:", e);
-      }
+      });
+      renderFleetTabs();
+      updateTruckSummary();
+      renderStopsList();
+      renderRouteOnMap();
+      updateDashboardReport();
+      checkButtonsState();
     }
+  } catch (e) {
+    console.warn("Lỗi sync phiên điều phối:", e);
+  }
+}
 
     // -------------------------------------------------------------------------
     // 9. APP ĐỘC LẬP TÀI XẾ & BẢN ĐỒ THU NHỎ
