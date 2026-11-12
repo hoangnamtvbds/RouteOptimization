@@ -179,6 +179,9 @@
           </div>
         </div>
 
+        <!-- THANH TỔNG KM CHUYẾN (khứ hồi) -->
+        <div id="truckKmStrip" onclick="openDistModal()" style="display:none" class="px-2 py-1 bg-emerald-50 border-b border-emerald-100 items-center justify-between gap-2 text-[11px] shrink-0 cursor-pointer"></div>
+
         <!-- THANH CÔNG CỤ PHÂN TUYẾN THỦ CÔNG (KHI TICK CHỌN ĐƠN HÀNG) -->
         <div id="manualRoutingBar" class="hidden p-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-1.5 shrink-0 animate-in fade-in">
           <div class="text-xs font-bold text-amber-900">
@@ -398,6 +401,7 @@
         <button onclick="toggleDriverMiniMap()" id="btnToggleMiniMap" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-600 flex items-center gap-1 transition">
           <i data-lucide="map" class="w-3.5 h-3.5"></i> <span id="textToggleMiniMap">Ẩn Map</span>
         </button>
+        <button onclick="openDistModal()" title="Đo khoảng cách" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] px-2 py-1.5 rounded-lg border border-blue-600">📏</button>
         <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] p-2 rounded-lg border border-blue-600">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         </button>
@@ -1659,6 +1663,283 @@ while (improved && pass < 80 && performance.now() < deadline) {
       return route.map(i => stops[i - 1]);
     }
 
+    // =========================================================================
+    // ĐO KHOẢNG CÁCH & PHÂN TÍCH QUÃNG ĐƯỜNG (thêm mới)
+    // - Đường bộ thật: gọi OSRM (router.project-osrm.org); lỗi/offline => ước tính = chim bay x DETOUR_FACTOR
+    // - Chỉ dùng để HIỂN THỊ, KHÔNG ảnh hưởng thuật toán xếp tuyến cũ (distKm / roadCache giữ nguyên)
+    // =========================================================================
+    const KM_CFG = {
+      speed: 25,          // km/h trung bình (khớp SPEED của bộ tối ưu)
+      service: 0.15,      // giờ / điểm giao (khớp SERVICE)
+      nearExtra: 3,       // phát sinh <= 3 km => "tiện đường"
+      okPerBox: 0.5,      // <= 0.5 km phát sinh / thùng => đáng đi
+      maxPerBox: 1.5,     // > 1.5 km / thùng (và phát sinh >= minExtraToWarn) => cân nhắc bỏ
+      minExtraToWarn: 5,
+      farLeg: 8,          // chặng > 8 km gắn nhãn "xa"
+      autoRoad: false,    // false = KHÔNG tự gọi OSRM (an toàn, không đơ máy); chỉ gọi khi bấm nút "Lấy km đường thật"
+      maxPts: 25          // tối đa điểm / 1 lần gọi OSRM
+    };
+    let legBusy = false, kmSkipFit = false;
+    const legCache = new Map();   // 'a>b' -> km đường bộ thật
+    const legTried = new Set();   // các cặp đã hỏi OSRM (tránh hỏi lặp khi lỗi)
+    let drvGps = null, drvGpsWatch = null, drvGpsLastRender = null, kmPendingOnly = false;
+
+    function legKey(a, b) { return ptKey(a) + '>' + ptKey(b); }
+    function legInfo(a, b) {
+      const c = legCache.get(legKey(a, b));
+      if (c !== undefined) return { km: c, real: true };
+      return { km: calcDistanceKm(a.lat, a.lon, b.lat, b.lon) * DETOUR_FACTOR, real: false };
+    }
+    function legKmOf(a, b) { return legInfo(a, b).km; }
+    function fmtKm(k) { return (Math.round(k * 10) / 10).toFixed(1) + ' km'; }
+    function fmtDur(km, nStops) {
+      const m = Math.round((km / KM_CFG.speed + (nStops || 0) * KM_CFG.service) * 60);
+      return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + ' phút';
+    }
+    function fmtShortMoney(v) { v = parseFloat(v) || 0; return v >= 1e6 ? (v / 1e6).toFixed(1).replace('.0', '') + 'tr' : (v >= 1e3 ? Math.round(v / 1e3) + 'k' : String(v)); }
+
+    async function requestRoadLegs(points, force) {
+      if (!points || points.length < 2) return false;
+      if (!force && !KM_CFG.autoRoad) return false;   // chế độ an toàn
+      if (legBusy) return false;                       // mỗi lúc chỉ 1 lần gọi
+      legBusy = true;
+      try { return await _requestRoadLegs(points, force); } catch (e) { return false; } finally { legBusy = false; }
+    }
+    async function _requestRoadLegs(points, force) {
+      let need = false;
+      for (let i = 0; i < points.length - 1; i++) {
+        const k = legKey(points[i], points[i + 1]);
+        if (force) { legTried.delete(k); legCache.delete(k); }
+        if (!legCache.has(k) && !legTried.has(k)) need = true;
+      }
+      if (!need) return false;
+      for (let i = 0; i < points.length - 1; i++) legTried.add(legKey(points[i], points[i + 1]));
+      let got = false;
+      for (let i = 0; i < points.length - 1;) {
+        const chunk = points.slice(i, i + KM_CFG.maxPts); if (chunk.length < 2) break;
+        const url = 'https://router.project-osrm.org/route/v1/driving/' + chunk.map(p => Number(p.lon).toFixed(6) + ',' + Number(p.lat).toFixed(6)).join(';') + '?overview=false&steps=false';
+        const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 9000);
+        try {
+          const r = await fetch(url, { signal: ctl.signal }); const j = await r.json();
+          if (j && j.code === 'Ok' && j.routes && j.routes[0] && Array.isArray(j.routes[0].legs)) {
+            j.routes[0].legs.forEach((l, k) => { if (chunk[k + 1]) legCache.set(legKey(chunk[k], chunk[k + 1]), l.distance / 1000); });
+            got = true;
+          }
+        } catch (e) { } finally { clearTimeout(to); }
+        i += chunk.length - 1;
+      }
+      if (got) setTimeout(refreshKmViews, 0);
+      return got;
+    }
+
+    function truckRouteStops(truck, pendingOnly) {
+      return (truck.stops || []).filter(s => s.isMapped && s.lat && s.lon && !s.archived && (!pendingOnly || s.status === 'pending'))
+        .sort((a, b) => (a.stopSeq || 0) - (b.stopSeq || 0));
+    }
+    function verdictOf(from, extra, qty) {
+      const per = qty > 0 ? extra / qty : Infinity;
+      if (extra <= KM_CFG.nearExtra) return { k: 'ok', t: '✅ Tiện đường', cls: 'bg-emerald-100 text-emerald-800' };
+      if (per <= KM_CFG.okPerBox) return { k: 'ok', t: '✅ Đáng đi (đơn lớn)', cls: 'bg-emerald-100 text-emerald-800' };
+      if (extra >= KM_CFG.minExtraToWarn && per > KM_CFG.maxPerBox) return { k: 'bad', t: '⚠️ Xa & đơn ít – cân nhắc bỏ / để chuyến sau', cls: 'bg-rose-100 text-rose-800' };
+      return { k: 'mid', t: '🤔 Cân nhắc', cls: 'bg-amber-100 text-amber-800' };
+    }
+    // Chuỗi: anchor -> các điểm -> về kho. extra = số km PHÁT SINH thêm nếu ghé điểm đó (so với đi thẳng điểm trước -> điểm sau)
+    function analyzeChain(anchor, stops) {
+      const dep = depotPt(), pts = [anchor, ...stops, dep], rows = []; let total = 0, allReal = true;
+      for (let i = 0; i < stops.length; i++) {
+        const prev = pts[i], s = stops[i], next = pts[i + 2];
+        const a = legInfo(prev, s), b = legInfo(s, next), c = legInfo(prev, next);
+        if (!a.real || !b.real) allReal = false;
+        const extra = Math.max(0, a.km + b.km - c.km);
+        const qty = parseFloat(s.totalQty) || 0, cod = parseFloat(s.totalCod) || 0;
+        rows.push({ s, from: a.km, real: a.real, extra, qty, cod, perBox: qty > 0 ? extra / qty : Infinity, verdict: verdictOf(a.km, extra, qty) });
+        total += a.km;
+      }
+      const back = legInfo(pts[stops.length], dep); if (!back.real) allReal = false; total += back.km;
+      return { rows, total, back: back.km, allReal };
+    }
+    function chainContext(pendingOnly) {
+      const truck = fleet.find(t => t.id === activeTruckId); if (!truck) return null;
+      const all = truckRouteStops(truck, false);
+      let stops = all, anchor = depotPt(), anchorLabel = 'Kho';
+      if (pendingOnly) {
+        stops = all.filter(s => s.status === 'pending');
+        if (stops.length) {
+          const firstSeq = stops[0].stopSeq || 0;
+          const done = all.filter(s => s.status !== 'pending' && (s.stopSeq || 0) < firstSeq).pop();
+          if (done) { anchor = { lat: done.lat, lon: done.lon }; anchorLabel = '#' + done.stopSeq; }
+        }
+        if (isDriverMode && drvGps && Date.now() - drvGps.t < 10 * 60000) { anchor = { lat: drvGps.lat, lon: drvGps.lon }; anchorLabel = 'Bạn (GPS)'; }
+      }
+      const prevLabels = stops.map((s, i) => i === 0 ? anchorLabel : '#' + stops[i - 1].stopSeq);
+      return { truck, all, stops, anchor, anchorLabel, prevLabels };
+    }
+    function chainPoints(ctx) { return [ctx.anchor, ...ctx.stops, depotPt()]; }
+
+    function legChipHtml(r, prevLabel) {
+      const far = r.from > KM_CFG.farLeg;
+      return `<div class="flex items-center gap-1 flex-wrap mt-0.5 text-[10px]">
+        <span class="font-bold ${far ? 'text-rose-700' : 'text-slate-600'}">↳ ${r.real ? '' : '~'}${fmtKm(r.from)} từ ${esc(prevLabel)}${far ? ' • XA' : ''}</span>
+        <span class="text-slate-500">• phát sinh +${fmtKm(r.extra)}${isFinite(r.perBox) ? ' (' + r.perBox.toFixed(2) + ' km/thùng)' : ''}</span>
+        <span class="px-1.5 py-0.5 rounded font-bold ${r.verdict.cls}">${r.verdict.t}</span></div>`;
+    }
+    // Dispatcher: map canonicalId -> chip HTML cho tab Lộ trình
+    function routeLegChips(truck) {
+      const ctx = chainContext(false); const map = new Map(); if (!ctx || !ctx.stops.length) return map;
+      const a = analyzeChain(ctx.anchor, ctx.stops);
+      a.rows.forEach((r, i) => map.set(r.s.canonicalId, legChipHtml(r, ctx.prevLabels[i])));
+      requestRoadLegs(chainPoints(ctx));
+      return map;
+    }
+
+    // Thanh tóm tắt km dưới thanh xe (dispatcher)
+    function renderKmStrip() {
+      const el = document.getElementById('truckKmStrip'); if (!el) return;
+      const ctx = chainContext(false);
+      if (!ctx || !ctx.stops.length) { el.style.display = 'none'; return; }
+      const a = analyzeChain(ctx.anchor, ctx.stops);
+      const far = a.rows.slice().sort((x, y) => y.extra - x.extra)[0];
+      el.style.display = 'flex';
+      el.innerHTML = `<div class="min-w-0 flex-1 truncate">🛣 <strong class="text-emerald-900">${a.allReal ? '' : '~'}${fmtKm(a.total)}</strong> <span class="text-emerald-700">khứ hồi (về kho ${fmtKm(a.back)})</span> • ~${fmtDur(a.total, ctx.stops.length)} • ${ctx.stops.length} điểm${far && far.verdict.k === 'bad' ? ` • <span class="text-rose-600 font-bold">⚠ #${far.s.stopSeq} xa +${fmtKm(far.extra)}</span>` : ''}</div>
+        <button class="shrink-0 bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg text-[10px]">Phân tích / Đo</button>`;
+      requestRoadLegs(chainPoints(ctx));
+    }
+
+    // ---------- Modal Đo khoảng cách + Phân tích chuyến ----------
+    function distPointOptions() {
+      const list = [{ id: 'depot', label: '🏭 ' + (warehouseDepot.name || 'Kho'), pt: depotPt() }];
+      list.push({ id: 'gps', label: '📍 Vị trí của tôi (GPS)', pt: null });
+      const truck = fleet.find(t => t.id === activeTruckId), seen = new Set();
+      if (truck) truckRouteStops(truck, false).forEach(s => { seen.add(s.canonicalId); list.push({ id: 's:' + s.canonicalId, label: `#${s.stopSeq} ${s.custName || ''} (${s.totalQty} thùng)${s.status === 'success' ? ' ✓' : ''}`, pt: { lat: s.lat, lon: s.lon } }); });
+      (allMergedStops || []).filter(s => !s.archived && s.isMapped && s.lat && s.lon && !seen.has(s.canonicalId)).forEach(s => {
+        const tr = fleet.find(t => t.id === s.truckId);
+        list.push({ id: 's:' + s.canonicalId, label: `[${tr ? tr.name.split('(')[0].trim() : 'Chưa xếp xe'}] ${s.custName || ''} (${s.totalQty} thùng)`, pt: { lat: s.lat, lon: s.lon } });
+      });
+      return list;
+    }
+    function getMyPos() {
+      return new Promise(res => {
+        if (drvGps && Date.now() - drvGps.t < 60000) return res({ lat: drvGps.lat, lon: drvGps.lon });
+        if (!navigator.geolocation) return res(null);
+        navigator.geolocation.getCurrentPosition(p => { drvGps = { lat: p.coords.latitude, lon: p.coords.longitude, t: Date.now() }; res({ lat: drvGps.lat, lon: drvGps.lon }); }, () => res(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+      });
+    }
+    function startDriverGps() {
+      if (!navigator.geolocation || drvGpsWatch !== null) return;
+      try { localStorage.setItem('kmGps', '1'); } catch (e) { }
+      drvGpsWatch = navigator.geolocation.watchPosition(p => {
+        drvGps = { lat: p.coords.latitude, lon: p.coords.longitude, t: Date.now() };
+        const moved = !drvGpsLastRender || calcDistanceKm(drvGpsLastRender.lat, drvGpsLastRender.lon, drvGps.lat, drvGps.lon) > 0.15 || (Date.now() - drvGpsLastRender.t) > 60000;
+        if (moved) { drvGpsLastRender = { lat: drvGps.lat, lon: drvGps.lon, t: Date.now() }; if (isDriverMode) { kmSkipFit = true; renderDriverAppCards(); kmSkipFit = false; } }
+      }, () => { }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+    }
+    async function resolveDistPoint(which) {
+      const txt = (document.getElementById('distTxt' + which) || {}).value || '';
+      const c = parseCoords(txt); if (c) return { pt: c, label: 'Tọa độ nhập tay' };
+      const id = (document.getElementById('distSel' + which) || {}).value;
+      const o = distPointOptions().find(x => x.id === id); if (!o) return null;
+      if (o.id === 'gps') { const p = await getMyPos(); return p ? { pt: p, label: o.label } : null; }
+      return { pt: o.pt, label: o.label };
+    }
+    async function distToolMeasure() {
+      const out = document.getElementById('distToolOut'); if (!out) return;
+      out.innerHTML = '<span class="text-slate-500">Đang đo...</span>';
+      const A = await resolveDistPoint('A'), B = await resolveDistPoint('B');
+      if (!A || !B) { out.innerHTML = '<span class="text-rose-600 font-bold">Chưa chọn đủ 2 điểm (hoặc chưa lấy được vị trí GPS).</span>'; return; }
+      const crow = calcDistanceKm(A.pt.lat, A.pt.lon, B.pt.lat, B.pt.lon);
+      await requestRoadLegs([A.pt, B.pt], true);
+      const li = legInfo(A.pt, B.pt);
+      out.innerHTML = `<div class="text-[11px] text-slate-500">${esc(A.label)} → ${esc(B.label)}</div>
+        <div class="text-lg font-black text-emerald-700">${li.real ? '' : '~'}${fmtKm(li.km)} <span class="text-xs font-bold text-slate-600">đường bộ${li.real ? '' : ' (ước tính, chưa gọi được bản đồ)'}</span></div>
+        <div class="text-[11px] text-slate-600">Chim bay: ${fmtKm(crow)} • Đi 1 chiều ~${fmtDur(li.km, 0)} • Khứ hồi ~${fmtKm(li.km * 2)} / ~${fmtDur(li.km * 2, 0)}</div>`;
+    }
+    function openDistModal() {
+      let m = document.getElementById('distModal');
+      if (!m) {
+        m = document.createElement('div'); m.id = 'distModal';
+        m.style.cssText = 'display:none;position:fixed;inset:0;z-index:3000;background:rgba(15,23,42,.55);align-items:flex-end;justify-content:center';
+        m.addEventListener('click', e => { if (e.target === m) closeDistModal(); });
+        document.body.appendChild(m);
+      }
+      const opts = distPointOptions().map(o => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('');
+      m.innerHTML = `<div class="bg-white w-full md:max-w-lg rounded-t-3xl md:rounded-2xl shadow-2xl max-h-[88vh] flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b shrink-0"><h3 class="font-extrabold text-slate-900 text-sm">📏 Đo khoảng cách & phân tích chuyến</h3><button onclick="closeDistModal()" class="text-slate-500 text-lg px-2">✕</button></div>
+        <div class="overflow-y-auto p-3 space-y-3">
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+            <div class="text-[11px] font-bold text-slate-700">Đo 2 điểm bất kỳ</div>
+            <select id="distSelA" class="w-full p-1.5 border rounded-lg text-xs bg-white">${opts}</select>
+            <input id="distTxtA" placeholder="hoặc dán tọa độ điểm A (vd 11.1550,106.6150)" class="w-full p-1.5 border rounded-lg text-[11px]">
+            <select id="distSelB" class="w-full p-1.5 border rounded-lg text-xs bg-white">${opts}</select>
+            <input id="distTxtB" placeholder="hoặc dán tọa độ điểm B" class="w-full p-1.5 border rounded-lg text-[11px]">
+            <button onclick="distToolMeasure()" class="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-xs">Đo khoảng cách</button>
+            <div id="distToolOut" class="text-xs"></div>
+          </div>
+          <div id="distChainBox"></div>
+        </div></div>`;
+      const sB = document.getElementById('distSelB'); if (sB && sB.options.length > 2) sB.selectedIndex = 2;
+      m.style.display = 'flex'; renderDistModal();
+    }
+    function closeDistModal() { const m = document.getElementById('distModal'); if (m) m.style.display = 'none'; }
+    async function fetchRoadForChain() {
+      const b = document.getElementById('btnRoadReal'); const ctx = chainContext(isDriverMode ? true : kmPendingOnly); if (!ctx) return;
+      if (b) { b.disabled = true; b.innerText = 'Đang lấy...'; }
+      const ok = await requestRoadLegs(chainPoints(ctx), true);
+      if (!ok) { const b2 = document.getElementById('btnRoadReal'); if (b2) { b2.disabled = false; b2.innerText = '⚠ Không lấy được (mạng/máy chủ bận) – bấm thử lại'; } }
+    }
+    function toggleKmPending(v) { kmPendingOnly = !!v; renderDistModal(); }
+    function renderDistModal() {
+      const box = document.getElementById('distChainBox'); const m = document.getElementById('distModal');
+      if (!box || !m || m.style.display === 'none') return;
+      const pendOnly = isDriverMode ? true : kmPendingOnly;
+      const ctx = chainContext(pendOnly);
+      if (!ctx) { box.innerHTML = ''; return; }
+      if (!ctx.stops.length) { box.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">Không có điểm (đã có tọa độ) để phân tích.</div>'; return; }
+      const a = analyzeChain(ctx.anchor, ctx.stops);
+      const unm = (ctx.truck.stops || []).filter(s => !s.archived && !s.isMapped).length;
+      box.innerHTML = `<div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <div class="text-[11px] font-bold text-emerald-900">${esc(ctx.truck.name || 'Xe')} • ${pendOnly ? 'Phần CÒN LẠI' : 'Cả chuyến (kho → các điểm → kho)'}</div>
+          <div class="text-lg font-black text-emerald-800">${a.allReal ? '' : '~'}${fmtKm(a.total)} <span class="text-xs font-bold text-emerald-700">• ~${fmtDur(a.total, ctx.stops.length)} • ${ctx.stops.length} điểm</span></div>
+          <div class="text-[11px] text-emerald-800">Xuất phát: ${esc(ctx.anchorLabel)} • Chặng về kho: ${fmtKm(a.back)}${a.allReal ? '' : ' • <em>số ước tính (chim bay x ' + DETOUR_FACTOR + ')</em>'}</div>
+          <button id="btnRoadReal" onclick="fetchRoadForChain()" class="mt-1.5 w-full bg-white border border-emerald-400 text-emerald-800 font-bold py-1.5 rounded-lg text-[11px]">${a.allReal ? '✅ Đã là km đường thật' : '🛣 Lấy km đường thật (cần mạng, ~vài giây)'}</button>
+          ${unm ? `<div class="text-[11px] text-amber-700 font-bold mt-0.5">⚠ ${unm} điểm chưa có tọa độ — chưa tính vào km</div>` : ''}
+          ${isDriverMode ? '' : `<label class="flex items-center gap-1.5 text-[11px] mt-1 text-slate-700"><input type="checkbox" ${kmPendingOnly ? 'checked' : ''} onchange="toggleKmPending(this.checked)"> Chỉ tính các điểm chưa giao (xuất phát từ điểm đã xong gần nhất)</label>`}
+        </div>
+        <div class="text-[11px] font-bold text-slate-700 mt-2 mb-1">Từng chặng & có đáng ghé không</div>
+        <div class="space-y-1.5">${a.rows.map((r, i) => `<div class="p-2 rounded-xl border ${r.verdict.k === 'bad' ? 'border-rose-300 bg-rose-50/60' : 'border-slate-200 bg-white'}">
+            <div class="flex items-start justify-between gap-2"><div class="text-xs font-bold text-slate-900 min-w-0">#${r.s.stopSeq} ${esc(r.s.custName || '')}</div><div class="text-xs font-extrabold text-blue-700 shrink-0">${r.qty} thùng • ${fmtShortMoney(r.cod)}</div></div>
+            <div class="text-[11px] text-slate-700">↳ ${r.real ? '' : '~'}${fmtKm(r.from)} từ ${esc(ctx.prevLabels[i])}${r.from > KM_CFG.farLeg ? ' <b class="text-rose-600">(XA)</b>' : ''} • bỏ điểm này tiết kiệm <b>${fmtKm(r.extra)}</b>${isFinite(r.perBox) ? ' (' + r.perBox.toFixed(2) + ' km/thùng)' : ''}</div>
+            <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${r.verdict.cls}">${r.verdict.t}</span></div>`).join('')}</div>
+        <div class="text-[10px] text-slate-400 mt-2">Đường bộ lấy từ OSRM (bản đồ mở), có thể lệch vài % so với Google Maps. Ngưỡng "đáng đi" chỉnh trong KM_CFG ở đầu khối mã này.</div>`;
+      requestRoadLegs(chainPoints(ctx));
+    }
+    function refreshKmViews() {
+      kmSkipFit = true;
+      try { renderKmStrip(); } catch (e) { }
+      try { if (isDriverMode) renderDriverAppCards(); else if (currentStopTab === 'route') renderStopsList(); } catch (e) { }
+      try { renderDistModal(); } catch (e) { }
+      kmSkipFit = false;
+    }
+
+    // Khối tóm tắt đặt đầu danh sách thẻ của tài xế
+    function driverKmSummaryHtml(ctx, a) {
+      const n = ctx.stops.length;
+      const gpsBtn = (drvGpsWatch === null) ? `<button onclick="startDriverGps()" class="bg-white border border-emerald-300 text-emerald-800 font-bold px-2 py-1 rounded-lg text-[10px]">📍 Dùng vị trí của tôi</button>` : `<span class="text-[10px] text-emerald-700 font-bold">📍 GPS đang bật</span>`;
+      const body = n === 0
+        ? `<div class="text-xs font-bold text-emerald-900">Đã hết điểm giao. Về kho: ${fmtKm(a.back)} (~${fmtDur(a.back, 0)})</div>`
+        : `<div class="text-xs text-emerald-900">Còn <b>${n}</b> điểm • quãng đường còn lại (gồm về kho): <b class="text-base">${a.allReal ? '' : '~'}${fmtKm(a.total)}</b> • ~${fmtDur(a.total, n)}</div><div class="text-[10px] text-emerald-700">Tính từ: ${esc(ctx.anchorLabel)} • chặng về kho ${fmtKm(a.back)}</div>`;
+      return `<div class="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5">${body}<div class="flex items-center gap-1.5 flex-wrap">${gpsBtn}<button onclick="openDistModal()" class="bg-emerald-600 text-white font-bold px-2 py-1 rounded-lg text-[10px]">📏 Đo khoảng cách / Phân tích</button></div></div>`;
+    }
+    function driverCardKmHtml(s, kmap) {
+      const e = kmap.get(s.canonicalId); if (!e) return '';
+      let h = legChipHtml(e.r, e.prev);
+      if (drvGps && Date.now() - drvGps.t < 10 * 60000 && s.lat && s.lon) {
+        const k = legKmOf({ lat: drvGps.lat, lon: drvGps.lon }, s);
+        h += `<div class="text-[10px] text-slate-500 mt-0.5">📍 Cách vị trí của bạn: ~${fmtKm(k)} (ước tính)</div>`;
+      }
+      return h;
+    }
+
+
     function truckLoadOf(t) { return (t.stops || []).reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0); }
     function truckKm(t) {
       const m = (t.stops || []).filter(s => s.isMapped); if (m.length === 0) return 0;
@@ -1979,6 +2260,7 @@ function checkDriverRoutingModeSync() {
 
   // Vẽ ngay nếu đã có dữ liệu từ gói nhúng hoặc bộ nhớ
   renderDriverAppCards();
+  try { if (localStorage.getItem('kmGps') === '1') startDriverGps(); } catch (e) { }
 
   // 4. Đồng bộ trạng thái mới nhất + vị trí kho từ Cloud, nghe realtime
   driverCloudRefresh(true);
@@ -2148,7 +2430,7 @@ function renderDriverMiniMapRoute(stops) {
   latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
 
   let poly = L.polyline(latlngs, { color: '#2563eb', weight: 3, opacity: 0.8, dashArray: '4, 4' }).addTo(drvRouteLayer);
-  drvMap.fitBounds(poly.getBounds(), { padding: [25, 25] });
+  if (!kmSkipFit) drvMap.fitBounds(poly.getBounds(), { padding: [25, 25] });
 }
 
 function renderDriverAppCards() {
@@ -2177,10 +2459,12 @@ function renderDriverAppCards() {
 
   renderDriverMiniMapRoute(truck.stops);
 
+  const kctx = chainContext(true); const ka = kctx ? analyzeChain(kctx.anchor, kctx.stops) : null;
+  const kmap = new Map(); if (kctx && ka) { ka.rows.forEach((r, i) => kmap.set(r.s.canonicalId, { r, prev: kctx.prevLabels[i] })); requestRoadLegs(chainPoints(kctx)); }
   let list = [...truck.stops];
   if (driverAppFilter !== 'all') list = list.filter(s => s.status === driverAppFilter);
 
-  container.innerHTML = list.map(s => {
+  container.innerHTML = (ka ? driverKmSummaryHtml(kctx, ka) : '') + list.map(s => {
     let borderClass = s.status === 'success' ? "border-l-4 border-emerald-500 bg-emerald-50/40" : (s.status === 'failed' ? "border-l-4 border-rose-500 bg-rose-50/40" : "bg-white");
     let phoneNorm = normalizePhone(s.phone);
 
@@ -2197,6 +2481,7 @@ function renderDriverAppCards() {
               <h4 class="font-bold text-slate-900 text-xs">${esc(s.custName)}</h4>
               <p class="text-[11px] text-slate-500">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
 <div class="flex gap-1 flex-wrap mt-1">${tagBadges(s.tags)}</div>
+              ${driverCardKmHtml(s, kmap)}
             </div>
           </div>
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
@@ -2578,6 +2863,7 @@ async function submitDriverRejectReason(reason) {
       }
       if (elHeader) elHeader.innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm (Khép kín kho)`;
       if (elBtnText) elBtnText.innerText = `Tạo Link Riêng Cho ${truck.name} (Copy Zalo)`;
+      try { renderKmStrip(); } catch (e) { }
     }
 
     function setStopTab(tab) {
@@ -2679,10 +2965,11 @@ async function submitDriverRejectReason(reason) {
       if (summaryText) summaryText.innerText = `${list.length} đơn`;
 
       if (list.length === 0) { container.innerHTML = NO_MATCH_HTML; return; }
+      const legMap = currentStopTab === 'route' ? routeLegChips(truck) : new Map();
       container.innerHTML = list.map(s => {
         const lbl = currentStopTab === 'route' ? (s.status === 'success' ? '✓' : (s.status === 'failed' ? '✕' : '#' + s.stopSeq)) : 'L' + s.lifoSeq;
         const seq = `<span style="background:${stopColor(s)}" class="min-w-[24px] h-6 px-1 rounded-full text-white font-extrabold text-[11px] flex items-center justify-center shrink-0">${lbl}</span>`;
-        return stopRowHtml(s, { seq, reassign: true });
+        return stopRowHtml(s, { seq, reassign: true, leg: legMap.get(s.canonicalId) });
       }).join('');
 
       safeRenderIcons();
@@ -2799,6 +3086,7 @@ return `
               <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
             </div>
             <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
+            ${o.leg || ''}
             <div class="flex items-center justify-between gap-1 mt-0.5">
               <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${tagBadges(s.tags)}${gps}</div>
               <div class="flex items-center gap-2 shrink-0">${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
