@@ -411,6 +411,10 @@
     <!-- BẢN ĐỒ THU NHỎ CHO TÀI XẾ -->
     <div id="drvMiniMapContainer" class="relative shrink-0 border-b border-slate-300 shadow-inner">
       <div id="drvMiniMap"></div>
+      <div style="position:absolute;top:8px;right:8px;z-index:500;display:flex;flex-direction:column;gap:6px">
+        <button id="btnDrvMapSize" onclick="drvToggleMapSize()" title="Phóng to / thu nhỏ bản đồ" style="width:40px;height:40px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:20px;font-weight:800">⤢</button>
+        <button onclick="drvFitAll()" title="Xem toàn tuyến" style="width:40px;height:40px;border-radius:10px;background:#fff;border:1px solid #cbd5e1;box-shadow:0 1px 4px rgba(0,0,0,.3);font-size:20px">⌖</button>
+      </div>
     </div>
 
     <!-- BANNER HẾT HẠN LINK -->
@@ -1264,11 +1268,21 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       catch (e) { return new Date(Date.now() + 7 * 3600000).toISOString().split('T')[0]; }
     }
 
+    const ICON_EMOJI = { phone: '📞', 'message-circle': '💬', navigation: '🧭', map: '🗺️', 'map-pin': '📍', 'refresh-cw': '🔄', 'check-circle': '✅', 'check-circle-2': '✅', check: '✔', 'x-circle': '❌', x: '✕', 'chevron-right': '›', 'chevron-down': '⌄', truck: '🚚', warehouse: '🏭', printer: '🖨️', search: '🔍', settings: '⚙️', link: '🔗', download: '⬇️', plus: '＋', 'trash-2': '🗑️', 'rotate-ccw': '↺', 'alert-triangle': '⚠️', 'alert-circle': '⚠️', calendar: '📅', history: '🕘', 'wand-2': '✨', 'git-merge': '🔀', cloud: '☁️', 'cloud-check': '☁️', 'cloud-upload': '☁️', 'clock-alert': '⏰', 'mouse-pointer-click': '👆', 'pie-chart': '📊', 'file-spreadsheet': '📄', 'shield-check': '🛡️', shield: '🛡️' };
     function safeRenderIcons() {
       try {
         if (window.lucide && typeof lucide.createIcons === 'function') {
           lucide.createIcons();
         }
+      } catch (e) {}
+      // Nếu thư viện icon bị chặn/không tải được (trình duyệt chặn CDN): hiện emoji thay thế để nút không bị trống
+      try {
+        document.querySelectorAll('i[data-lucide]').forEach(el => {
+          const e = ICON_EMOJI[el.getAttribute('data-lucide')] || '';
+          el.removeAttribute('data-lucide');
+          el.textContent = e;
+          el.style.cssText = 'display:inline-block;width:auto;height:auto;font-style:normal;line-height:1';
+        });
       } catch (e) {}
     }
 
@@ -2405,9 +2419,17 @@ function toggleDriverMiniMap() {
   if (!box || !txt) return;
   let hidden = box.classList.toggle('hidden');
   txt.innerText = hidden ? "Hiện Map" : "Ẩn Map";
-  if (!hidden && drvMap) setTimeout(() => drvMap.invalidateSize(), 200);
+  if (!hidden && drvMap) setTimeout(() => { drvMap.invalidateSize(); drvFitAll(); }, 200);
 }
 
+let drvFitted = false, drvForceFit = false, drvMapBig = false;
+function drvFitAll() { drvForceFit = true; const t = fleet.find(x => x.id === activeTruckId); if (t) renderDriverMiniMapRoute(t.stops); }
+function drvToggleMapSize() {
+  drvMapBig = !drvMapBig;
+  const el = document.getElementById('drvMiniMap'); if (el) el.style.height = drvMapBig ? '58vh' : '';
+  const b = document.getElementById('btnDrvMapSize'); if (b) b.innerText = drvMapBig ? '⤡' : '⤢';
+  setTimeout(() => { if (drvMap) { drvMap.invalidateSize(); drvFitAll(); } }, 120);
+}
 function renderDriverMiniMapRoute(stops) {
   if (!drvMap || typeof L === 'undefined' || !drvRouteLayer || !drvPinsLayer) return;
   drvRouteLayer.clearLayers();
@@ -2417,21 +2439,33 @@ function renderDriverMiniMapRoute(stops) {
   if (mapped.length === 0) return;
 
   let latlngs = [[warehouseDepot.lat, warehouseDepot.lon]];
+  const cmap = colocMap(colocBase(mapped));
+  const stTxt = x => x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Không giao được' : 'Chưa giao');
   mapped.forEach(s => {
     latlngs.push([s.lat, s.lon]);
-    let bg = s.status === 'success' ? 'bg-emerald-600' : (s.status === 'failed' ? 'bg-rose-600' : 'bg-blue-600');
-    let icon = L.divIcon({
+    const grp = cmap.get(s.canonicalId);
+    if (grp && grp[0] !== s) return;                      // ghim chồng nhau: chỉ vẽ 1 ghim đại diện
+    const members = grp || [s];
+    const anyPending = members.some(x => x.status === 'pending'), allFail = members.every(x => x.status === 'failed');
+    const bg = anyPending ? 'bg-blue-600' : (allFail ? 'bg-rose-600' : 'bg-emerald-600');
+    const lead = members.find(x => x.status === 'pending') || s;
+    const badge = grp ? `<div style="position:absolute;top:-8px;right:-10px;background:#ea580c;color:#fff;border-radius:9999px;font-size:11px;font-weight:800;padding:0 5px;border:2px solid #fff;line-height:16px">×${grp.length}</div>` : '';
+    const icon = L.divIcon({
       className: 'drv-stop-pin',
-      html: `<div class="w-6 h-6 rounded-full ${bg} border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-black">${s.stopSeq}</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
+      html: `<div style="position:relative"><div class="rounded-full ${bg} border-2 border-white shadow-md flex items-center justify-center text-white font-black" style="width:30px;height:30px;font-size:12px">${lead.stopSeq}</div>${badge}</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
     });
-    L.marker([s.lat, s.lon], { icon }).bindPopup(`<b>#${s.stopSeq} • ${esc(s.custName)}</b><br>${esc(s.addr)}<br>COD: <b>${formatMoney(s.totalCod)}</b>`).addTo(drvPinsLayer);
+    const nav = `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`;
+    const body = grp
+      ? `<div style="min-width:200px"><b style="color:#c2410c">📍 ${grp.length} đơn cùng 1 điểm dừng</b>` + grp.map(x => `<div style="border-top:1px solid #e2e8f0;margin-top:4px;padding-top:4px"><b>#${x.stopSeq} ${esc(x.custName)}</b><br>${x.totalQty} Thùng • COD <b>${formatMoney(x.totalCod)}</b><br>${stTxt(x)}</div>`).join('') + `</div>`
+      : `<b>#${s.stopSeq} • ${esc(s.custName)}</b><br>${esc(s.addr)}<br>${s.totalQty} Thùng • COD: <b>${formatMoney(s.totalCod)}</b><br>${stTxt(s)}`;
+    L.marker([s.lat, s.lon], { icon }).bindPopup(body + `<div style="margin-top:6px"><a href="${nav}" target="_blank" style="display:block;text-align:center;background:#2563eb;color:#fff;font-weight:700;padding:6px;border-radius:8px">🧭 Dẫn đường</a></div>`).addTo(drvPinsLayer);
   });
   latlngs.push([warehouseDepot.lat, warehouseDepot.lon]);
 
   let poly = L.polyline(latlngs, { color: '#2563eb', weight: 3, opacity: 0.8, dashArray: '4, 4' }).addTo(drvRouteLayer);
-  if (!kmSkipFit) drvMap.fitBounds(poly.getBounds(), { padding: [25, 25] });
+  if (!drvFitted || drvForceFit) { drvMap.fitBounds(poly.getBounds(), { padding: [25, 25] }); drvFitted = true; drvForceFit = false; }
 }
 
 function renderDriverAppCards() {
@@ -2497,14 +2531,14 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
           </div>
           <div class="flex items-center gap-1.5">
             ${phoneNorm ? `
-              <a href="tel:${phoneNorm}" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
+              <a href="tel:${phoneNorm}" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2.5 rounded-lg font-bold flex items-center gap-1 text-xs">
                 <i data-lucide="phone" class="w-3.5 h-3.5"></i> Gọi
               </a>
-              <a href="https://zalo.me/${phoneNorm}" target="_blank" class="bg-sky-100 hover:bg-sky-200 text-sky-700 px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
+              <a href="https://zalo.me/${phoneNorm}" target="_blank" class="bg-sky-100 hover:bg-sky-200 text-sky-700 px-3 py-2.5 rounded-lg font-bold flex items-center gap-1 text-xs">
                 <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> Zalo
               </a>
             ` : ''}
-            <a href="${mapLink}" target="_blank" class="${s.isMapped ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'} px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 text-[11px]">
+            <a href="${mapLink}" target="_blank" class="${s.isMapped ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'} px-3 py-2.5 rounded-lg font-bold flex items-center gap-1 text-xs">
               <i data-lucide="navigation" class="w-3.5 h-3.5"></i> ${s.isMapped ? 'Map' : 'Tìm Map'}
             </a>
           </div>
