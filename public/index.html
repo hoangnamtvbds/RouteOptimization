@@ -289,6 +289,7 @@
                 <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
                 <span class="hidden sm:inline">Dẫn Đường Google Maps</span><span class="sm:hidden">Dẫn đường</span>
               </button>
+              <button id="btnMapFilter" onclick="toggleMapFilterPanel()" title="Lọc theo xe / chưa xếp tuyến" class="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition"><span>☰</span><span id="btnMapFilterText">Lọc xe</span></button>
               <button id="btnMapExpand" onclick="toggleMapExpand()" title="Mở rộng / thu nhỏ bản đồ (Esc để thoát)" class="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
                 <span id="btnMapExpandIcon" class="text-sm leading-none">⤢</span><span id="btnMapExpandText">Mở rộng</span>
               </button>
@@ -333,7 +334,7 @@
               <div class="text-[10px] text-slate-400" id="dashTotalStops">0 điểm giao</div>
             </div>
 
-            <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+            <div onclick="showCollectDetail()" class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 cursor-pointer active:scale-[.98]">
               <div class="text-[10px] text-amber-700 uppercase font-semibold">Tổng Tiền Cần Thu (COD)</div>
               <div id="dashTotalCod" class="text-lg font-black text-amber-900 mt-0.5">0 đ</div>
               <div class="text-[10px] text-emerald-700 font-bold" id="dashCollectedCod">Đã thu: 0 đ</div>
@@ -3161,7 +3162,8 @@ async function submitDriverRejectReason(reason) {
       if (elTotalQty) elTotalQty.innerText = `${Math.round(totalQty)} Thùng`;
       if (elTotalStops) elTotalStops.innerText = `${allMergedStops.length} điểm giao (${unmappedStops.length} chưa map)`;
       if (elTotalCod) elTotalCod.innerText = formatMoney(totalCod);
-      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod - _off)}` + ((_cash || _trf) ? ` (TM ${fmtShortMoney(_cash)} • CK ${fmtShortMoney(_trf)})` : '') + (_off > 0 ? ` • Cấn trừ: ${formatMoney(_off)}` : '') + (debtCod > 0 ? ` • Nợ: ${formatMoney(debtCod)}` : '');
+      if (elCollectedCod) window._collectBreak = { cash: _cash, trf: _trf, off: _off, debt: debtCod, legacy: Math.max(0, collectedCod - _off - _cash - _trf) };
+      elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod - _off)}` + (debtCod > 0 ? ` • Nợ: ${formatMoney(debtCod)}` : '') + ' ›';
       if (elActiveTrucks) elActiveTrucks.innerText = `${activeTrucks.length} Xe`;
       if (elIdleTrucks) elIdleTrucks.innerText = `Xe trống: ${idleTrucks.length} Xe`;
 
@@ -3447,7 +3449,7 @@ async function submitDriverRejectReason(reason) {
       const bounds = L.latLngBounds([d]);
       const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
       const visList = allMergedStops.filter(x => x.isMapped && !x.archived && mapStopVisible(x));
-      const cmap = mapExpanded ? colocMap(colocBase(visList)) : getColoc();
+      const cmap = (mapHiddenKeys.size || mapOnlyPending) ? colocMap(colocBase(visList)) : getColoc();
       visList.forEach(x => {
         if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
         const grp = cmap.get(x.canonicalId); if (grp && grp[0] !== x) return;   // ghim chồng nhau: chỉ vẽ 1 ghim đại diện
@@ -3716,11 +3718,10 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     }
 
     // ===== MỞ RỘNG BẢN ĐỒ + LỌC THEO XE / CHƯA XẾP TUYẾN =====
-    let mapExpanded = false, mapOnlyPending = false, mapPanelOpen = true;
+    let mapExpanded = false, mapOnlyPending = false, mapPanelOpen = false;
     const mapHiddenKeys = new Set();   // 't<id>' hoặc 'none' (chưa xếp tuyến). Rỗng = hiện tất cả
     function stopKey(s) { return fleet.some(t => t.id === s.truckId) ? 't' + s.truckId : 'none'; }
     function mapStopVisible(s) {
-      if (!mapExpanded) return true;
       if (mapOnlyPending && s.status !== 'pending') return false;
       return !mapHiddenKeys.has(stopKey(s));
     }
@@ -3737,7 +3738,8 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     }
     function renderMapFilterPanel() {
       const el = document.getElementById('mapFilterPanel'); if (!el) return;
-      el.classList.toggle('hidden', !mapExpanded); if (!mapExpanded) return;
+      const fb = document.getElementById('btnMapFilter'); if (fb) { const act = mapHiddenKeys.size > 0 || mapOnlyPending; fb.className = 'border px-2.5 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition ' + (act ? 'bg-amber-500 text-white border-amber-600' : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'); document.getElementById('btnMapFilterText').innerText = act ? 'Lọc xe •' : 'Lọc xe'; }
+      el.classList.toggle('hidden', !mapPanelOpen); if (!mapPanelOpen) return;
       const live = allMergedStops.filter(s => !s.archived);
       const groups = fleet.map(t => ({ key: 't' + t.id, label: t.name.split('(')[0].trim(), color: truckColor(t.id), list: live.filter(s => s.truckId === t.id) })).filter(g => g.list.length || true);
       groups.push({ key: 'none', label: 'Chưa xếp tuyến', color: '#64748b', list: live.filter(s => !fleet.some(t => t.id === s.truckId)) });
@@ -3760,6 +3762,11 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         ${groups.map(row).join('')}
         <div class="px-2 py-1.5 bg-slate-50 rounded-b-xl text-slate-700"><b>Đang hiện:</b> ${tot.stops} điểm • ${tot.orders} đơn<br><span class="text-amber-800 font-bold">${tot.left} đơn chưa giao</span> / tổng ${all.orders} đơn toàn bộ</div>`;
     }
+    function showCollectDetail() {
+      const b = window._collectBreak || { cash: 0, trf: 0, off: 0, debt: 0, legacy: 0 };
+      _appDialog(`CHI TIẾT THU TIỀN HÔM NAY\n\n💵 Tiền mặt: ${formatMoney(b.cash)}\n🏦 Chuyển khoản: ${formatMoney(b.trf)}\n` + (b.legacy ? `💰 Thu (chưa phân loại): ${formatMoney(b.legacy)}\n` : '') + `🎁 Cấn trừ giải thưởng: ${formatMoney(b.off)}\n📝 Còn nợ: ${formatMoney(b.debt)}`, false, '', 'Đóng');
+    }
+    function toggleMapFilterPanel() { mapPanelOpen = !mapPanelOpen; renderMapFilterPanel(); }
     function mapRefreshAfterFilter() { if (mapSelectMode) renderSelectModeMap(true); else renderRouteOnMap(); }
     function toggleMapKey(key, on) { if (on) mapHiddenKeys.delete(key); else mapHiddenKeys.add(key); mapRefreshAfterFilter(); }
     function toggleMapOnlyPending(v) { mapOnlyPending = !!v; mapRefreshAfterFilter(); }
@@ -3767,7 +3774,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     function toggleMapExpand(force) {
       const w = document.getElementById('mapWrap'); if (!w || !map) return;
       mapExpanded = (typeof force === 'boolean') ? force : !mapExpanded;
-      w.classList.toggle('map-expanded', mapExpanded);
+      w.classList.toggle('map-expanded', mapExpanded); mapPanelOpen = mapExpanded;
       const t = document.getElementById('btnMapExpandText'), i = document.getElementById('btnMapExpandIcon');
       if (t) t.innerText = mapExpanded ? 'Thu nhỏ' : 'Mở rộng'; if (i) i.innerText = mapExpanded ? '⤡' : '⤢';
       setTimeout(() => { map.invalidateSize(); mapRefreshAfterFilter(); }, 60);
