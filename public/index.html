@@ -1545,7 +1545,16 @@ async function restoreMasterBackupFromCloud() {
       rows.forEach(row => {
         const { inv: invId, cust: rawCustId } = keyOf(row);
         if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
-        if (known.has(invId)) { dupInv.add(invId); return; }      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
+        if (known.has(invId)) {
+  dupInv.add(invId);
+  const ex = allMergedStops.find(x => x.invoices.has(invId));
+  if (ex && !ex.salePhone) {
+    const raw = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
+    const ph = raw.match(/(\+?84|0)[\d .\-]{8,11}\d/);
+    if (ph) { ex.salePhone = normalizePhone(ph[0]); ex.saleName = raw.replace(ph[0], '').replace(/\s+/g, ' ').trim(); }
+  }
+  return;
+}      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
         const custName = row['Tên khách hàng'] || row['Tên KH'] || '';
         const itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
         const rawQty = parseMoney(row['Số lượng'] === undefined || row['Số lượng'] === '' ? 1 : row['Số lượng']);
