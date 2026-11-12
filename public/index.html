@@ -3430,7 +3430,7 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     // (3) cho biết "N đơn / M vị trí" để không bị "mất điểm".
     // =========================================================================
     const COLOC_M = 40;   // mét: 2 điểm cách nhau <= 40 m coi là chung vị trí
-    let _colocKey = '', _colocVal = new Map();
+    let _colocKey = '', _colocVal = new Map(), _colocArr = [];
     function colocMap(arr) {   // arr: các stop đã lọc (có tọa độ). Trả Map canonicalId -> mảng các stop chung vị trí (>=2)
       const par = arr.map((_, i) => i); const find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
       for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
@@ -3450,7 +3450,8 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
       if (isDriverMode) { const t = fleet.find(x => x.id === activeTruckId); list = t ? t.stops : []; }
       const arr = colocBase(list);
       const key = arr.map(s => s.canonicalId + ':' + s.lat + ':' + s.lon).join('|');
-      if (key !== _colocKey) { _colocKey = key; _colocVal = colocMap(arr); }
+      const same = key === _colocKey && _colocArr.length === arr.length && arr.every((s, i) => s === _colocArr[i]);
+      if (!same) { _colocKey = key; _colocArr = arr; _colocVal = colocMap(arr); }
       return _colocVal;
     }
     function colocMergedCount(stops) {   // số điểm "dư" do chung vị trí (5 đơn / 4 vị trí => 1)
@@ -3458,14 +3459,20 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
       m.forEach(g => { if (!seen.has(g)) { seen.add(g); n += g.length - 1; } });
       return n;
     }
-    function colocShort(s) { return (s.stopSeq && fleet.some(t => t.id === s.truckId)) ? '#' + s.stopSeq : String(s.custName || s.canonicalId).slice(0, 14); }
+    function colocShort(o, ref) {
+      const nm = String(o.custName || o.canonicalId).slice(0, 16), tr = fleet.find(t => t.id === o.truckId);
+      if (!tr || !o.stopSeq) return nm + ' (chưa xếp xe)';
+      return (ref && ref.truckId === o.truckId ? '' : tr.name.split('(')[0].trim() + ' ') + '#' + o.stopSeq + ' ' + nm;
+    }
     function colocChipHtml(s) {
       const g = getColoc().get(s.canonicalId); if (!g) return '';
-      const others = g.filter(x => x !== s).map(o => esc(colocShort(o))).join(', ');
-      const txt = `📍 Chung vị trí với ${others} (${g.length} đơn / 1 điểm dừng)`;
+      const oth = g.filter(x => x.canonicalId !== s.canonicalId);
+      const others = oth.map(o => esc(colocShort(o, s))).join(', ');
+      const diffTruck = oth.some(o => o.truckId != null && s.truckId != null && o.truckId !== s.truckId);
+      const txt = `📍 ${diffTruck ? '⚠ KHÁC XE – nên xếp cùng 1 xe • ' : ''}Chung vị trí với ${others}`;
       return isDriverMode
         ? `<div class="mt-1"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-300">${txt}</span></div>`
-        : `<div class="mt-0.5"><button onclick="event.stopPropagation(); openColocModal(${jsq(s.canonicalId)})" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-300">${txt}</button></div>`;
+        : `<div class="mt-0.5"><button onclick="event.stopPropagation(); openColocModal(${jsq(s.canonicalId)})" class="text-left text-[10px] font-bold px-1.5 py-0.5 rounded ${diffTruck ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-orange-100 text-orange-800 border border-orange-300'}">${txt}</button></div>`;
     }
     function colocBadgeHtml(n) { return `<div style="position:absolute;top:-7px;right:-9px;background:#ea580c;color:#fff;border-radius:9999px;font-size:9px;font-weight:800;padding:0 4px;border:1.5px solid #fff;line-height:14px">×${n}</div>`; }
     function colocPopupHtml(g) {
