@@ -595,6 +595,19 @@
   </div>
 
   <!-- MODAL XEM CHI TIẾT ĐƠN HÀNG & GẮN MAP TRỰC TIẾP -->
+  <!-- POPUP CÁC ĐƠN TRONG 1 ĐIỂM GIAO -->
+  <div id="ordersModal" class="fixed inset-0 bg-black/60 z-[2600] hidden flex items-end sm:items-center justify-center p-0 sm:p-4" onclick="if(event.target===this)closeOrdersPopup()">
+    <div class="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+      <div class="px-4 pt-3 pb-2 border-b flex items-start justify-between gap-2">
+        <div class="min-w-0"><div class="text-[10px] font-extrabold text-teal-700 uppercase">📦 Các đơn của điểm giao</div><h3 id="ordersTitle" class="font-bold text-slate-900 text-sm truncate">Khách hàng</h3><div id="ordersSub" class="text-[11px] text-slate-500"></div></div>
+        <button onclick="closeOrdersPopup()" class="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none font-bold">✕</button>
+      </div>
+      <div id="ordersTabs" class="flex gap-1.5 overflow-x-auto px-3 py-2 border-b bg-slate-50"></div>
+      <div id="ordersBody" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+      <div id="ordersFooter" class="p-3 border-t bg-white" style="padding-bottom:calc(12px + env(safe-area-inset-bottom))"></div>
+    </div>
+  </div>
+
   <div id="stopDetailModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3 max-h-[90vh] flex flex-col">
       <div class="flex justify-between items-start border-b pb-2">
@@ -602,6 +615,7 @@
           <span id="modalStopSeqBadge" class="text-[10px] bg-blue-100 text-blue-700 font-extrabold px-2 py-0.5 rounded-full">#1</span>
           <h3 id="modalStopCustName" class="font-bold text-slate-900 text-sm mt-1">Tên Khách Hàng</h3>
           <p id="modalStopAddr" class="text-xs text-slate-500 mt-0.5">Địa chỉ</p>
+          <div id="modalOrdersChip" class="mt-1"></div>
         </div>
         <button onclick="closeStopDetailModal()" class="text-slate-400 hover:text-slate-600 p-1">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -893,7 +907,7 @@
     function hydrateStop(s) {
       s.rawIds = new Set(Array.isArray(s.rawIds) ? s.rawIds : Object.keys(s.rawIds || {}));
       s.invoices = new Set(Array.isArray(s.invoices) ? s.invoices : Object.keys(s.invoices || {}));
-      s.items = s.items || []; s.phone = s.phone || ''; s.addr = s.addr || ''; s.custName = s.custName || '';
+      s.items = s.items || []; s.orders = normOrders(s.orders); s.phone = s.phone || ''; s.addr = s.addr || ''; s.custName = s.custName || '';
       s.totalQty = parseFloat(s.totalQty) || 0; s.totalCod = parseFloat(s.totalCod) || 0;
       s.status = s.status || 'pending'; s.failedReason = s.failedReason || '';
       s.truckId = (s.truckId === undefined) ? null : s.truckId;
@@ -912,7 +926,7 @@
       fleet = (Array.isArray(sess.fleet) ? sess.fleet : fleet).map(t => {
         const list = (t.stops || []).map(ts => {
           let m = byId.get(ts.canonicalId);
-          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; m.collected = ts.collected == null ? null : ts.collected; } return m; }
+          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; m.collected = ts.collected == null ? null : ts.collected; } if (Array.isArray(ts.orders) && isMultiOrder(m) && mergeOrderStates(m, ts.orders, false)) recomputeStopFromOrders(m); return m; }
           m = hydrateStop(ts); stops.push(m); byId.set(m.canonicalId, m); return m;
         });
         return { ...t, stops: list };
@@ -929,7 +943,7 @@
       return {
         v: 2, order_date: getTodayString(), meta: { deviceId: DEVICE_ID, ts: Date.now() }, activeTruckId,
         allMergedStops: allMergedStops.map(serializeStop),
-        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, collected: s.collected == null ? null : s.collected, stopSeq: s.stopSeq })) }))
+        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, collected: s.collected == null ? null : s.collected, stopSeq: s.stopSeq, orders: orderStates(s) })) }))
       };
     }
     function saveLocalCache() {
@@ -981,6 +995,7 @@
         (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
           const m = byId.get(rs.canonicalId);
           if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
+          if (Array.isArray(rs.orders) && rs.orders.length && isMultiOrder(m)) { if (mergeOrderStates(m, rs.orders, true)) recomputeStopFromOrders(m); return; }
           if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; m.collected = rs.collected == null ? null : rs.collected; }
         });
       });
@@ -1104,6 +1119,20 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected });
       await flushDriverSync();
     }
+    async function driverApplyOrderStatus(canonicalId, inv, status, reason, collected) {
+      const truck = fleet.find(t => t.id === activeTruckId);
+      if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
+      const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
+      const o = (s && Array.isArray(s.orders)) ? s.orders.find(x => x.inv === inv) : null; if (!o) return;
+      o.status = status; o.failedReason = status === 'failed' ? (reason || '') : '';
+      o.collected = status === 'success' ? (collected == null ? (parseFloat(o.cod) || 0) : collected) : null;
+      recomputeStopFromOrders(s);
+      if (s.status !== 'pending') recordDeliveryHistory(s);
+      if (_opId === canonicalId) { const cur = s.orders[_opIdx]; if (cur && cur.inv === inv) { const nx = s.orders.findIndex((x, i) => i > _opIdx && x.status === 'pending'); if (nx >= 0) _opIdx = nx; } }
+      renderDriverAppCards(); renderOrdersPopup();
+      pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, orders: orderStates(s) });
+      await flushDriverSync();
+    }
     async function flushDriverSync() {
       if (_drvFlushing || pendingDriverSync.size === 0 || !isDriverMode) return;
       if (!(await ensureSupabase())) return;
@@ -1115,7 +1144,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (error) throw error;
         if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
-        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.doneAt = new Date().toISOString(); } });
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = new Date().toISOString(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
           order_date: date, truck_id: Number(activeTruckId),
           truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
@@ -1142,7 +1171,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
           if (!truck) { truck = { id: activeTruckId, stops: [] }; fleet.push(truck); }
           truck.stops = data.stops.map(sanitizeDriverStop); truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
           truck.plate = data.plate || truck.plate || ''; truck.phone = data.driver_phone || truck.phone || ''; truck.maxCapacity = data.max_capacity || truck.maxCapacity || 150;
-          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; } });
+          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } } });
         }
         renderDriverAppCards();
         if (!silent) alert('Đã cập nhật dữ liệu mới nhất!');
@@ -1220,7 +1249,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     let pinningStopId = null;
     let driverAppFilter = 'all';
     let driverTripNo = 1, driverLinkEnded = false, routeDrawToken = 0, driverLoaded = false;
-    let rejectingStopCanonicalId = null;
+    let rejectingStopCanonicalId = null, rejectingOrderInv = null;
     let currentHistoryRange = 'today';
     let warehouseDepot = { name: "Kho NPP Bến Cát (Mỹ Phước)", lat: 11.1550, lon: 106.6150 };
 
@@ -1242,7 +1271,192 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       return s;
     }
 
-    function collectedOf(s) { const tc = parseFloat(s.totalCod) || 0; if (s.status !== 'success') return 0; return (s.collected == null || s.collected === '') ? tc : Math.max(0, Math.min(tc, parseFloat(s.collected) || 0)); }
+    // ===== NHIỀU ĐƠN TRÊN 1 ĐIỂM GIAO (cùng mã KH có 2-3 hóa đơn) =====
+    // Bên ngoài vẫn là 1 điểm giao; bên trong s.orders = [{inv, qty, cod, items[], status, failedReason, collected}]
+    function normOrders(arr) {
+      const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+      return (Array.isArray(arr) ? arr : []).map(o => { o = o || {}; return {
+        inv: String(o.inv || ''), qty: num(o.qty), cod: num(o.cod),
+        status: ['pending', 'success', 'failed'].includes(o.status) ? o.status : 'pending',
+        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected),
+        items: (Array.isArray(o.items) ? o.items : []).map(it => ({ itemName: String((it && it.itemName) || ''), qty: num(it && it.qty), unit: String((it && it.unit) || ''), lineAmount: num(it && it.lineAmount) }))
+      }; }).filter(o => o.inv);
+    }
+    function invCountOf(s) { const n = (s && s.invoices) ? (s.invoices.size != null ? s.invoices.size : (s.invoices.length || 0)) : 0; return Math.max(n, (s && Array.isArray(s.orders)) ? s.orders.length : 0); }
+    function isMultiOrder(s) { return !!(s && Array.isArray(s.orders) && s.orders.length >= 2); }
+    function orderCollected(o) { if (!o || o.status !== 'success') return 0; const c = parseFloat(o.cod) || 0; return (o.collected == null || o.collected === '') ? c : Math.max(0, Math.min(c, parseFloat(o.collected) || 0)); }
+    function codDueOf(s) { return isMultiOrder(s) ? s.orders.filter(o => o.status === 'success').reduce((a, o) => a + (parseFloat(o.cod) || 0), 0) : (parseFloat(s.totalCod) || 0); }
+    function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected })); }
+    // Tổng hợp trạng thái cả điểm từ các đơn: còn đơn chờ => pending; xong hết: có đơn giao được => success (giao 1 phần nếu có đơn hỏng); không đơn nào giao được => failed
+    function recomputeStopFromOrders(s) {
+      if (!isMultiOrder(s)) return;
+      const os = s.orders, ok = os.filter(o => o.status === 'success'), bad = os.filter(o => o.status === 'failed'), pend = os.filter(o => o.status === 'pending');
+      const reasons = Array.from(new Set(bad.map(o => o.failedReason || 'Khác'))).join('; ');
+      const partialTxt = bad.length ? `${bad.length}/${os.length} đơn không giao: ${reasons}` : '';
+      if (pend.length) { s.status = 'pending'; s.failedReason = partialTxt; s.collected = null; }
+      else if (!ok.length) { s.status = 'failed'; s.failedReason = reasons; s.collected = null; }
+      else { s.status = 'success'; s.failedReason = partialTxt; s.collected = ok.reduce((a, o) => a + orderCollected(o), 0); }
+    }
+    // Gộp trạng thái từng đơn (nguồn: tài xế / Cloud). force=true: trạng thái mới hơn luôn thắng; không thì chỉ điền vào đơn đang chờ. Không bao giờ ghi đè bằng 'pending'.
+    function mergeOrderStates(target, states, force) {
+      if (!target || !Array.isArray(target.orders) || !Array.isArray(states)) return false;
+      let ch = false;
+      states.forEach(st => {
+        if (!st || !['success', 'failed'].includes(st.status)) return;
+        const o = target.orders.find(x => x.inv === st.inv); if (!o) return;
+        if (force || o.status === 'pending') {
+          const col = (st.collected == null || st.collected === '') ? null : (parseFloat(st.collected) || 0);
+          if (o.status !== st.status || (o.failedReason || '') !== (st.failedReason || '') || o.collected !== col) ch = true;
+          o.status = st.status; o.failedReason = st.status === 'failed' ? String(st.failedReason || '') : ''; o.collected = st.status === 'success' ? col : null;
+        }
+      });
+      return ch;
+    }
+    function rowQtyInfo(row) {
+      const itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
+      const rawQty = parseMoney(row['Số lượng'] === undefined || row['Số lượng'] === '' ? 1 : row['Số lượng']);
+      const unit = String(row['ĐVT'] || row['Đơn vị tính'] || 'Thùng').trim();
+      const u = unit.toLowerCase(); let box = rawQty;
+      if (u.includes('lon') || u.includes('chai') || u.includes('gói') || u.includes('hộp') || u.includes('ly')) box = rawQty / 24;
+      else if (u.includes('lốc') || u.includes('vỉ') || u.includes('bịch')) box = rawQty / 4;
+      if (box > 300) box = box / 24;
+      return { itemName, rawQty, unit, lineAmount: parseMoney(row['Thành tiền']), box };
+    }
+    // Điểm đã nạp từ trước (chưa có chi tiết từng đơn): dựng lại danh sách đơn từ file nạp lại. Không đụng tới tổng thùng / COD.
+    function backfillOrder(stop, invId, row, codByInv, done) {
+      if (!Array.isArray(stop.orders)) stop.orders = [];
+      const key = stop.canonicalId + '|' + invId;
+      let od = stop.orders.find(o => o.inv === invId);
+      if (od && !done.has(key)) return false;
+      const q = rowQtyInfo(row);
+      if (!od) {
+        const cod = codByInv.get(invId) || 0, tc = parseFloat(stop.totalCod) || 0;
+        const st = (stop.status === 'success' || stop.status === 'failed') ? stop.status : 'pending';
+        let col = null; if (st === 'success') col = (stop.collected != null && tc > 0) ? Math.round(cod * (parseFloat(stop.collected) || 0) / tc) : cod;
+        od = { inv: invId, qty: 0, cod, status: st, failedReason: st === 'failed' ? (stop.failedReason || '') : '', collected: col, items: [] };
+        stop.orders.push(od); done.add(key);
+      }
+      od.qty = Math.round((od.qty + q.box) * 10) / 10;
+      od.items.push({ itemName: q.itemName, qty: q.rawQty, unit: q.unit, lineAmount: q.lineAmount });
+      return true;
+    }
+    function orderIcon(st) { return st === 'success' ? '✅' : (st === 'failed' ? '❌' : '⏳'); }
+    function orderChipHtml(s) {
+      const n = invCountOf(s); if (n < 2) return '';
+      let prog = '';
+      if (isMultiOrder(s)) { const ok = s.orders.filter(o => o.status === 'success').length, bad = s.orders.filter(o => o.status === 'failed').length, pend = s.orders.length - ok - bad; if (ok || bad) prog = ` · ✅${ok}${bad ? ' ❌' + bad : ''}${pend ? ' ⏳' + pend : ''}`; }
+      return `<button type="button" onclick="event.stopPropagation(); openOrdersPopup(${jsq(s.canonicalId)})" class="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-teal-600 text-white border border-teal-700 active:scale-95">📦 ${n} đơn${prog}</button>`;
+    }
+    function orderBadgeHtml(n) { return `<div style="position:absolute;bottom:-7px;right:-9px;background:#0d9488;color:#fff;border-radius:9999px;font-size:9px;font-weight:800;padding:0 4px;border:1.5px solid #fff;line-height:14px">📦${n}</div>`; }
+    function orderRowsHtml(s) {
+      return s.orders.map((o, i) => `<button type="button" onclick="openOrdersPopup(${jsq(s.canonicalId)}, ${i})" class="w-full flex items-center justify-between gap-2 py-1 text-left"><span class="truncate">${orderIcon(o.status)} <strong>Đơn ${i + 1}</strong> <span class="font-mono text-slate-500">${esc(o.inv)}</span></span><span class="shrink-0 font-bold">${o.qty} Thùng • ${formatMoney(o.cod)}</span></button>`).join('');
+    }
+    function multiOrderBtnHtml(s) {
+      const n = s.orders.length, ok = s.orders.filter(o => o.status === 'success').length, bad = s.orders.filter(o => o.status === 'failed').length, done = ok + bad;
+      const cls = !done ? 'bg-teal-600 text-white' : (done === n ? (ok ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white') : 'bg-amber-500 text-white');
+      const txt = done === n ? `Đã xử lý ${n}/${n} đơn • bấm để xem/sửa` : `Mở ${n} đơn để xác nhận (${done}/${n} xong)`;
+      return `<div class="pt-1 border-t"><button onclick="openOrdersPopup(${jsq(s.canonicalId)})" class="w-full ${cls} py-3 rounded-xl font-bold text-xs shadow-sm active:scale-95">📦 ${txt}</button></div>`;
+    }
+    // ----- Popup xem từng đơn (tab + vuốt ngang) -----
+    let _opId = null, _opIdx = 0;
+    function _opStop() {
+      if (isDriverMode) { const t = fleet.find(x => x.id === activeTruckId); return t ? (t.stops || []).find(x => x.canonicalId === _opId) : null; }
+      return allMergedStops.find(x => x.canonicalId === _opId);
+    }
+    function openOrdersPopup(id, idx) {
+      _opId = id; _opIdx = idx || 0;
+      const m = document.getElementById('ordersModal'); if (!m) return;
+      m.classList.remove('hidden'); renderOrdersPopup();
+    }
+    function closeOrdersPopup() { const m = document.getElementById('ordersModal'); if (m) m.classList.add('hidden'); _opId = null; }
+    function opGo(i) { const s = _opStop(); if (!s || !isMultiOrder(s)) return; _opIdx = Math.max(0, Math.min(s.orders.length - 1, i)); renderOrdersPopup(); }
+    function renderOrdersPopup() {
+      const m = document.getElementById('ordersModal'); if (!m || m.classList.contains('hidden')) return;
+      const s = _opStop(); if (!s) { closeOrdersPopup(); return; }
+      const tabs = document.getElementById('ordersTabs'), body = document.getElementById('ordersBody'), foot = document.getElementById('ordersFooter');
+      document.getElementById('ordersTitle').textContent = s.custName || s.canonicalId;
+      const n = invCountOf(s);
+      document.getElementById('ordersSub').textContent = `${n} đơn • ${s.totalQty} Thùng • COD ${formatMoney(s.totalCod)}`;
+      if (!isMultiOrder(s)) {
+        tabs.innerHTML = '';
+        const invs = Array.from(s.invoices || []);
+        body.innerHTML = `<div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-semibold">Điểm này nạp từ trước nên chưa có chi tiết từng đơn. Nạp lại file Excel hôm nay (đơn cũ sẽ không bị cộng trùng) để app bổ sung chi tiết từng đơn.</div>`
+          + invs.map((v, i) => `<div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs"><strong>Đơn ${i + 1}</strong> <span class="font-mono text-slate-600">${esc(v)}</span></div>`).join('');
+        foot.innerHTML = ''; return;
+      }
+      _opIdx = Math.max(0, Math.min(s.orders.length - 1, _opIdx));
+      const N = s.orders.length, o = s.orders[_opIdx];
+      tabs.innerHTML = s.orders.map((x, i) => `<button type="button" onclick="opGo(${i})" class="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border ${i === _opIdx ? 'bg-teal-600 text-white border-teal-700' : 'bg-white text-slate-700 border-slate-300'}">${orderIcon(x.status)} Đơn ${i + 1}</button>`).join('');
+      const a = tabs.children[_opIdx]; if (a) tabs.scrollLeft = a.offsetLeft - tabs.clientWidth / 2 + a.clientWidth / 2;
+      const pillCls = o.status === 'success' ? 'bg-emerald-100 text-emerald-800' : (o.status === 'failed' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600');
+      const pillTxt = o.status === 'success' ? '✅ Đã giao' : (o.status === 'failed' ? '❌ Không giao được' : '⏳ Chưa giao');
+      const items = (o.items || []).map(it => `<div class="flex justify-between gap-2 text-[12px] py-1 border-b border-slate-100 last:border-0"><span class="min-w-0"><strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}</span><span class="font-mono text-slate-500 shrink-0">${formatMoney(it.lineAmount)}</span></div>`).join('') || '<div class="text-xs text-slate-400">Không có chi tiết hàng.</div>';
+      const col = orderCollected(o), cod = parseFloat(o.cod) || 0;
+      let info = '';
+      if (o.status === 'success') info = col < cod ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(col)} • CÒN NỢ ${formatMoney(cod - col)}</div>` : `<div class="p-2 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-bold">💰 Đã thu đủ ${formatMoney(col)}</div>`;
+      else if (o.status === 'failed') info = `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(o.failedReason || 'Khác')}</div>`;
+      body.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <button type="button" onclick="opGo(${_opIdx - 1})" ${_opIdx === 0 ? 'disabled' : ''} class="w-9 h-9 rounded-full bg-slate-100 text-slate-700 font-black disabled:opacity-30">‹</button>
+          <div class="text-center min-w-0"><div class="text-[10px] text-slate-400 font-bold uppercase">Đơn ${_opIdx + 1} / ${N}</div><div class="font-mono font-extrabold text-slate-900 text-sm truncate">${esc(o.inv)}</div></div>
+          <button type="button" onclick="opGo(${_opIdx + 1})" ${_opIdx === N - 1 ? 'disabled' : ''} class="w-9 h-9 rounded-full bg-slate-100 text-slate-700 font-black disabled:opacity-30">›</button>
+        </div>
+        <div class="text-center"><span class="text-[11px] font-bold px-2 py-1 rounded-full ${pillCls}">${pillTxt}</span></div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-2.5"><div class="text-[10px] text-blue-700 uppercase font-bold">Số lượng</div><div class="font-extrabold text-blue-900 text-base">${o.qty} Thùng</div></div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5"><div class="text-[10px] text-amber-700 uppercase font-bold">Cần thu COD</div><div class="font-extrabold text-amber-900 text-base">${formatMoney(cod)}</div></div>
+        </div>
+        <div class="border rounded-xl p-2.5 bg-white"><div class="text-[10px] text-slate-400 uppercase font-bold mb-1">Hàng trong đơn</div>${items}</div>
+        ${info}`;
+      if (isDriverMode) {
+        const doneN = s.orders.filter(x => x.status !== 'pending').length;
+        foot.innerHTML = `<div class="flex gap-2">
+          <button onclick="opMarkSuccess()" class="flex-1 ${o.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-emerald-800'} py-3 rounded-xl font-bold text-xs active:scale-95">✅ Đã Giao & Thu Tiền</button>
+          <button onclick="opReject()" class="flex-1 ${o.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-rose-800'} py-3 rounded-xl font-bold text-xs active:scale-95">❌ Không Giao Được</button></div>
+          <div class="text-center text-[10px] text-slate-400 mt-1.5">Vuốt ngang hoặc bấm tab để chuyển đơn • đã xử lý ${doneN}/${N}</div>`;
+      } else {
+        foot.innerHTML = '<div class="text-center text-[11px] text-slate-500">Chỉ xem • tài xế xác nhận giao / không giao từng đơn trên điện thoại.</div>';
+      }
+    }
+    async function opMarkSuccess() {
+      const s = _opStop(); if (!s || !isMultiOrder(s)) return; const o = s.orders[_opIdx]; if (!o) return;
+      const total = parseFloat(o.cod) || 0; let amt = total;
+      if (total > 0) {
+        const ans = await appPrompt(`ĐÃ GIAO • ${s.custName}\nĐơn ${o.inv}\nCần thu: ${formatMoney(total)}\n\nNhập SỐ TIỀN THỰC THU (để nguyên = thu đủ, 0 = ghi nợ toàn bộ):`, String(total));
+        if (ans === null || ans === undefined || ans === false) return;
+        const raw = String(ans).trim(); amt = raw === '' ? total : parseMoney(raw);
+        if (!isFinite(amt) || amt < 0) amt = 0; if (amt > total) amt = total;
+        if (amt < total && (s.tags || []).includes('nodebt')) { if (!(await appConfirm(`⚠️ ${s.custName} là KH KHÔNG CÔNG NỢ.\nThu ${formatMoney(amt)} / ${formatMoney(total)} (còn nợ ${formatMoney(total - amt)}).\nVẫn xác nhận giao?`))) return; }
+      }
+      await driverApplyOrderStatus(s.canonicalId, o.inv, 'success', '', amt);
+    }
+    function opReject() {
+      const s = _opStop(); if (!s || !isMultiOrder(s)) return; const o = s.orders[_opIdx]; if (!o) return;
+      openDriverRejectPicker(s.canonicalId); rejectingOrderInv = o.inv;
+    }
+    (function () {
+      let x0 = null, y0 = null;
+      document.addEventListener('touchstart', e => { const b = e.target && e.target.closest ? e.target.closest('#ordersBody') : null; if (!b) { x0 = null; return; } x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+      document.addEventListener('touchend', e => { if (x0 == null) return; const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) opGo(_opIdx + (dx < 0 ? 1 : -1)); }, { passive: true });
+    })();
+    function collectedOf(s) { if (isMultiOrder(s)) return s.orders.reduce((a, o) => a + orderCollected(o), 0); const tc = parseFloat(s.totalCod) || 0; if (s.status !== 'success') return 0; return (s.collected == null || s.collected === '') ? tc : Math.max(0, Math.min(tc, parseFloat(s.collected) || 0)); }
+    function splitFailedOrders(x) {   // hoàn tất chuyến: đơn không giao trong điểm giao 1 phần => tách thành điểm mới quay về kho đơn chung
+      if (!isMultiOrder(x)) return null;
+      const bad = x.orders.filter(o => o.status === 'failed'), good = x.orders.filter(o => o.status !== 'failed');
+      if (!bad.length || !good.length) return null;
+      const baseId = x.baseId || String(x.canonicalId).split('#')[0];
+      const n = allMergedStops.filter(y => (y.baseId || String(y.canonicalId).split('#')[0]) === baseId).length;
+      const sum = (arr, k) => arr.reduce((a, o) => a + (parseFloat(o[k]) || 0), 0);
+      const flat = arr => arr.flatMap(o => (o.items || []).map(it => ({ invId: o.inv, ...it })));
+      const ns = hydrateStop({ ...serializeStop(x), canonicalId: `${baseId}#${n + 1}`, baseId,
+        orders: bad.map(o => ({ ...o, status: 'pending', failedReason: '', collected: null })), invoices: bad.map(o => o.inv), items: flat(bad),
+        status: 'pending', failedReason: '', collected: null, truckId: null, locked: false, archived: false, stopSeq: 0, lifoSeq: 0, tripNo: 0, history: [] });
+      ns.totalQty = Math.max(0.5, Math.round(sum(bad, 'qty') * 10) / 10); ns.totalCod = sum(bad, 'cod');
+      x.orders = good; x.invoices = new Set(good.map(o => o.inv)); x.items = flat(good);
+      x.totalQty = Math.max(0.5, Math.round(sum(good, 'qty') * 10) / 10); x.totalCod = sum(good, 'cod'); x.failedReason = '';
+      if (isMultiOrder(x)) recomputeStopFromOrders(x); else x.collected = good.reduce((a, o) => a + orderCollected(o), 0);
+      return ns;
+    }
     function formatMoney(amount) {
       return (amount || 0).toLocaleString('vi-VN') + " đ";
     }
@@ -1523,7 +1737,7 @@ async function restoreMasterBackupFromCloud() {
           await savePermanentEdits();
           for (const t of fleet) if (t.stops.length > 0) await syncTruckStopsToCloud(t);
           alert(`ĐÃ GỘP ĐỢT NẠP MỚI:\n• +${st.newInv} hóa đơn mới (${st.newStops} điểm giao mới)\n• Bỏ qua ${st.dupInv} hóa đơn đã nạp từ trước\n` +
-                (st.splitStops ? `• ${st.splitStops} điểm đã giao/đã phát xe trước đó nay có đơn mới → tạo thành điểm giao riêng (đợt sau), COD cũ không bị tính lại\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
+                (st.splitStops ? `• ${st.splitStops} điểm đã giao/đã phát xe trước đó nay có đơn mới → tạo thành điểm giao riêng (đợt sau), COD cũ không bị tính lại\n` : '') + (st.backfilled ? `• Đã bổ sung chi tiết từng đơn cho ${st.backfilled} điểm giao (đơn cũ, không cộng trùng)\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
         } catch (err) { alert("Lỗi đọc file: " + err.message); }
         finally { input.value = ''; }
       };
@@ -1563,12 +1777,13 @@ async function restoreMasterBackupFromCloud() {
           codByInv.set(inv, (codByInv.get(inv) || 0) + parseMoney(row['Thành tiền']));   // không có cột COD: cộng tất cả dòng của hóa đơn
         }
       });
-      const newInv = new Set(), dupInv = new Set(), touched = new Set(), batchStop = new Map(); let newStops = 0, splitStops = 0;
+      const newInv = new Set(), dupInv = new Set(), touched = new Set(), batchStop = new Map(); let newStops = 0, splitStops = 0; const bfStops = new Set(), bfDone = new Set();
       rows.forEach(row => {
         const { inv: invId, cust: rawCustId } = keyOf(row);
         if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
         if (known.has(invId)) {
           dupInv.add(invId);
+          { const _bs = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_bs && backfillOrder(_bs, invId, row, codByInv, bfDone)) { bfStops.add(_bs); touched.add(_bs); } }
           const _sr = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
           const _ph = _sr.match(/(\+?84|0)[\d .\-]{8,11}\d/);
           if (_ph) { const _ex = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_ex && !_ex.salePhone) { _ex.salePhone = normalizePhone(_ph[0]); _ex.saleName = _sr.replace(_ph[0], '').replace(/\s+/g, ' ').trim(); } }
@@ -1614,12 +1829,13 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
       if (saleName) s.saleName = saleName; if (salePhone) s.salePhone = salePhone;
         s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
         s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
+        { let od = s.orders.find(o => o.inv === invId); if (!od) { od = { inv: invId, qty: 0, cod: codByInv.get(invId) || 0, status: 'pending', failedReason: '', collected: null, items: [] }; s.orders.push(od); } od.qty = Math.round((od.qty + boxEquivalent) * 10) / 10; od.items.push({ itemName, qty: rawQty, unit, lineAmount }); }
         if (!s.invoices.has(invId)) { s.invoices.add(invId); s.totalCod = (s.totalCod || 0) + (codByInv.get(invId) || 0); }
         newInv.add(invId); touched.add(s);
       });
-      touched.forEach(s => { s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10); });
+      touched.forEach(s => { s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10); recomputeStopFromOrders(s); });
       refreshStopMappingFromMaster();
-      return { newInv: newInv.size, dupInv: dupInv.size, newStops, splitStops, reopened: 0 };
+      return { newInv: newInv.size, dupInv: dupInv.size, newStops, splitStops, reopened: 0, backfilled: bfStops.size };
     }
 
     // -------------------------------------------------------------------------
@@ -2293,7 +2509,7 @@ function sanitizeDriverStop(st) {
     canonicalId: String(st.canonicalId || ''), stopSeq: num(st.stopSeq), lifoSeq: num(st.lifoSeq), tripNo: num(st.tripNo) || undefined,
     custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
     lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
-    totalQty: num(st.totalQty), totalCod: num(st.totalCod),
+    totalQty: num(st.totalQty), totalCod: num(st.totalCod), orders: normOrders(st.orders), invoices: Array.isArray(st.invoices) ? st.invoices.map(String) : [],
     status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), collected: st.collected == null ? null : num(st.collected),
     items: (Array.isArray(st.items) ? st.items : []).map(it => ({ qty: num(it && it.qty), unit: String((it && it.unit) || ''), itemName: String((it && it.itemName) || '') }))
   };
@@ -2371,9 +2587,12 @@ async function completeTrip(truckId) {
   const codOk = ok.reduce((a, x) => a + collectedOf(x), 0);
   if (!(await appConfirm(`HOÀN TẤT CHUYẾN ${truck.tripNo || 1} • ${truck.name}?\n\n• Đã giao: ${ok.length} điểm (thu ${formatMoney(codOk)})\n• Giao thất bại: ${bad.length} điểm\n• Chưa giao: ${pend.length} điểm\n\nXe sẽ được giải phóng để nhận chuyến sau.`))) return;
   const back = truck.stops.filter(x => x.status !== 'success');
+  const partialOrders = truck.stops.filter(x => x.status === 'success' && isMultiOrder(x)).reduce((a, x) => a + x.orders.filter(o => o.status === 'failed').length, 0);
   let returnBack = false;
-  if (back.length > 0) returnBack = await appConfirm(`Có ${back.length} điểm CHƯA GIAO / GIAO THẤT BẠI.\n\nOK = ĐƯA LẠI vào kho đơn chung để xếp chuyến sau.\nCancel = ĐÓNG LUÔN (kế toán tự thêm lại hôm sau nếu cần).`);
+  if (back.length > 0 || partialOrders > 0) returnBack = await appConfirm(`Có ${back.length} điểm CHƯA GIAO / GIAO THẤT BẠI${partialOrders ? ' và ' + partialOrders + ' ĐƠN LẺ không giao (trong điểm đã giao 1 phần)' : ''}.\n\nOK = ĐƯA LẠI vào kho đơn chung để xếp chuyến sau.\nCancel = ĐÓNG LUÔN (kế toán tự thêm lại hôm sau nếu cần).`);
   const tripNo = truck.tripNo || 1;
+  const newPartStops = returnBack ? truck.stops.map(x => (x.status === 'success' ? splitFailedOrders(x) : null)).filter(Boolean) : [];
+  newPartStops.forEach(n => allMergedStops.push(n));
   truck.stops.forEach(x => {
     if (x.status !== 'success' && returnBack) {
       x.history = (x.history || []).concat([{ tripNo, status: x.status, reason: x.failedReason || '' }]);
@@ -2518,6 +2737,7 @@ function renderDriverAppCards() {
 <div class="flex gap-1 flex-wrap mt-1">${tagBadges(s.tags)}</div>
               ${driverCardKmHtml(s, kmap)}
               ${colocChipHtml(s)}
+              ${invCountOf(s) >= 2 ? `<div class="mt-1">${orderChipHtml(s)}</div>` : ''}
             </div>
           </div>
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
@@ -2552,25 +2772,26 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
   </div>` : ''}
 </div>` : ''}
         <div class="text-[11px] text-slate-600 border-t pt-1.5 space-y-0.5">
-          ${(s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
+          ${isMultiOrder(s) ? orderRowsHtml(s) : (s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
         </div>
 
-        ${(s.status === 'success' && s.collected != null && s.collected < (parseFloat(s.totalCod) || 0)) ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(s.collected)} • CÒN NỢ ${formatMoney((parseFloat(s.totalCod) || 0) - s.collected)}</div>` : ''}
+        ${(s.status === 'success' && s.collected != null && s.collected < codDueOf(s)) ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(s.collected)} • CÒN NỢ ${formatMoney(codDueOf(s) - s.collected)}</div>` : ''}
         ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(s.failedReason)}</div>` : ''}
 
-        <div class="flex items-center gap-2 pt-1 border-t">
+        ${isMultiOrder(s) ? multiOrderBtnHtml(s) : `<div class="flex items-center gap-2 pt-1 border-t">
           <button onclick="driverMarkSuccess(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
             <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã Giao & Thu Tiền
           </button>
           <button onclick="openDriverRejectPicker(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
             <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Không Giao Được
           </button>
-        </div>
+        </div>`}
       </div>
     `;
   }).join('') + '<div class="h-36 w-full shrink-0"></div>';
 
   safeRenderIcons();
+  renderOrdersPopup();
 }
     async function syncTruckStopsToCloud(truck) {
   if (!db || !truck || !cloudReady) return;
@@ -2580,7 +2801,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
     // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
     const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
     const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
-    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; } });
+    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
       custName: s.custName || '',
@@ -2601,6 +2822,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
       items: s.items || [],
             rawIds: Array.from(s.rawIds || []),
       invoices: Array.from(s.invoices || []),
+      orders: s.orders || [],
       tags: s.tags || [],
       saleName: s.saleName || '',
       salePhone: s.salePhone || ''
@@ -2645,7 +2867,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
 }
 
 function openDriverRejectPicker(canonicalId) {
-  rejectingStopCanonicalId = canonicalId;
+  rejectingStopCanonicalId = canonicalId; rejectingOrderInv = null;
   let modal = document.getElementById('driverRejectModal');
   if (modal) modal.classList.remove('hidden');
   safeRenderIcons();
@@ -2654,14 +2876,14 @@ function openDriverRejectPicker(canonicalId) {
 function closeDriverRejectModal() {
   let modal = document.getElementById('driverRejectModal');
   if (modal) modal.classList.add('hidden');
-  rejectingStopCanonicalId = null;
+  rejectingStopCanonicalId = null; rejectingOrderInv = null;
 }
 
 async function submitDriverRejectReason(reason) {
   if (!rejectingStopCanonicalId) return;
-  const id = rejectingStopCanonicalId;
+  const id = rejectingStopCanonicalId, inv = rejectingOrderInv;
   closeDriverRejectModal();
-  await driverApplyStatus(id, 'failed', reason);
+  if (inv) await driverApplyOrderStatus(id, inv, 'failed', reason); else await driverApplyStatus(id, 'failed', reason);
 }
 
 
@@ -2762,7 +2984,9 @@ async function submitDriverRejectReason(reason) {
         reasonCounts[r] = (reasonCounts[r] || 0) + 1;
       });
 
-      let totalFailed = failedStops.length;
+      let extraFailedOrders = 0;
+      allMergedStops.forEach(s => { if (s.status === 'success' && isMultiOrder(s)) s.orders.filter(o => o.status === 'failed').forEach(o => { const r = o.failedReason || 'Khác / Chưa ghi nhận'; reasonCounts[r] = (reasonCounts[r] || 0) + 1; extraFailedOrders++; }); });
+      let totalFailed = failedStops.length + extraFailedOrders;
       let elFailText = document.getElementById('totalFailedCountText');
       if (elFailText) elFailText.innerText = `${totalFailed} đơn thất bại`;
 
@@ -3032,7 +3256,7 @@ async function submitDriverRejectReason(reason) {
         if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
         const grp = cmap.get(x.canonicalId); if (grp && grp[0] !== x) return;   // ghim chồng nhau: chỉ vẽ 1 ghim đại diện
         const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
-        if (grp) pin.html = `<div style="position:relative">${pin.html}${colocBadgeHtml(grp.length)}</div>`;
+        { const _ob = invCountOf(x) >= 2 ? orderBadgeHtml(invCountOf(x)) : ''; if (grp || _ob) pin.html = `<div style="position:relative">${pin.html}${grp ? colocBadgeHtml(grp.length) : ''}${_ob}</div>`; }
         const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
         L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(grp ? colocPopupHtml(grp) : `
           <div class="space-y-1">
@@ -3128,7 +3352,7 @@ return `
             ${o.leg || ''}
             ${colocChipHtml(s)}
             <div class="flex items-center justify-between gap-1 mt-0.5">
-              <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${tagBadges(s.tags)}${gps}</div>
+              <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${orderChipHtml(s)}${tagBadges(s.tags)}${gps}</div>
               <div class="flex items-center gap-2 shrink-0">${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
             </div>
           </div>
@@ -3280,7 +3504,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         const grp = cmSel.get(x.canonicalId); if (grp && grp[0] !== x) return;
         const members = grp || [x];
         const sel = members.every(y => selectedStopIds.has(y.canonicalId)), ok = members.some(y => isSelectableStop(y)); const pin = stopPinHtml(x, sel, !ok && !sel);
-        if (grp) pin.html = `<div style="position:relative">${pin.html}${colocBadgeHtml(grp.length)}</div>`;
+        { const _ob = invCountOf(x) >= 2 ? orderBadgeHtml(invCountOf(x)) : ''; if (grp || _ob) pin.html = `<div style="position:relative">${pin.html}${grp ? colocBadgeHtml(grp.length) : ''}${_ob}</div>`; }
         const m = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'sel-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }), zIndexOffset: sel ? 1000 : 0 });
         m.bindTooltip(grp ? `📍 ${grp.length} đơn cùng vị trí: ${grp.map(y => esc(y.custName)).join(' • ')}` : `${esc(x.custName)} • ${x.totalQty} Thùng • ${formatMoney(x.totalCod)}${ok ? '' : ' (xe đã phát link)'}`, { direction: 'top' });
         m.on('click', () => {
@@ -3316,6 +3540,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       document.getElementById('modalStopQty').innerText = `${stop.totalQty} Thùng`;
       document.getElementById('modalStopGpsText').innerText = stop.isMapped ? `${stop.lat.toFixed(6)}, ${stop.lon.toFixed(6)}` : "Chưa có tọa độ";
 
+      document.getElementById('modalOrdersChip').innerHTML = orderChipHtml(stop);
       let tbody = document.getElementById('modalItemsTableBody');
       tbody.innerHTML = stop.items.map(it => `
         <tr class="hover:bg-slate-50">
