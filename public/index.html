@@ -37,6 +37,9 @@
 <!-- Supabase JS được nạp động trong script chính (có fallback nhiều CDN) -->
 
   <style>
+    /* Điện thoại: 100vh > vùng nhìn thấy => đáy danh sách / bảng xe bị thanh trình duyệt che, không cuộn tới được. Dùng dvh. */
+    html, body { height: 100%; }
+    body.h-screen { height: 100vh; height: 100dvh; }
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     #map { height: 100%; width: 100%; min-height: 240px; background: #e2e8f0; }
@@ -51,7 +54,7 @@
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
-      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+      #printArea { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
     }
   </style>
 </head>
@@ -243,7 +246,7 @@
         </div>
 
         <!-- STOPS LIST VIEW (CONTAINER) -->
-        <div id="stopsListView" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+        <div id="stopsListView" class="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100" style="padding-bottom:calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch">
           <div class="p-8 text-center text-xs text-slate-400 space-y-2">
             <i data-lucide="truck" class="w-10 h-10 mx-auto text-slate-300"></i>
             <p>Kéo file <strong>Hóa Đơn KiotViet</strong> vào ô trên để kiểm tra và xếp tuyến.</p>
@@ -259,6 +262,10 @@
           <button onclick="printLifoPackingSlip()" id="btnPrint" disabled class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-30 disabled:cursor-not-allowed">
             <i data-lucide="printer" class="w-3.5 h-3.5"></i>
             <span>In Phiếu LIFO</span>
+          </button>
+          <button onclick="printTruckProductSummary()" id="btnPrintSummary" disabled title="In tổng hợp số lượng từng mặt hàng trên xe đang chọn" class="bg-amber-500 hover:bg-amber-400 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-30 disabled:cursor-not-allowed">
+            <i data-lucide="package" class="w-3.5 h-3.5"></i>
+            <span>In Tổng Hàng</span>
           </button>
         </div>
       </aside>
@@ -295,7 +302,7 @@
         </div>
 
         <!-- BOTTOM: EXECUTIVE DASHBOARD BÁO CÁO DOANH THU & THEO DÕI ĐỘI XE -->
-        <div class="flex-1 bg-white p-3 overflow-y-auto space-y-3">
+        <div class="flex-1 min-h-0 bg-white p-3 overflow-y-auto space-y-3" style="padding-bottom:calc(96px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
           
           <!-- TIME FILTER & TOP METRICS STRIP -->
           <div class="flex items-center justify-between border-b pb-2">
@@ -358,7 +365,7 @@
           <div class="border rounded-xl overflow-hidden shadow-sm">
             <div class="bg-slate-100 px-3 py-1.5 border-b flex items-center justify-between text-xs font-bold text-slate-700">
               <span>BẢNG THEO DÕI ĐỘI XE, TIẾN ĐỘ & QUẢN TRỊ LINK TÀI XẾ</span>
-              <span class="text-[10px] text-slate-500 font-normal">Chỉ xe có đơn mới mở hoặc copy link</span>
+              <span class="flex items-center gap-2"><button onclick="printTruckProductSummary('all')" class="bg-amber-500 hover:bg-amber-400 text-white px-2 py-0.5 rounded text-[10px] font-bold">🖨 In tổng hàng tất cả xe</button><span class="text-[10px] text-slate-500 font-normal hidden sm:inline">Chỉ xe có đơn mới mở hoặc copy link</span></span>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs min-w-[620px]">
@@ -3038,6 +3045,7 @@ async function submitDriverRejectReason(reason) {
             <button onclick="event.stopPropagation(); generateStandaloneDriverLink(${t.id});" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-200">Copy</button>
  
             <button onclick="event.stopPropagation(); revokeDriverLink(${t.id});" title="Rút đơn chưa giao về kho đơn" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-rose-200">Thu hồi</button>
+            <button onclick="event.stopPropagation(); printTruckProductSummary(${t.id});" title="In tổng hợp hàng trên xe" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-200">In hàng</button>
             <button onclick="event.stopPropagation(); completeTrip(${t.id});" title="Xe đã về kho, đóng chuyến" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-200">Xong</button>
             </div>
           ` : `
@@ -4046,6 +4054,55 @@ async function removeVehicle(id) {
       window.print();
     }
 
+    // ===== IN TỔNG HỢP MẶT HÀNG THEO XE (để NPP biết tổng số lượng từng loại mà tự xếp xe) =====
+    function summarizeTruckProducts(truck) {
+      const map = new Map(); let lines = 0;
+      (truck.stops || []).forEach(s => {
+        (s.items || []).forEach(it => {
+          const name = String(it.itemName || 'Hàng tổng hợp').trim(), unit = String(it.unit || '').trim(), key = name.toLowerCase() + '||' + unit.toLowerCase();
+          let r = map.get(key); if (!r) { r = { name, unit, qty: 0, stops: new Set() }; map.set(key, r); }
+          r.qty += parseFloat(it.qty) || 0; r.stops.add(s.canonicalId); lines++;
+        });
+      });
+      const rows = Array.from(map.values()).sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'vi'));
+      rows.forEach(r => { r.qty = Math.round(r.qty * 100) / 100; r.nStops = r.stops.size; });
+      return rows;
+    }
+    function printTruckProductSummary(which) {
+      let list;
+      if (which === 'all') list = fleet.filter(t => (t.stops || []).length > 0);
+      else { const t = fleet.find(x => x.id === (which == null ? activeTruckId : Number(which))); list = (t && (t.stops || []).length) ? [t] : []; }
+      if (!list.length) return alert('Xe này chưa có đơn nào để in tổng hợp hàng!');
+      const printArea = document.getElementById('printArea'); const today = getTodayString();
+      const fmt = n => (Math.round(n * 100) / 100).toLocaleString('vi-VN');
+      let html = '<div style="font-family: Arial, sans-serif; padding: 20px;">';
+      if (list.length > 1) {   // trang tổng: ma trận hàng x xe
+        const all = list.map(t => ({ t, rows: summarizeTruckProducts(t) }));
+        const keys = new Map(); all.forEach(a => a.rows.forEach(r => { const k = r.name.toLowerCase() + '||' + r.unit.toLowerCase(); if (!keys.has(k)) keys.set(k, { name: r.name, unit: r.unit, per: new Map(), total: 0 }); const e = keys.get(k); e.per.set(a.t.id, r.qty); e.total += r.qty; }));
+        const rowsAll = Array.from(keys.values()).sort((a, b) => b.total - a.total);
+        html += `<h2 style="text-align:center;margin:0 0 4px;">TỔNG HỢP HÀNG HÓA THEO XE</h2><p style="text-align:center;font-size:12px;margin:0 0 10px;color:#475569;">Ngày ${esc(today)} • ${list.length} xe • ${rowsAll.length} mặt hàng</p>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;" border="1" cellpadding="5"><thead style="background:#f1f5f9;"><tr><th style="width:30px;">STT</th><th>Tên hàng</th><th style="width:50px;">ĐVT</th>${all.map(a => `<th style="text-align:center;">${esc(a.t.name.split('(')[0].trim())}</th>`).join('')}<th style="text-align:center;">Tổng</th></tr></thead><tbody>
+          ${rowsAll.map((e, i) => `<tr><td style="text-align:center;">${i + 1}</td><td><strong>${esc(e.name)}</strong></td><td style="text-align:center;">${esc(e.unit)}</td>${all.map(a => `<td style="text-align:center;">${e.per.has(a.t.id) ? fmt(e.per.get(a.t.id)) : '-'}</td>`).join('')}<td style="text-align:center;font-weight:bold;">${fmt(e.total)}</td></tr>`).join('')}
+          </tbody></table><div style="page-break-after:always;"></div>`;
+      }
+      list.forEach((t, idx) => {
+        const rows = summarizeTruckProducts(t), totalBox = Math.round(t.stops.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = t.stops.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
+        const nOrders = t.stops.reduce((a, s) => a + invCountOf(s), 0);
+        html += `<h2 style="text-align:center;margin:0 0 4px;">TỔNG HỢP HÀNG TRÊN XE</h2>
+          <p style="text-align:center;font-size:13px;margin:0;"><strong>${esc(t.name)} - Biển số: ${esc(t.plate)}</strong> | Tài xế: ${esc(t.driver)} (${normalizePhone(t.phone)})</p>
+          <p style="text-align:center;font-size:12px;color:#475569;margin:4px 0 0;">Ngày ${esc(today)} • Chuyến ${t.tripNo || 1} • ${t.stops.length} điểm giao • ${nOrders} đơn • ${rows.length} mặt hàng • Quy đổi ≈ ${totalBox} thùng</p>
+          <hr style="margin:12px 0;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;" border="1" cellpadding="6"><thead style="background:#f1f5f9;"><tr><th style="width:36px;">STT</th><th>Tên mặt hàng</th><th style="width:70px;">ĐVT</th><th style="width:100px;text-align:center;">Tổng SL</th><th style="width:80px;text-align:center;">Số điểm</th><th style="width:70px;">Đã xếp</th></tr></thead><tbody>
+          ${rows.map((r, i) => `<tr><td style="text-align:center;">${i + 1}</td><td><strong>${esc(r.name)}</strong></td><td style="text-align:center;">${esc(r.unit)}</td><td style="text-align:center;font-weight:bold;font-size:14px;">${fmt(r.qty)}</td><td style="text-align:center;">${r.nStops}</td><td style="text-align:center;">☐</td></tr>`).join('')}
+          </tbody></table>
+          <p style="font-size:12px;margin-top:10px;"><strong>Tổng tiền COD cả xe:</strong> ${formatMoney(cod)}</p>
+          <div style="margin-top:30px;display:flex;justify-content:space-between;text-align:center;font-size:13px;"><div><strong>Thủ Kho / NPP Soạn Hàng</strong><br><br><br>(Ký & ghi rõ họ tên)</div><div><strong>Tài Xế Nhận Hàng</strong><br><br><br>(Ký & ghi rõ họ tên)</div></div>
+          ${idx < list.length - 1 ? '<div style="page-break-after:always;"></div>' : ''}`;
+      });
+      html += '</div>';
+      printArea.innerHTML = html; window.print();
+    }
+
     function checkButtonsState() {
       let truck = fleet.find(t => t.id === activeTruckId);
       let hasData = truck && truck.stops.length > 0;
@@ -4053,6 +4110,7 @@ async function removeVehicle(id) {
       let btnPrint = document.getElementById('btnPrint');
       if (btnDriver) btnDriver.disabled = !hasData;
       if (btnPrint) btnPrint.disabled = !hasData;
+      const btnSum = document.getElementById('btnPrintSummary'); if (btnSum) btnSum.disabled = !hasData;
     }
 
     async function resetApp() {
