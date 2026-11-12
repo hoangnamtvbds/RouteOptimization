@@ -705,7 +705,11 @@
     </div>
     <label class="block">Tên quán<input id="ecName" type="text" class="w-full border rounded p-1.5 mt-0.5"></label>
     <label class="block">Số điện thoại<input id="ecPhone" type="tel" class="w-full border rounded p-1.5 mt-0.5"></label>
-    <label class="block">Địa chỉ<textarea id="ecAddr" rows="2" class="w-full border rounded p-1.5 mt-0.5"></textarea></label>
+    <label class="block">Địa chỉ<textarea id="ecAddr" rows="2" class="w-full border rounded p-1.5 mt-0.5"></textarea></label> 
+<div class="flex flex-wrap gap-x-4 gap-y-1 py-1 font-semibold">
+  <label class="flex items-center gap-1"><input type="checkbox" id="ecTagLunch"> 🕛 Hay nghỉ trưa</label>
+  <label class="flex items-center gap-1"><input type="checkbox" id="ecTagNoDebt"> ⛔ Nợ xấu / Không công nợ</label>
+</div>
     <label class="block">Tọa độ / Link Google Maps<input id="ecCoords" type="text" placeholder="11.xxxx, 106.xxxx" class="w-full border rounded p-1.5 mt-0.5 font-mono"></label>
     <div class="flex items-center justify-between gap-2">
       <a id="ecMapLink" href="#" target="_blank" class="text-blue-600 underline hidden">Xem vị trí trên Google Maps</a>
@@ -867,6 +871,7 @@
       if (m.warehouse_depot && m.warehouse_depot.lat) warehouseDepot = m.warehouse_depot;
       if (Array.isArray(m.fleet_config) && m.fleet_config.length) { cloudFleetCfg = m.fleet_config; applyFleetConfig(cloudFleetCfg); }
       if (m.store_aliases && typeof m.store_aliases === 'object') storeAliasMap = new Map(Object.entries(m.store_aliases));
+     if (m.sale_phones && typeof m.sale_phones === 'object') salePhoneMap = m.sale_phones;
       saveLocalCache();
       return m;
     }
@@ -885,7 +890,8 @@
       s.truckId = (s.truckId === undefined) ? null : s.truckId;
       s.baseId = s.baseId || String(s.canonicalId || '').split('#')[0];
       s.archived = !!s.archived; s.locked = !!s.locked; s.tripNo = s.tripNo || 0;
-      return s;
+      s.tags = Array.isArray(s.tags) ? s.tags : []; s.saleName = s.saleName || ''; s.salePhone = s.salePhone || '';
+  return s;
     }
     function serializeStop(s) { return { ...s, rawIds: Array.from(s.rawIds || []), invoices: Array.from(s.invoices || []) }; }
     // Mỗi điểm giao chỉ tồn tại 1 object duy nhất, dùng chung giữa allMergedStops và fleet[].stops
@@ -982,6 +988,7 @@
     } else if (s.status === 'pending') {      // lấy bản sửa mới nhất từ Cloud
       s.custName = m.name || s.custName; s.phone = m.phone; s.addr = m.addr; s.lat = m.lat; s.lon = m.lon;
     }
+if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
   });
 }
     function recomputeDerivedLists() {
@@ -1159,7 +1166,7 @@
     }
     async function upsertMasterChunks(list) {
       for (let i = 0; i < list.length; i += 200) {
-        const chunk = list.slice(i, i + 200).map(m => ({ id: String(m.id).trim(), name: m.name || '', phone: normalizePhone(m.phone || ''), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', updated_at: new Date().toISOString() }))
+        const chunk = list.slice(i, i + 200).map(m => ({ id: String(m.id).trim(), name: m.name || '', phone: normalizePhone(m.phone || ''), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', updated_at: new Date().toISOString(), ...(Array.isArray(m.tags) ? { tags: m.tags } : {}) }))
           .filter(m => m.id && !isNaN(m.lat) && !isNaN(m.lon));
         const { error } = await db.from('master_customers').upsert(chunk, { onConflict: 'id' });
         if (error) throw error;
@@ -1182,6 +1189,7 @@
     const STORAGE_KEY_HISTORY = "FMCG_DELIVERY_HISTORY_30D_V4";
 
     let masterGpsMap = new Map();
+    let salePhoneMap = {};
     let storeAliasMap = new Map();
     let fleet = [
       { id: 1, name: "Xe 1 (1.5 Tấn)", plate: "61C-112.34", driver: "Nguyễn Văn Tuấn", phone: "0908123456", maxCapacity: 150, stops: [], linkIssued: false, linkToken: null },
@@ -1344,8 +1352,7 @@
       const data = await fetchAllRows('master_customers', '*', 'id');
       if (data.length > 0) {
         masterGpsMap.clear();
-        data.forEach(m => masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '' }));
-        localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
+   data.forEach(m => masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', tags: Array.isArray(m.tags) ? m.tags : [] }));   localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
         updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
       } else if (masterGpsMap.size > 0) {
         updateMasterCountBadge(masterGpsMap.size, "Cache máy - CHƯA lên Cloud");
@@ -1428,8 +1435,8 @@
       let coords = parseCoords(coordsStr);
       if (!coords) return alert("Tọa độ không hợp lệ!");
 
-      let newRecord = { id, name, phone: normalizePhone(phone), lat: coords.lat, lon: coords.lon, addr };
-      masterGpsMap.set(id, newRecord);
+  let newRecord = { id, name, phone: normalizePhone(phone), lat: coords.lat, lon: coords.lon, addr, tags: (masterGpsMap.get(id) || {}).tags || [] };
+masterGpsMap.set(id, newRecord);
 
       if (db) { const { error } = await db.from('master_customers').upsert(newRecord, { onConflict: 'id' }); if (error) return alert("Lỗi lưu Cloud: " + error.message); }
 
@@ -1544,7 +1551,10 @@ async function restoreMasterBackupFromCloud() {
         const rawQty = parseMoney(row['Số lượng'] === undefined || row['Số lượng'] === '' ? 1 : row['Số lượng']);
         const unit = String(row['ĐVT'] || row['Đơn vị tính'] || 'Thùng').trim();
         const lineAmount = parseMoney(row['Thành tiền']);
-        const uLower = unit.toLowerCase();
+const saleRaw = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
+const phoneHit = saleRaw.match(/(\+?84|0)[\d .\-]{8,11}\d/);
+const saleName = saleRaw.replace(phoneHit ? phoneHit[0] : '', '').replace(/\s+/g, ' ').trim();
+const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(row['SĐT Sale'] || row['SĐT người bán'] || '') || normalizePhone(salePhoneMap[saleName] || '');  const uLower = unit.toLowerCase();
         let boxEquivalent = rawQty;
         if (uLower.includes('lon') || uLower.includes('chai') || uLower.includes('gói') || uLower.includes('hộp') || uLower.includes('ly')) boxEquivalent = rawQty / 24;
         else if (uLower.includes('lốc') || uLower.includes('vỉ') || uLower.includes('bịch')) boxEquivalent = rawQty / 4;
@@ -1566,13 +1576,14 @@ async function restoreMasterBackupFromCloud() {
             s = hydrateStop({
               canonicalId, baseId, rawIds: [rawCustId], custName: aliasTarget ? aliasTarget.name : (master ? master.name : custName),
               phone: normalizePhone(master ? master.phone : (row['Điện thoại'] || '')), addr: master ? master.addr : (row['Địa chỉ (Khách hàng)'] || ''),
-              lat, lon, isMapped: !!(lat && lon), totalQty: 0, totalCod: 0, items: [], invoices: [], status: 'pending', failedReason: '', truckId: null
+              lat, lon, isMapped: !!(lat && lon), totalQty: 0, totalCod: 0, items: [], invoices: [], status: 'pending', failedReason: '', truckId: null , tags: master ? (master.tags || []) : []
             });
             allMergedStops.push(s); newStops++; if (sameBase.length > 0) splitStops++;
           }
           batchStop.set(baseId, s);
         }
         s.rawIds.add(rawCustId);
+      if (saleName) s.saleName = saleName; if (salePhone) s.salePhone = salePhone;
         s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
         s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
         if (!s.invoices.has(invId)) { s.invoices.add(invId); s.totalCod = (s.totalCod || 0) + (codByInv.get(invId) || 0); }
@@ -1604,15 +1615,25 @@ async function restoreMasterBackupFromCloud() {
       const D = P.map(a => P.map(b => distKm(a, b)));
       let route = [], cur = 0; const left = new Set(); for (let i = 1; i <= n; i++) left.add(i);
       while (left.size) { let bi = -1, bd = Infinity; left.forEach(i => { if (D[cur][i] < bd) { bd = D[cur][i]; bi = i; } }); route.push(bi); left.delete(bi); cur = bi; }
-      const cost = r => { let c = 0, p = 0; for (const i of r) { c += D[p][i]; p = i; } return c + D[p][n + 1]; };
-      let best = cost(route), improved = true, pass = 0;
-      const deadline = performance.now() + 2000;
-      while (improved && pass < 80 && performance.now() < deadline) {
-        improved = false; pass++;
-        for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) {          // 2-opt
-          const cand = route.slice(0, i).concat(route.slice(i, k + 1).reverse(), route.slice(k + 1));
-          const c = cost(cand); if (c < best - 1e-6) { route = cand; best = c; improved = true; }
-        }
+      const LUNCH_FROM = 11, LUNCH_TO = 13.5, DEPART = 7.5, SPEED = 25, SERVICE = 0.15, LUNCH_PENALTY = 30;  // giờ, km/h, giờ/điểm, km phạt
+const cost = r => {
+  let c = 0, p = 0, t = DEPART;
+  for (const i of r) {
+    const d = D[p][i]; c += d; t += d / SPEED;
+    const tg = stops[i - 1].tags;
+    if (tg && tg.includes('lunch') && t >= LUNCH_FROM && t < LUNCH_TO) c += LUNCH_PENALTY;   // đến đúng giờ nghỉ trưa => bị phạt
+    t += SERVICE; p = i;
+  }
+  return c + D[p][n + 1];
+};
+let best = cost(route), improved = true, pass = 0;
+const deadline = performance.now() + 2000;
+while (improved && pass < 80 && performance.now() < deadline) {
+  improved = false; pass++;
+  for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) {          // 2-opt
+    const cand = route.slice(0, i).concat(route.slice(i, k + 1).reverse(), route.slice(k + 1));
+    const c = cost(cand); if (c < best - 1e-6) { route = cand; best = c; improved = true; }
+  }
         orLoop:
         for (let len = 1; len <= 3 && len < n; len++) for (let i = 0; i + len <= n; i++) {   // Or-opt: dời đoạn 1-3 điểm
           const seg = route.slice(i, i + len), rest = route.slice(0, i).concat(route.slice(i + len));
@@ -1960,6 +1981,7 @@ function sanitizeDriverStop(st) {
   const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
   const lat = Number(st.lat), lon = Number(st.lon), okGps = isFinite(lat) && isFinite(lon) && st.lat !== null && st.lon !== null && !!st.isMapped;
   return {
+   tags: Array.isArray(st.tags) ? st.tags.map(String) : [], saleName: String(st.saleName || ''), salePhone: normalizePhone(st.salePhone || ''),
     canonicalId: String(st.canonicalId || ''), stopSeq: num(st.stopSeq), lifoSeq: num(st.lifoSeq), tripNo: num(st.tripNo) || undefined,
     custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
     lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
@@ -2163,11 +2185,13 @@ function renderDriverAppCards() {
             <div>
               <h4 class="font-bold text-slate-900 text-xs">${esc(s.custName)}</h4>
               <p class="text-[11px] text-slate-500">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
+<div class="flex gap-1 flex-wrap mt-1">${tagBadges(s.tags)}</div>
             </div>
           </div>
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
         </div>
-
+${(s.tags || []).includes('nodebt') ? '<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⛔ Khách không công nợ: CHỈ GIAO KHI THU ĐỦ TIỀN</div>' : ''}
+${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">🕛 Hay nghỉ trưa (11h–13h30): ghé trước hoặc sau giờ này</div>' : ''}
         <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl text-xs">
           <div>
             <span class="text-[10px] text-slate-400 uppercase font-bold">Cần thu COD:</span>
@@ -2187,7 +2211,14 @@ function renderDriverAppCards() {
             </a>
           </div>
         </div>
-
+       ${(s.saleName || s.salePhone) ? `
+<div class="flex items-center justify-between bg-indigo-50 border border-indigo-100 p-2 rounded-xl text-[11px]">
+  <span class="text-indigo-900">Sale: <strong>${esc(s.saleName || 'Không rõ tên')}</strong>${s.salePhone ? '' : ' (chưa có SĐT)'}</span>
+  ${s.salePhone ? `<div class="flex gap-1.5">
+    <a href="tel:${esc(s.salePhone)}" class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-lg font-bold">Gọi Sale</a>
+    <a href="https://zalo.me/${esc(s.salePhone)}" target="_blank" class="bg-sky-100 text-sky-700 px-2.5 py-1.5 rounded-lg font-bold">Zalo</a>
+  </div>` : ''}
+</div>` : ''}
         <div class="text-[11px] text-slate-600 border-t pt-1.5 space-y-0.5">
           ${(s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
         </div>
@@ -2234,8 +2265,11 @@ function renderDriverAppCards() {
       truckId: truck.id,
       tripNo,
       items: s.items || [],
-      rawIds: Array.from(s.rawIds || []),
-      invoices: Array.from(s.invoices || [])
+            rawIds: Array.from(s.rawIds || []),
+      invoices: Array.from(s.invoices || []),
+      tags: s.tags || [],
+      saleName: s.saleName || '',
+      salePhone: s.salePhone || ''
     }));
 
     let { error } = await db.from('dispatch_sessions').upsert({
@@ -2733,7 +2767,7 @@ return `
             </div>
             <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
             <div class="flex items-center justify-between gap-1 mt-0.5">
-              <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${gps}</div>
+              <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${tagBadges(s.tags)}${gps}</div>
               <div class="flex items-center gap-2 shrink-0">${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
             </div>
           </div>
@@ -2756,6 +2790,8 @@ return `
       if (s.status === 'failed') return '<span class="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded">✕ Thất bại</span>';
       return `<span class="text-[10px] text-white font-bold px-1.5 py-0.5 rounded" style="background:${stopColor(s)}">Chưa giao</span>`;
     }
+const TAG_DEFS = { lunch: { label: '🕛 Nghỉ trưa', cls: 'bg-amber-100 text-amber-800' }, nodebt: { label: '⛔ Không công nợ', cls: 'bg-rose-100 text-rose-800' } };
+function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t => `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${TAG_DEFS[t].cls}">${TAG_DEFS[t].label}</span>`).join(''); }
     function truckDot(id) { return `<span style="background:${truckColor(id)}" class="w-2.5 h-2.5 rounded-full inline-block border border-white shrink-0"></span>`; }
     function isPendingStop(s) { return !s.archived && s.status === 'pending'; }
     function stopPinHtml(s, sel, dim) {
@@ -2960,8 +2996,8 @@ return `
       stop.lon = lon;
       stop.isMapped = true;
 
-      let item = { id: stop.baseId || canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr };
-      masterGpsMap.set(item.id, item);
+       let item = { id: stop.baseId || canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr, tags: stop.tags || [] };
+ masterGpsMap.set(item.id, item);
 
       if (db) { const { error } = await db.from('master_customers').upsert(item, { onConflict: 'id' }); if (error) return alert("Lỗi lưu tọa độ lên Cloud: " + error.message); }
 
@@ -2986,7 +3022,9 @@ function openEditCustomer(canonicalId, ev) {
   document.getElementById('ecCode').innerText = s.baseId || s.canonicalId;
   document.getElementById('ecName').value = s.custName || '';
   document.getElementById('ecPhone').value = normalizePhone(s.phone) || '';
-  document.getElementById('ecAddr').value = s.addr || '';
+  document.getElementById('ecAddr').value = s.addr || ''; 
+document.getElementById('ecTagLunch').checked = (s.tags || []).includes('lunch');
+document.getElementById('ecTagNoDebt').checked = (s.tags || []).includes('nodebt');
   document.getElementById('ecCoords').value = s.isMapped ? `${s.lat}, ${s.lon}` : '';
   const a = document.getElementById('ecMapLink');
   a.classList.toggle('hidden', !s.isMapped);
@@ -3012,6 +3050,9 @@ async function saveEditCustomer(mode) {
   const addr = document.getElementById('ecAddr').value.trim();
   const coordsStr = document.getElementById('ecCoords').value.trim();
   if (!name) return alert('Tên quán không được để trống!');
+const tags = [];
+if (document.getElementById('ecTagLunch').checked) tags.push('lunch');
+if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
 
   let lat = stop.isMapped ? stop.lat : null, lon = stop.isMapped ? stop.lon : null;
   const orig = stop.isMapped ? `${stop.lat}, ${stop.lon}` : '';
@@ -3025,7 +3066,7 @@ async function saveEditCustomer(mode) {
   const baseId = stop.baseId || stop.canonicalId;
   let savedForever = false;
   if (lat !== null && lon !== null) {
-    const rec = { id: baseId, name, phone, lat, lon, addr };
+    const rec = { id: baseId, name, phone, lat, lon, addr, tags };
     if (db) { const { error } = await db.from('master_customers').upsert(rec, { onConflict: 'id' }); if (error) return alert('Lỗi lưu Cloud: ' + error.message); }
     masterGpsMap.set(baseId, rec);
     localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
@@ -3035,7 +3076,7 @@ async function saveEditCustomer(mode) {
   // 2) Cập nhật các đơn hôm nay của khách này
   const same = allMergedStops.filter(x => x === stop || (!x.archived && (x.baseId || x.canonicalId) === baseId));
   same.forEach(x => {
-    x.custName = name; x.phone = phone; x.addr = addr;
+    x.custName = name; x.phone = phone; x.addr = addr; x.tags = tags;
     if (lat !== null) { x.lat = lat; x.lon = lon; x.isMapped = true; }
   });
 
