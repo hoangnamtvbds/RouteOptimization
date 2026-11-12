@@ -662,6 +662,7 @@
         Nhiều Sale lên đơn tạo các mã KiotViet khác nhau cho cùng một quán. Khi gộp tại đây, bất kỳ Sale nào lên đơn ở mã nào cũng tự động gom chung về 1 điểm dừng trên bản đồ.
       </p>
 
+      <button onclick="closeAliasModal(); openColocModal()" class="w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-2 rounded-xl text-xs shadow">📍 Xem các điểm chung vị trí hôm nay (không gộp khách)</button>
       <div id="aliasListContainer" class="space-y-1.5 max-h-[220px] overflow-y-auto"></div>
 
       <div class="p-2.5 bg-slate-50 rounded-xl border space-y-2 text-xs">
@@ -1800,7 +1801,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       const a = analyzeChain(ctx.anchor, ctx.stops);
       const far = a.rows.slice().sort((x, y) => y.extra - x.extra)[0];
       el.style.display = 'flex';
-      el.innerHTML = `<div class="min-w-0 flex-1 truncate">🛣 <strong class="text-emerald-900">${a.allReal ? '' : '~'}${fmtKm(a.total)}</strong> <span class="text-emerald-700">khứ hồi (về kho ${fmtKm(a.back)})</span> • ~${fmtDur(a.total, ctx.stops.length)} • ${ctx.stops.length} điểm${far && far.verdict.k === 'bad' ? ` • <span class="text-rose-600 font-bold">⚠ #${far.s.stopSeq} xa +${fmtKm(far.extra)}</span>` : ''}</div>
+      el.innerHTML = `<div class="min-w-0 flex-1 truncate">🛣 <strong class="text-emerald-900">${a.allReal ? '' : '~'}${fmtKm(a.total)}</strong> <span class="text-emerald-700">khứ hồi (về kho ${fmtKm(a.back)})</span> • ~${fmtDur(a.total, ctx.stops.length)} • ${ctx.stops.length} điểm${colocMergedCount(ctx.stops) ? ' (' + (ctx.stops.length - colocMergedCount(ctx.stops)) + ' vị trí)' : ''}${far && far.verdict.k === 'bad' ? ` • <span class="text-rose-600 font-bold">⚠ #${far.s.stopSeq} xa +${fmtKm(far.extra)}</span>` : ''}</div>
         <button class="shrink-0 bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-lg text-[10px]">Phân tích / Đo</button>`;
       requestRoadLegs(chainPoints(ctx));
     }
@@ -2482,6 +2483,7 @@ function renderDriverAppCards() {
               <p class="text-[11px] text-slate-500">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
 <div class="flex gap-1 flex-wrap mt-1">${tagBadges(s.tags)}</div>
               ${driverCardKmHtml(s, kmap)}
+              ${colocChipHtml(s)}
             </div>
           </div>
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
@@ -2861,7 +2863,7 @@ async function submitDriverRejectReason(reason) {
         elBar.style.width = pct + '%';
         elBar.className = totalLoad > truck.maxCapacity ? "h-full bg-rose-600 rounded-full" : "h-full bg-blue-600 rounded-full";
       }
-      if (elHeader) elHeader.innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm (Khép kín kho)`;
+      if (elHeader) { const _sh = colocMergedCount(truck.stops); elHeader.innerText = `Lộ trình ${truck.name} • ${truck.stops.length} điểm${_sh ? ' / ' + (truck.stops.length - _sh) + ' vị trí' : ''} (Khép kín kho)`; }
       if (elBtnText) elBtnText.innerText = `Tạo Link Riêng Cho ${truck.name} (Copy Zalo)`;
       try { renderKmStrip(); } catch (e) { }
     }
@@ -2991,11 +2993,14 @@ async function submitDriverRejectReason(reason) {
       });
       const bounds = L.latLngBounds([d]);
       const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
+      const cmap = getColoc();
       allMergedStops.filter(x => x.isMapped && !x.archived).forEach(x => {
         if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
+        const grp = cmap.get(x.canonicalId); if (grp && grp[0] !== x) return;   // ghim chồng nhau: chỉ vẽ 1 ghim đại diện
         const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
+        if (grp) pin.html = `<div style="position:relative">${pin.html}${colocBadgeHtml(grp.length)}</div>`;
         const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
-        L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(`
+        L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(grp ? colocPopupHtml(grp) : `
           <div class="space-y-1">
             <div class="font-bold" style="color:${stopColor(x)}">${x.stopSeq && tr ? '#' + x.stopSeq + ' • ' : ''}${esc(x.custName)}</div>
             <div class="text-[11px] text-slate-500">${esc(x.addr)}</div>
@@ -3087,6 +3092,7 @@ return `
             </div>
             <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
             ${o.leg || ''}
+            ${colocChipHtml(s)}
             <div class="flex items-center justify-between gap-1 mt-0.5">
               <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${tagBadges(s.tags)}${gps}</div>
               <div class="flex items-center gap-2 shrink-0">${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
@@ -3234,14 +3240,19 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         const r = (t.stops || []).filter(x => x.isMapped && isPendingStop(x));
         if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(x => [x.lat, x.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
       });
+      const cmSel = colocMap(allMergedStops.filter(x => x.isMapped && isPendingStop(x)));
       allMergedStops.filter(x => x.isMapped && isPendingStop(x)).forEach(x => {   // đã giao / thất bại / đã đóng chuyến: ẨN
         bounds.extend([x.lat, x.lon]);
-        const sel = selectedStopIds.has(x.canonicalId), ok = isSelectableStop(x), pin = stopPinHtml(x, sel, !ok && !sel);
+        const grp = cmSel.get(x.canonicalId); if (grp && grp[0] !== x) return;
+        const members = grp || [x];
+        const sel = members.every(y => selectedStopIds.has(y.canonicalId)), ok = members.some(y => isSelectableStop(y)); const pin = stopPinHtml(x, sel, !ok && !sel);
+        if (grp) pin.html = `<div style="position:relative">${pin.html}${colocBadgeHtml(grp.length)}</div>`;
         const m = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'sel-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }), zIndexOffset: sel ? 1000 : 0 });
-        m.bindTooltip(`${esc(x.custName)} • ${x.totalQty} Thùng • ${formatMoney(x.totalCod)}${ok ? '' : ' (xe đã phát link)'}`, { direction: 'top' });
+        m.bindTooltip(grp ? `📍 ${grp.length} đơn cùng vị trí: ${grp.map(y => esc(y.custName)).join(' • ')}` : `${esc(x.custName)} • ${x.totalQty} Thùng • ${formatMoney(x.totalCod)}${ok ? '' : ' (xe đã phát link)'}`, { direction: 'top' });
         m.on('click', () => {
           if (!ok) return;
-          if (selectedStopIds.has(x.canonicalId)) selectedStopIds.delete(x.canonicalId); else selectedStopIds.add(x.canonicalId);
+          const ms = members.filter(y => isSelectableStop(y)), all = ms.every(y => selectedStopIds.has(y.canonicalId));
+          ms.forEach(y => { if (all) selectedStopIds.delete(y.canonicalId); else selectedStopIds.add(y.canonicalId); });
           afterMapSelectionChange();
         });
         m.addTo(pinsLayer);
@@ -3412,6 +3423,94 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     ? `Đã lưu vĩnh viễn [${baseId} - ${name}] lên Cloud!`
     : 'Đã cập nhật cho đơn hôm nay. Khách này chưa có tọa độ nên CHƯA lưu vĩnh viễn: hãy gắn map để lưu theo mã KH.');
 }
+
+    // =========================================================================
+    // ĐIỂM CHUNG VỊ TRÍ (thêm mới) - KHÔNG gộp khách / đơn. Mỗi khách vẫn theo dõi riêng từ file KiotViet.
+    // Chỉ: (1) báo "chung vị trí" trên danh sách, (2) gom ghim chồng nhau trên bản đồ thành 1 ghim có số lượng,
+    // (3) cho biết "N đơn / M vị trí" để không bị "mất điểm".
+    // =========================================================================
+    const COLOC_M = 40;   // mét: 2 điểm cách nhau <= 40 m coi là chung vị trí
+    let _colocKey = '', _colocVal = new Map();
+    function colocMap(arr) {   // arr: các stop đã lọc (có tọa độ). Trả Map canonicalId -> mảng các stop chung vị trí (>=2)
+      const par = arr.map((_, i) => i); const find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+      for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
+        if (calcDistanceKm(arr[i].lat, arr[i].lon, arr[j].lat, arr[j].lon) * 1000 <= COLOC_M) par[find(i)] = find(j);
+      const g = new Map(); arr.forEach((s, i) => { const r = find(i); if (!g.has(r)) g.set(r, []); g.get(r).push(s); });
+      const out = new Map();
+      g.forEach(m => {
+        if (m.length < 2) return;
+        m.sort((a, b) => (a.truckId === b.truckId) ? ((a.stopSeq || 0) - (b.stopSeq || 0)) : ((a.truckId == null ? 99 : a.truckId) - (b.truckId == null ? 99 : b.truckId)));
+        m.forEach(s => out.set(s.canonicalId, m));
+      });
+      return out;
+    }
+    function colocBase(list) { return (list || []).filter(s => s && s.isMapped && s.lat && s.lon && !s.archived); }
+    function getColoc() {
+      let list = allMergedStops;
+      if (isDriverMode) { const t = fleet.find(x => x.id === activeTruckId); list = t ? t.stops : []; }
+      const arr = colocBase(list);
+      const key = arr.map(s => s.canonicalId + ':' + s.lat + ':' + s.lon).join('|');
+      if (key !== _colocKey) { _colocKey = key; _colocVal = colocMap(arr); }
+      return _colocVal;
+    }
+    function colocMergedCount(stops) {   // số điểm "dư" do chung vị trí (5 đơn / 4 vị trí => 1)
+      const m = colocMap(colocBase(stops)), seen = new Set(); let n = 0;
+      m.forEach(g => { if (!seen.has(g)) { seen.add(g); n += g.length - 1; } });
+      return n;
+    }
+    function colocShort(s) { return (s.stopSeq && fleet.some(t => t.id === s.truckId)) ? '#' + s.stopSeq : String(s.custName || s.canonicalId).slice(0, 14); }
+    function colocChipHtml(s) {
+      const g = getColoc().get(s.canonicalId); if (!g) return '';
+      const others = g.filter(x => x !== s).map(o => esc(colocShort(o))).join(', ');
+      const txt = `📍 Chung vị trí với ${others} (${g.length} đơn / 1 điểm dừng)`;
+      return isDriverMode
+        ? `<div class="mt-1"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-300">${txt}</span></div>`
+        : `<div class="mt-0.5"><button onclick="event.stopPropagation(); openColocModal(${jsq(s.canonicalId)})" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-300">${txt}</button></div>`;
+    }
+    function colocBadgeHtml(n) { return `<div style="position:absolute;top:-7px;right:-9px;background:#ea580c;color:#fff;border-radius:9999px;font-size:9px;font-weight:800;padding:0 4px;border:1.5px solid #fff;line-height:14px">×${n}</div>`; }
+    function colocPopupHtml(g) {
+      const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
+      return `<div class="space-y-1"><div class="font-bold text-orange-700">📍 ${g.length} đơn cùng 1 vị trí</div>
+        ${g.map(s => { const tr = fleet.find(t => t.id === s.truckId); return `<div class="text-[11px] border-t pt-1"><b style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}${esc(s.custName)}</b><br>${s.totalQty} Thùng • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao')}<br><button onclick="openStopDetail(${jsq(s.canonicalId)})" class="text-blue-600 font-bold underline">Xem chi tiết</button></div>`; }).join('')}
+        <div class="text-[11px] font-bold border-t pt-1">Tổng: ${tot} Thùng • COD ${formatMoney(cod)}</div></div>`;
+    }
+    function closeColocModal() { const m = document.getElementById('colocModal'); if (m) m.style.display = 'none'; }
+    function openColocModal(focusId) {
+      let m = document.getElementById('colocModal');
+      if (!m) {
+        m = document.createElement('div'); m.id = 'colocModal';
+        m.style.cssText = 'display:none;position:fixed;inset:0;z-index:3500;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:8px';
+        m.addEventListener('click', e => { if (e.target === m) closeColocModal(); });
+        document.body.appendChild(m);
+      }
+      const cm = colocMap(colocBase(allMergedStops)), seen = new Set(), groups = [];
+      cm.forEach(g => { if (!seen.has(g)) { seen.add(g); groups.push(g); } });
+      groups.sort((a, b) => (b.some(s => s.canonicalId === focusId) - a.some(s => s.canonicalId === focusId)) || (b.length - a.length));
+      const dis = allMergedStops.filter(s => !s.archived).length, extra = groups.reduce((a, g) => a + g.length - 1, 0);
+      const card = g => {
+        const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
+        const hasFocus = g.some(s => s.canonicalId === focusId);
+        return `<div class="p-2.5 rounded-xl border ${hasFocus ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-white'} space-y-1">
+          <div class="flex items-center justify-between"><span class="text-[11px] font-bold text-orange-800">📍 ${g.length} đơn cùng vị trí</span>
+            <button onclick="closeColocModal(); focusMapAt(${g[0].lat}, ${g[0].lon})" class="text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded">Xem trên bản đồ</button></div>
+          ${g.map(s => { const tr = fleet.find(t => t.id === s.truckId); return `<div onclick="closeColocModal(); openStopDetail(${jsq(s.canonicalId)})" class="p-1.5 bg-white border rounded-lg text-[11px] cursor-pointer">
+            <div class="font-bold text-slate-900 truncate"><span style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}</span>${esc(s.custName || '(không tên)')} <span class="font-mono font-normal text-slate-500">${esc(s.canonicalId)}</span></div>
+            <div class="text-slate-500 truncate">${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
+            <div class="text-slate-700"><b class="text-blue-700">${s.totalQty} thùng</b> • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao')}</div></div>`; }).join('')}
+          <div class="text-[10px] text-slate-500">Cộng nhóm: <b>${tot} thùng</b> • COD ${formatMoney(cod)} (mỗi khách vẫn theo dõi riêng)</div></div>`;
+      };
+      m.innerHTML = `<div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between px-4 py-3 border-b shrink-0"><h3 class="font-extrabold text-slate-900 text-sm">📍 Các điểm chung vị trí</h3><button onclick="closeColocModal()" class="text-slate-500 text-lg px-2">✕</button></div>
+        <div class="overflow-y-auto p-3 space-y-2">
+          <div class="text-[11px] text-slate-600">Hôm nay <b>${dis}</b> đơn/điểm, nhưng chỉ có <b>${dis - extra}</b> vị trí trên bản đồ vì ${groups.length} nhóm nằm chồng lên nhau (≤ ${COLOC_M} m). <b>Không gộp khách</b> — chỉ để biết giao cùng 1 lần dừng.</div>
+          ${groups.length ? groups.map(card).join('') : '<div class="p-6 text-center text-xs text-slate-400">Không có điểm nào chung vị trí.</div>'}
+        </div></div>`;
+      m.style.display = 'flex';
+    }
+    function focusMapAt(lat, lon) {
+      try { if (typeof toggleMobileView === 'function' && mobileView === 'list' && window.innerWidth < 768) toggleMobileView(); } catch (e) { }
+      setTimeout(() => { if (map) { map.invalidateSize(); map.setView([lat, lon], 17); } }, 200);
+    }
 
     function openAliasModal() {
       let container = document.getElementById('aliasListContainer');
