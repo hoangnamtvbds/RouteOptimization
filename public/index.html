@@ -51,6 +51,10 @@
       padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
     }
     
+    /* Bản đồ mở rộng toàn màn hình (nằm dưới các modal z-2000+) */
+    #mapWrap.map-expanded { position: fixed !important; inset: 0; width: 100vw; height: 100vh !important; height: 100dvh !important; z-index: 1900; background: #fff; border: 0; }
+    #mapWrap.map-expanded #map { min-height: 0; }
+    #mapFilterPanel { max-height: calc(100% - 120px); }
     @media print {
       body * { visibility: hidden; }
       #printArea, #printArea * { visibility: visible; }
@@ -274,17 +278,24 @@
       <section id="rightSection" class="hidden md:flex flex-1 flex-col relative h-full bg-slate-100 overflow-hidden">
         
         <!-- TOP: MAP CANVAS -->
-        <div class="relative h-[62%] md:h-[48%] w-full border-b border-slate-300 shadow-sm shrink-0">
+        <div id="mapWrap" class="relative h-[62%] md:h-[48%] w-full border-b border-slate-300 shadow-sm shrink-0">
           <div class="absolute top-2 left-2 right-2 z-[1000] flex items-center justify-between pointer-events-none">
             <div class="bg-white/95 backdrop-blur px-2.5 py-1 rounded-xl shadow text-xs font-semibold text-slate-700 pointer-events-auto border border-slate-200 flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
               <span id="mapRouteHeader">Lộ trình xe hiện tại</span>
             </div>
-            <button onclick="openGoogleNavMultiStop()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-xl shadow text-xs font-bold pointer-events-auto flex items-center gap-1 transition">
-              <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
-              <span>Dẫn Đường Google Maps</span>
-            </button>
+            <div class="flex items-center gap-1.5 pointer-events-auto">
+              <button onclick="openGoogleNavMultiStop()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
+                <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Dẫn Đường Google Maps</span><span class="sm:hidden">Dẫn đường</span>
+              </button>
+              <button id="btnMapExpand" onclick="toggleMapExpand()" title="Mở rộng / thu nhỏ bản đồ (Esc để thoát)" class="bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 px-2.5 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
+                <span id="btnMapExpandIcon" class="text-sm leading-none">⤢</span><span id="btnMapExpandText">Mở rộng</span>
+              </button>
+            </div>
           </div>
+          <!-- BẢNG LỌC THEO XE (chỉ hiện khi mở rộng bản đồ) -->
+          <div id="mapFilterPanel" class="hidden absolute top-12 left-2 z-[1000] w-[230px] max-w-[62vw] overflow-y-auto bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-lg text-[11px] text-slate-700"></div>
           <div class="absolute bottom-28 right-2 z-[1000] flex flex-col-reverse items-end gap-1.5 pointer-events-none">
             <button id="btnMapSelect" onclick="toggleMapSelectMode()" class="pointer-events-auto bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
               <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5"></i><span id="btnMapSelectText">Quét Chọn Cụm</span>
@@ -446,6 +457,7 @@
       <div>
         <div class="text-[10px] text-slate-400 uppercase font-semibold">Tiền COD thực thu:</div>
         <div id="drvDockCodCollected" class="text-sm font-black text-emerald-400">0 đ</div>
+        <div id="drvDockPayBreak" class="text-[10px] text-slate-300 font-medium"></div>
       </div>
       <button onclick="openNextPendingStopNavigation()" class="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition active:scale-95">
         <i data-lucide="navigation" class="w-4 h-4"></i>
@@ -457,6 +469,55 @@
   <!-- ========================================================================= -->
   <!-- C. CÁC MODAL HỆ THỐNG & TIỆN ÍCH -->
   <!-- ========================================================================= -->
+
+  <!-- MODAL: THU TIỀN / KÝ NỢ (APP TÀI XẾ) -->
+  <div id="payModal" class="fixed inset-0 bg-black/60 z-[3100] hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-2.5 overflow-y-auto" style="max-height:94dvh;padding-bottom:calc(16px + env(safe-area-inset-bottom))">
+      <div class="flex justify-between items-start border-b pb-2">
+        <div class="min-w-0">
+          <h3 id="payTitle" class="font-extrabold text-slate-900 text-sm"></h3>
+          <p id="paySub" class="text-[11px] text-slate-500 truncate"></p>
+        </div>
+        <button onclick="closePayModal()" class="text-slate-400 hover:text-slate-600 p-1 shrink-0"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+        <span class="text-[11px] font-bold text-amber-800 uppercase">Cần thu COD</span>
+        <b id="payCod" class="text-base text-amber-900"></b>
+      </div>
+
+      <div id="payPaidBox" class="space-y-2.5">
+        <div class="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 space-y-1.5">
+          <label class="text-[11px] font-bold text-violet-800">🎁 Cấn trừ giải thưởng / khuyến mãi</label>
+          <input id="payOffset" type="text" inputmode="numeric" placeholder="0" oninput="payFmtInput(this)" class="w-full border border-violet-200 rounded-lg px-2.5 py-2 text-sm font-bold text-right bg-white">
+          <input id="payOffsetNote" type="text" placeholder="Ghi chú (vd: trừ thưởng CT tháng 11, trả hàng KM...)" oninput="payRecalc()" class="w-full border border-violet-200 rounded-lg px-2.5 py-1.5 text-xs bg-white">
+          <div class="flex justify-between text-[11px] text-violet-900"><span>Còn phải thu sau cấn trừ</span><b id="payRemain"></b></div>
+        </div>
+        <div class="rounded-xl border border-sky-200 bg-sky-50/60 p-2.5 space-y-1.5">
+          <div class="flex items-center justify-between"><label class="text-[11px] font-bold text-sky-800">🏦 Chuyển khoản</label>
+            <button type="button" onclick="payFill('transfer')" class="text-[11px] font-bold bg-sky-600 text-white px-2.5 py-1 rounded-lg active:scale-95">Đủ tiền</button></div>
+          <input id="payTransfer" type="text" inputmode="numeric" placeholder="Nhập số tiền chuyển khoản" oninput="payFmtInput(this)" class="w-full border border-sky-200 rounded-lg px-2.5 py-2 text-sm font-bold text-right bg-white">
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
+          <div class="flex items-center justify-between"><label class="text-[11px] font-bold text-emerald-800">💵 Tiền mặt</label>
+            <button type="button" onclick="payFill('cash')" class="text-[11px] font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-lg active:scale-95">Đủ tiền</button></div>
+          <input id="payCash" type="text" inputmode="numeric" placeholder="Nhập số tiền mặt" oninput="payFmtInput(this)" class="w-full border border-emerald-200 rounded-lg px-2.5 py-2 text-sm font-bold text-right bg-white">
+        </div>
+        <button type="button" onclick="payClear()" class="text-[11px] text-slate-500 underline">Xóa nhập lại</button>
+      </div>
+
+      <div id="payDebtBox" class="hidden space-y-1.5">
+        <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-semibold">Hàng đã giao nhưng chưa thu tiền: toàn bộ số COD sẽ được ghi nợ khách.</div>
+        <input id="payDebtNote" type="text" placeholder="Ghi chú ký nợ (vd: hẹn trả thứ 6, ký nhận chủ quán...)" class="w-full border border-amber-200 rounded-lg px-2.5 py-2 text-xs bg-white">
+      </div>
+      <div id="payNodebtWarn" class="hidden p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⛔ Khách KHÔNG CÔNG NỢ: chỉ giao khi thu đủ tiền.</div>
+
+      <div id="paySummary" class="rounded-xl p-2.5 text-xs space-y-0.5 bg-slate-50 border border-slate-200"></div>
+      <div class="flex gap-2 pt-1">
+        <button onclick="closePayModal()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs rounded-xl">Hủy</button>
+        <button id="payOk" onclick="confirmPay()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs rounded-xl shadow active:scale-95"></button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: GỢI Ý 7 LÝ DO HỦY ĐƠN THỰC CHIẾN CHO TÀI XẾ -->
   <div id="driverRejectModal" class="fixed inset-0 bg-black/60 z-[3000] hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -919,7 +980,7 @@
       s.status = s.status || 'pending'; s.failedReason = s.failedReason || '';
       s.truckId = (s.truckId === undefined) ? null : s.truckId;
       s.baseId = s.baseId || String(s.canonicalId || '').split('#')[0];
-      s.collected = (s.collected == null || s.collected === '') ? null : (parseFloat(s.collected) || 0);
+      s.collected = (s.collected == null || s.collected === '') ? null : (parseFloat(s.collected) || 0); s.pay = normPay(s.pay);
       s.archived = !!s.archived; s.locked = !!s.locked; s.tripNo = s.tripNo || 0;
       s.tags = Array.isArray(s.tags) ? s.tags : []; s.saleName = s.saleName || ''; s.salePhone = s.salePhone || '';
   return s;
@@ -933,7 +994,7 @@
       fleet = (Array.isArray(sess.fleet) ? sess.fleet : fleet).map(t => {
         const list = (t.stops || []).map(ts => {
           let m = byId.get(ts.canonicalId);
-          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; m.collected = ts.collected == null ? null : ts.collected; } if (Array.isArray(ts.orders) && isMultiOrder(m) && mergeOrderStates(m, ts.orders, false)) recomputeStopFromOrders(m); return m; }
+          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; m.collected = ts.collected == null ? null : ts.collected; m.pay = normPay(ts.pay); } if (Array.isArray(ts.orders) && isMultiOrder(m) && mergeOrderStates(m, ts.orders, false)) recomputeStopFromOrders(m); return m; }
           m = hydrateStop(ts); stops.push(m); byId.set(m.canonicalId, m); return m;
         });
         return { ...t, stops: list };
@@ -950,7 +1011,7 @@
       return {
         v: 2, order_date: getTodayString(), meta: { deviceId: DEVICE_ID, ts: Date.now() }, activeTruckId,
         allMergedStops: allMergedStops.map(serializeStop),
-        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, collected: s.collected == null ? null : s.collected, stopSeq: s.stopSeq, orders: orderStates(s) })) }))
+        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, collected: s.collected == null ? null : s.collected, pay: s.pay || null, stopSeq: s.stopSeq, orders: orderStates(s) })) }))
       };
     }
     function saveLocalCache() {
@@ -1003,7 +1064,7 @@
           const m = byId.get(rs.canonicalId);
           if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
           if (Array.isArray(rs.orders) && rs.orders.length && isMultiOrder(m)) { if (mergeOrderStates(m, rs.orders, true)) recomputeStopFromOrders(m); return; }
-          if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; m.collected = rs.collected == null ? null : rs.collected; }
+          if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; m.collected = rs.collected == null ? null : rs.collected; m.pay = normPay(rs.pay); }
         });
       });
       _cloudHasStops = allMergedStops.length > 0;
@@ -1114,30 +1175,30 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
 
     // ---------- App tài xế: ghi trạng thái theo kiểu "vá" (không bao giờ ghi đè daily_orders) ----------
     function driverOrderDate() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('date') || getTodayString(); }
-    async function driverApplyStatus(canonicalId, status, reason, collected) {
+    async function driverApplyStatus(canonicalId, status, reason, collected, pay) {
       const truck = fleet.find(t => t.id === activeTruckId);
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
       s.status = status; s.failedReason = reason || '';
-      s.collected = status === 'success' ? (collected == null ? (parseFloat(s.totalCod) || 0) : collected) : null;
+      s.collected = status === 'success' ? (collected == null ? (parseFloat(s.totalCod) || 0) : collected) : null; s.pay = status === 'success' ? normPay(pay) : null;
       recordDeliveryHistory(s);
       renderDriverAppCards();
-      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected });
+      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected, pay: s.pay });
       await flushDriverSync();
     }
-    async function driverApplyOrderStatus(canonicalId, inv, status, reason, collected) {
+    async function driverApplyOrderStatus(canonicalId, inv, status, reason, collected, pay) {
       const truck = fleet.find(t => t.id === activeTruckId);
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       const o = (s && Array.isArray(s.orders)) ? s.orders.find(x => x.inv === inv) : null; if (!o) return;
       o.status = status; o.failedReason = status === 'failed' ? (reason || '') : '';
-      o.collected = status === 'success' ? (collected == null ? (parseFloat(o.cod) || 0) : collected) : null;
+      o.collected = status === 'success' ? (collected == null ? (parseFloat(o.cod) || 0) : collected) : null; o.pay = status === 'success' ? normPay(pay) : null;
       recomputeStopFromOrders(s);
       if (s.status !== 'pending') recordDeliveryHistory(s);
       if (_opId === canonicalId) { const cur = s.orders[_opIdx]; if (cur && cur.inv === inv) { const nx = s.orders.findIndex((x, i) => i > _opIdx && x.status === 'pending'); if (nx >= 0) _opIdx = nx; } }
       renderDriverAppCards(); renderOrdersPopup();
-      pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, orders: orderStates(s) });
+      pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, pay: s.pay || null, orders: orderStates(s) });
       await flushDriverSync();
     }
     async function flushDriverSync() {
@@ -1151,7 +1212,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (error) throw error;
         if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
-        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = new Date().toISOString(); } });
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = new Date().toISOString(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
           order_date: date, truck_id: Number(activeTruckId),
           truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
@@ -1178,7 +1239,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
           if (!truck) { truck = { id: activeTruckId, stops: [] }; fleet.push(truck); }
           truck.stops = data.stops.map(sanitizeDriverStop); truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
           truck.plate = data.plate || truck.plate || ''; truck.phone = data.driver_phone || truck.phone || ''; truck.maxCapacity = data.max_capacity || truck.maxCapacity || 150;
-          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } } });
+          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } } });
         }
         renderDriverAppCards();
         if (!silent) alert('Đã cập nhật dữ liệu mới nhất!');
@@ -1280,12 +1341,59 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
 
     // ===== NHIỀU ĐƠN TRÊN 1 ĐIỂM GIAO (cùng mã KH có 2-3 hóa đơn) =====
     // Bên ngoài vẫn là 1 điểm giao; bên trong s.orders = [{inv, qty, cod, items[], status, failedReason, collected}]
+
+    // ===== THU TIỀN: tiền mặt / chuyển khoản / cấn trừ giải thưởng / ký nợ =====
+    // pay = { mode:'paid'|'debt', cash, transfer, offset, offsetNote, note }.  collected = cash + transfer + offset (phần đã thanh toán, giữ nguyên cách tính nợ cũ)
+    function normPay(p) {
+      if (!p || typeof p !== 'object') return null;
+      const n = v => { const x = parseFloat(v); return isFinite(x) && x > 0 ? x : 0; };
+      return { mode: p.mode === 'debt' ? 'debt' : 'paid', cash: n(p.cash), transfer: n(p.transfer), offset: n(p.offset), offsetNote: String(p.offsetNote || ''), note: String(p.note || '') };
+    }
+    function aggregatePay(orders) {
+      const ok = (orders || []).filter(o => o.status === 'success'); if (!ok.length) return null;
+      const ps = ok.map(o => o.pay).filter(Boolean); if (!ps.length) return null;
+      const sum = k => ps.reduce((a, p) => a + (parseFloat(p[k]) || 0), 0);
+      const cod = ok.reduce((a, o) => a + (parseFloat(o.cod) || 0), 0), col = ok.reduce((a, o) => a + orderCollected(o), 0);
+      return { mode: (col <= 0 && cod > 0) ? 'debt' : 'paid', cash: sum('cash'), transfer: sum('transfer'), offset: sum('offset'), offsetNote: Array.from(new Set(ps.map(p => p.offsetNote).filter(Boolean))).join('; '), note: Array.from(new Set(ps.map(p => p.note).filter(Boolean))).join('; ') };
+    }
+    // Tổng hợp thu tiền của 1 điểm giao (đơn lẻ hoặc nhiều đơn). Dữ liệu cũ chưa có pay: coi phần đã thu là "thu (chưa phân loại)" => legacy
+    function payTotals(s) {
+      const out = { cash: 0, transfer: 0, offset: 0, legacy: 0, due: 0, settled: 0, debt: 0, notes: [] };
+      if (!s) return out;
+      const one = (cod, col, pay, st) => {
+        if (st !== 'success') return;
+        out.due += cod; out.settled += col;
+        if (pay) { out.cash += pay.cash || 0; out.transfer += pay.transfer || 0; out.offset += pay.offset || 0; if (pay.offsetNote) out.notes.push(pay.offsetNote); if (pay.note) out.notes.push(pay.note); }
+        else out.legacy += col;
+      };
+      if (isMultiOrder(s)) s.orders.forEach(o => one(parseFloat(o.cod) || 0, orderCollected(o), o.pay, o.status));
+      else one(parseFloat(s.totalCod) || 0, collectedOf(s), s.pay, s.status);
+      out.debt = Math.max(0, out.due - out.settled);
+      return out;
+    }
+    function moneyOf(s) { const t = payTotals(s); return Math.max(0, t.settled - t.offset); }   // tiền thật tài xế cầm (TM + CK + chưa phân loại)
+    function payChipsHtml(t) {
+      const c = [];
+      if (t.cash) c.push(`<span class="whitespace-nowrap">💵 TM ${formatMoney(t.cash)}</span>`);
+      if (t.transfer) c.push(`<span class="whitespace-nowrap">🏦 CK ${formatMoney(t.transfer)}</span>`);
+      if (t.legacy) c.push(`<span class="whitespace-nowrap">💰 Thu ${formatMoney(t.legacy)}</span>`);
+      if (t.offset) c.push(`<span class="whitespace-nowrap">🎁 Cấn trừ ${formatMoney(t.offset)}</span>`);
+      if (t.debt) c.push(`<span class="whitespace-nowrap font-extrabold text-amber-700">📝 Nợ ${formatMoney(t.debt)}</span>`);
+      return c.join(' • ');
+    }
+    function payInfoHtml(s) {   // khối hiển thị trên thẻ đơn sau khi đã giao
+      if (!s || s.status !== 'success') return '';
+      const t = payTotals(s); if (!t.due && !t.settled) return '';
+      const full = t.debt <= 0, cls = full ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-900 border border-amber-300';
+      const notes = t.notes.length ? `<div class="font-medium opacity-90 mt-0.5">📝 ${t.notes.map(esc).join(' • ')}</div>` : '';
+      return `<div class="p-2 ${cls} rounded-lg text-[11px] font-bold"><div>${full ? '✅ Đã thanh toán đủ' : '⚠️ Còn nợ ' + formatMoney(t.debt)} • ${payChipsHtml(t) || 'Không thu'}</div>${notes}</div>`;
+    }
     function normOrders(arr) {
       const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
       return (Array.isArray(arr) ? arr : []).map(o => { o = o || {}; return {
         inv: String(o.inv || ''), qty: num(o.qty), cod: num(o.cod),
         status: ['pending', 'success', 'failed'].includes(o.status) ? o.status : 'pending',
-        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected),
+        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected), pay: normPay(o.pay),
         items: (Array.isArray(o.items) ? o.items : []).map(it => ({ itemName: String((it && it.itemName) || ''), qty: num(it && it.qty), unit: String((it && it.unit) || ''), lineAmount: num(it && it.lineAmount) }))
       }; }).filter(o => o.inv);
     }
@@ -1293,16 +1401,16 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     function isMultiOrder(s) { return !!(s && Array.isArray(s.orders) && s.orders.length >= 2); }
     function orderCollected(o) { if (!o || o.status !== 'success') return 0; const c = parseFloat(o.cod) || 0; return (o.collected == null || o.collected === '') ? c : Math.max(0, Math.min(c, parseFloat(o.collected) || 0)); }
     function codDueOf(s) { return isMultiOrder(s) ? s.orders.filter(o => o.status === 'success').reduce((a, o) => a + (parseFloat(o.cod) || 0), 0) : (parseFloat(s.totalCod) || 0); }
-    function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected })); }
+    function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected, pay: o.pay || null })); }
     // Tổng hợp trạng thái cả điểm từ các đơn: còn đơn chờ => pending; xong hết: có đơn giao được => success (giao 1 phần nếu có đơn hỏng); không đơn nào giao được => failed
     function recomputeStopFromOrders(s) {
       if (!isMultiOrder(s)) return;
       const os = s.orders, ok = os.filter(o => o.status === 'success'), bad = os.filter(o => o.status === 'failed'), pend = os.filter(o => o.status === 'pending');
       const reasons = Array.from(new Set(bad.map(o => o.failedReason || 'Khác'))).join('; ');
       const partialTxt = bad.length ? `${bad.length}/${os.length} đơn không giao: ${reasons}` : '';
-      if (pend.length) { s.status = 'pending'; s.failedReason = partialTxt; s.collected = null; }
-      else if (!ok.length) { s.status = 'failed'; s.failedReason = reasons; s.collected = null; }
-      else { s.status = 'success'; s.failedReason = partialTxt; s.collected = ok.reduce((a, o) => a + orderCollected(o), 0); }
+      if (pend.length) { s.status = 'pending'; s.failedReason = partialTxt; s.collected = null; s.pay = null; }
+      else if (!ok.length) { s.status = 'failed'; s.failedReason = reasons; s.collected = null; s.pay = null; }
+      else { s.status = 'success'; s.failedReason = partialTxt; s.collected = ok.reduce((a, o) => a + orderCollected(o), 0); s.pay = aggregatePay(os); }
     }
     // Gộp trạng thái từng đơn (nguồn: tài xế / Cloud). force=true: trạng thái mới hơn luôn thắng; không thì chỉ điền vào đơn đang chờ. Không bao giờ ghi đè bằng 'pending'.
     function mergeOrderStates(target, states, force) {
@@ -1313,8 +1421,8 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         const o = target.orders.find(x => x.inv === st.inv); if (!o) return;
         if (force || o.status === 'pending') {
           const col = (st.collected == null || st.collected === '') ? null : (parseFloat(st.collected) || 0);
-          if (o.status !== st.status || (o.failedReason || '') !== (st.failedReason || '') || o.collected !== col) ch = true;
-          o.status = st.status; o.failedReason = st.status === 'failed' ? String(st.failedReason || '') : ''; o.collected = st.status === 'success' ? col : null;
+          const np = st.status === 'success' ? normPay(st.pay) : null; if (o.status !== st.status || (o.failedReason || '') !== (st.failedReason || '') || o.collected !== col || JSON.stringify(o.pay || null) !== JSON.stringify(np)) ch = true;
+          o.status = st.status; o.failedReason = st.status === 'failed' ? String(st.failedReason || '') : ''; o.collected = st.status === 'success' ? col : null; o.pay = np;
         }
       });
       return ch;
@@ -1400,7 +1508,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       const items = (o.items || []).map(it => `<div class="flex justify-between gap-2 text-[12px] py-1 border-b border-slate-100 last:border-0"><span class="min-w-0"><strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}</span><span class="font-mono text-slate-500 shrink-0">${formatMoney(it.lineAmount)}</span></div>`).join('') || '<div class="text-xs text-slate-400">Không có chi tiết hàng.</div>';
       const col = orderCollected(o), cod = parseFloat(o.cod) || 0;
       let info = '';
-      if (o.status === 'success') info = col < cod ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(col)} • CÒN NỢ ${formatMoney(cod - col)}</div>` : `<div class="p-2 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-bold">💰 Đã thu đủ ${formatMoney(col)}</div>`;
+      if (o.status === 'success') info = payInfoHtml({ status: 'success', orders: [o], totalCod: cod, collected: col, pay: o.pay });
       else if (o.status === 'failed') info = `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(o.failedReason || 'Khác')}</div>`;
       body.innerHTML = `
         <div class="flex items-center justify-between gap-2">
@@ -1417,25 +1525,26 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         ${info}`;
       if (isDriverMode) {
         const doneN = s.orders.filter(x => x.status !== 'pending').length;
-        foot.innerHTML = `<div class="flex gap-2">
-          <button onclick="opMarkSuccess()" class="flex-1 ${o.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-emerald-800'} py-3 rounded-xl font-bold text-xs active:scale-95">✅ Đã Giao & Thu Tiền</button>
-          <button onclick="opReject()" class="flex-1 ${o.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-rose-800'} py-3 rounded-xl font-bold text-xs active:scale-95">❌ Không Giao Được</button></div>
+        foot.innerHTML = `<div class="grid grid-cols-3 gap-1.5">
+          <button onclick="opMarkSuccess()" class="${(o.status === 'success' && !(o.pay && o.pay.mode === 'debt')) ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-emerald-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight active:scale-95">✅<br>Đã Giao &amp; Thu Tiền</button>
+          <button onclick="opMarkDebt()" class="${(o.status === 'success' && o.pay && o.pay.mode === 'debt') ? 'bg-amber-500 text-white' : 'bg-slate-100 text-amber-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight active:scale-95">📝<br>Đã Giao &amp; Ký Nợ</button>
+          <button onclick="opReject()" class="${o.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-rose-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight active:scale-95">❌<br>Không Giao Được</button></div>
           <div class="text-center text-[10px] text-slate-400 mt-1.5">Vuốt ngang hoặc bấm tab để chuyển đơn • đã xử lý ${doneN}/${N}</div>`;
       } else {
         foot.innerHTML = '<div class="text-center text-[11px] text-slate-500">Chỉ xem • tài xế xác nhận giao / không giao từng đơn trên điện thoại.</div>';
       }
     }
-    async function opMarkSuccess() {
+    function opMarkSuccess() {
       const s = _opStop(); if (!s || !isMultiOrder(s)) return; const o = s.orders[_opIdx]; if (!o) return;
-      const total = parseFloat(o.cod) || 0; let amt = total;
-      if (total > 0) {
-        const ans = await appPrompt(`ĐÃ GIAO • ${s.custName}\nĐơn ${o.inv}\nCần thu: ${formatMoney(total)}\n\nNhập SỐ TIỀN THỰC THU (để nguyên = thu đủ, 0 = ghi nợ toàn bộ):`, String(total));
-        if (ans === null || ans === undefined || ans === false) return;
-        const raw = String(ans).trim(); amt = raw === '' ? total : parseMoney(raw);
-        if (!isFinite(amt) || amt < 0) amt = 0; if (amt > total) amt = total;
-        if (amt < total && (s.tags || []).includes('nodebt')) { if (!(await appConfirm(`⚠️ ${s.custName} là KH KHÔNG CÔNG NỢ.\nThu ${formatMoney(amt)} / ${formatMoney(total)} (còn nợ ${formatMoney(total - amt)}).\nVẫn xác nhận giao?`))) return; }
-      }
-      await driverApplyOrderStatus(s.canonicalId, o.inv, 'success', '', amt);
+      const total = parseFloat(o.cod) || 0;
+      if (total <= 0) return driverApplyOrderStatus(s.canonicalId, o.inv, 'success', '', 0, normPay({ mode: 'paid' }));
+      openPayModal(s, o.inv, 'paid', total, o.pay);
+    }
+    function opMarkDebt() {
+      const s = _opStop(); if (!s || !isMultiOrder(s)) return; const o = s.orders[_opIdx]; if (!o) return;
+      const total = parseFloat(o.cod) || 0;
+      if (total <= 0) return driverApplyOrderStatus(s.canonicalId, o.inv, 'success', '', 0, normPay({ mode: 'paid' }));
+      openPayModal(s, o.inv, 'debt', total, o.pay);
     }
     function opReject() {
       const s = _opStop(); if (!s || !isMultiOrder(s)) return; const o = s.orders[_opIdx]; if (!o) return;
@@ -1456,12 +1565,12 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       const sum = (arr, k) => arr.reduce((a, o) => a + (parseFloat(o[k]) || 0), 0);
       const flat = arr => arr.flatMap(o => (o.items || []).map(it => ({ invId: o.inv, ...it })));
       const ns = hydrateStop({ ...serializeStop(x), canonicalId: `${baseId}#${n + 1}`, baseId,
-        orders: bad.map(o => ({ ...o, status: 'pending', failedReason: '', collected: null })), invoices: bad.map(o => o.inv), items: flat(bad),
-        status: 'pending', failedReason: '', collected: null, truckId: null, locked: false, archived: false, stopSeq: 0, lifoSeq: 0, tripNo: 0, history: [] });
+        orders: bad.map(o => ({ ...o, status: 'pending', failedReason: '', collected: null, pay: null })), invoices: bad.map(o => o.inv), items: flat(bad),
+        status: 'pending', failedReason: '', collected: null, pay: null, truckId: null, locked: false, archived: false, stopSeq: 0, lifoSeq: 0, tripNo: 0, history: [] });
       ns.totalQty = Math.max(0.5, Math.round(sum(bad, 'qty') * 10) / 10); ns.totalCod = sum(bad, 'cod');
       x.orders = good; x.invoices = new Set(good.map(o => o.inv)); x.items = flat(good);
       x.totalQty = Math.max(0.5, Math.round(sum(good, 'qty') * 10) / 10); x.totalCod = sum(good, 'cod'); x.failedReason = '';
-      if (isMultiOrder(x)) recomputeStopFromOrders(x); else x.collected = good.reduce((a, o) => a + orderCollected(o), 0);
+      if (isMultiOrder(x)) recomputeStopFromOrders(x); else { x.collected = good.reduce((a, o) => a + orderCollected(o), 0); x.pay = aggregatePay(good); }
       return ns;
     }
     function formatMoney(amount) {
@@ -2517,7 +2626,7 @@ function sanitizeDriverStop(st) {
     custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
     lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
     totalQty: num(st.totalQty), totalCod: num(st.totalCod), orders: normOrders(st.orders), invoices: Array.isArray(st.invoices) ? st.invoices.map(String) : [],
-    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), collected: st.collected == null ? null : num(st.collected),
+    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), collected: st.collected == null ? null : num(st.collected), pay: normPay(st.pay),
     items: (Array.isArray(st.items) ? st.items : []).map(it => ({ qty: num(it && it.qty), unit: String((it && it.unit) || ''), itemName: String((it && it.itemName) || '') }))
   };
 }
@@ -2712,11 +2821,14 @@ function renderDriverAppCards() {
   if (!truck || !truck.stops || truck.stops.length === 0) {
     container.innerHTML = `<div class="p-8 text-center text-slate-400 text-xs">${driverLoaded ? 'Chưa có đơn hàng nào cho ' + (truck ? truck.name : 'Xe ' + activeTruckId) + ' hôm nay.' : 'Đang tải đơn hàng từ Cloud...'}</div>`;
     if (elCod) elCod.innerText = "0 đ";
+    { const _b = document.getElementById('drvDockPayBreak'); if (_b) _b.innerHTML = ''; }
     return;
   }
 
-  let totalCodCollected = truck.stops.reduce((sum, s) => sum + collectedOf(s), 0);
+  let totalCodCollected = truck.stops.reduce((sum, s) => sum + moneyOf(s), 0);
   if (elCod) elCod.innerText = formatMoney(totalCodCollected);
+  { const _t = truck.stops.map(payTotals), _c = _t.reduce((a, t) => a + t.cash, 0), _k = _t.reduce((a, t) => a + t.transfer, 0), _o = _t.reduce((a, t) => a + t.offset, 0), _d = _t.reduce((a, t) => a + t.debt, 0), _b = document.getElementById('drvDockPayBreak');
+    if (_b) _b.innerHTML = (_c || _k || _o || _d) ? `💵 TM ${formatMoney(_c)} • 🏦 CK ${formatMoney(_k)}` + (_o ? ` • 🎁 ${formatMoney(_o)}` : '') + (_d ? ` • <span class="text-amber-300">📝 Nợ ${formatMoney(_d)}</span>` : '') : ''; }
 
   renderDriverMiniMapRoute(truck.stops);
 
@@ -2782,15 +2894,18 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
           ${isMultiOrder(s) ? orderRowsHtml(s) : (s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
         </div>
 
-        ${(s.status === 'success' && s.collected != null && s.collected < codDueOf(s)) ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(s.collected)} • CÒN NỢ ${formatMoney(codDueOf(s) - s.collected)}</div>` : ''}
+        ${s.status === 'success' ? payInfoHtml(s) : ''}
         ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(s.failedReason)}</div>` : ''}
 
-        ${isMultiOrder(s) ? multiOrderBtnHtml(s) : `<div class="flex items-center gap-2 pt-1 border-t">
-          <button onclick="driverMarkSuccess(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
-            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Đã Giao & Thu Tiền
+        ${isMultiOrder(s) ? multiOrderBtnHtml(s) : `<div class="grid grid-cols-3 gap-1.5 pt-1 border-t">
+          <button onclick="driverMarkSuccess(${jsq(s.canonicalId)})" class="${(s.status === 'success' && !(s.pay && s.pay.mode === 'debt')) ? 'bg-emerald-600 text-white' : 'bg-slate-100 hover:bg-emerald-50 text-emerald-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight flex flex-col items-center justify-center gap-0.5 transition shadow-sm active:scale-95">
+            <span class="text-base leading-none">✅</span><span>Đã Giao &amp; Thu Tiền</span>
           </button>
-          <button onclick="openDriverRejectPicker(${jsq(s.canonicalId)})" class="flex-1 ${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm active:scale-95">
-            <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Không Giao Được
+          <button onclick="driverMarkDebt(${jsq(s.canonicalId)})" class="${(s.status === 'success' && s.pay && s.pay.mode === 'debt') ? 'bg-amber-500 text-white' : 'bg-slate-100 hover:bg-amber-50 text-amber-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight flex flex-col items-center justify-center gap-0.5 transition shadow-sm active:scale-95">
+            <span class="text-base leading-none">📝</span><span>Đã Giao &amp; Ký Nợ</span>
+          </button>
+          <button onclick="openDriverRejectPicker(${jsq(s.canonicalId)})" class="${s.status === 'failed' ? 'bg-rose-600 text-white' : 'bg-slate-100 hover:bg-rose-50 text-rose-800'} py-2.5 px-1 rounded-xl font-bold text-[11px] leading-tight flex flex-col items-center justify-center gap-0.5 transition shadow-sm active:scale-95">
+            <span class="text-base leading-none">❌</span><span>Không Giao Được</span>
           </button>
         </div>`}
       </div>
@@ -2808,7 +2923,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
     // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
     const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
     const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
-    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
+    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; s.pay = normPay(c.pay); } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
       custName: s.custName || '',
@@ -2822,6 +2937,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
       status: s.status || 'pending',
       failedReason: s.failedReason || '',
       collected: s.collected == null ? null : s.collected,
+      pay: s.pay || null,
       stopSeq: s.stopSeq || 1,
       lifoSeq: s.lifoSeq || 1,
       truckId: truck.id,
@@ -2858,19 +2974,88 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
   const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
   if (!s) return;
   const total = parseFloat(s.totalCod) || 0;
-  let amt = total;
-  if (total > 0) {
-    const ans = await appPrompt(`ĐÃ GIAO • ${s.custName}\nCần thu: ${formatMoney(total)}\n\nNhập SỐ TIỀN THỰC THU (để nguyên = thu đủ, 0 = ghi nợ toàn bộ):`, String(total));
-    if (ans === null || ans === undefined || ans === false) return;
-    const raw = String(ans).trim();
-    amt = raw === '' ? total : parseMoney(raw);
-    if (!isFinite(amt) || amt < 0) amt = 0;
-    if (amt > total) amt = total;
-    if (amt < total && (s.tags || []).includes('nodebt')) {
-      if (!(await appConfirm(`⚠️ ${s.custName} là KH KHÔNG CÔNG NỢ.\nThu ${formatMoney(amt)} / ${formatMoney(total)} (còn nợ ${formatMoney(total - amt)}).\nVẫn xác nhận giao?`))) return;
-    }
+  if (total <= 0) return driverApplyStatus(canonicalId, 'success', '', 0, normPay({ mode: 'paid' }));
+  openPayModal(s, null, 'paid', total, s.pay);
+}
+async function driverMarkDebt(canonicalId) {
+  const truck = fleet.find(t => t.id === activeTruckId);
+  const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
+  if (!s) return;
+  const total = parseFloat(s.totalCod) || 0;
+  if (total <= 0) return driverApplyStatus(canonicalId, 'success', '', 0, normPay({ mode: 'paid' }));
+  openPayModal(s, null, 'debt', total, s.pay);
+}
+
+// ===== POPUP THU TIỀN / KÝ NỢ =====
+let _pay = null;
+function openPayModal(stop, inv, mode, cod, prev) {
+  _pay = { id: stop.canonicalId, inv: inv || null, mode, cod, nodebt: (stop.tags || []).includes('nodebt'), name: stop.custName || '' };
+  const m = document.getElementById('payModal'); if (!m) return;
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+  const fm = n => n ? Number(n).toLocaleString('vi-VN') : '';
+  const p = prev && prev.mode === mode ? prev : null;
+  set('payCash', fm(p && p.cash)); set('payTransfer', fm(p && p.transfer)); set('payOffset', fm(p && p.offset));
+  set('payOffsetNote', p ? p.offsetNote : ''); set('payDebtNote', p ? p.note : '');
+  document.getElementById('payTitle').innerHTML = mode === 'debt' ? '📝 Đã Giao &amp; Ký Nợ' : '✅ Đã Giao &amp; Thu Tiền';
+  document.getElementById('paySub').textContent = stop.custName + (inv ? ' • Đơn ' + inv : '');
+  document.getElementById('payCod').textContent = formatMoney(cod);
+  document.getElementById('payPaidBox').classList.toggle('hidden', mode === 'debt');
+  document.getElementById('payDebtBox').classList.toggle('hidden', mode !== 'debt');
+  document.getElementById('payNodebtWarn').classList.toggle('hidden', !(_pay.nodebt));
+  m.classList.remove('hidden'); payRecalc();
+}
+function closePayModal() { const m = document.getElementById('payModal'); if (m) m.classList.add('hidden'); _pay = null; }
+function payNum(id) { const e = document.getElementById(id); return e ? (parseInt(String(e.value || '').replace(/\D/g, ''), 10) || 0) : 0; }
+function payFmtInput(el) { const d = String(el.value || '').replace(/\D/g, ''); el.value = d ? Number(d).toLocaleString('vi-VN') : ''; payRecalc(); }
+function payCalc() {
+  if (!_pay) return null;
+  const cod = _pay.cod;
+  if (_pay.mode === 'debt') return { cash: 0, transfer: 0, offset: 0, settled: 0, debt: cod, over: 0, remain: cod };
+  const cash = payNum('payCash'), transfer = payNum('payTransfer'), offset = payNum('payOffset');
+  const settled = cash + transfer + offset, remain = Math.max(0, cod - offset);
+  return { cash, transfer, offset, settled, debt: Math.max(0, cod - settled), over: Math.max(0, settled - cod), remain };
+}
+function payFill(kind) {   // gợi ý "Đủ tiền": điền phần còn thiếu sau khi trừ cấn trừ và kênh còn lại
+  if (!_pay) return;
+  const offset = payNum('payOffset'), other = kind === 'cash' ? payNum('payTransfer') : payNum('payCash');
+  const need = Math.max(0, _pay.cod - offset - other);
+  const el = document.getElementById(kind === 'cash' ? 'payCash' : 'payTransfer'); el.value = need ? need.toLocaleString('vi-VN') : '';
+  payRecalc();
+}
+function payClear() { ['payCash', 'payTransfer', 'payOffset', 'payOffsetNote'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; }); payRecalc(); }
+function payRecalc() {
+  const c = payCalc(); if (!c) return;
+  const box = document.getElementById('paySummary'), ok = document.getElementById('payOk'), rem = document.getElementById('payRemain');
+  if (rem) rem.textContent = formatMoney(c.remain);
+  const row = (l, v, cls) => `<div class="flex justify-between gap-2 ${cls || ''}"><span>${l}</span><b>${v}</b></div>`;
+  let h = '';
+  if (_pay.mode === 'debt') {
+    h = row('📝 Ghi nợ toàn bộ', formatMoney(c.debt), 'text-amber-800 text-sm');
+    ok.disabled = false; ok.textContent = 'Xác nhận ký nợ ' + formatMoney(c.debt);
+  } else {
+    h = row('💵 Tiền mặt', formatMoney(c.cash)) + row('🏦 Chuyển khoản', formatMoney(c.transfer)) + row('🎁 Cấn trừ giải thưởng', formatMoney(c.offset))
+      + `<div class="border-t border-slate-300 my-1"></div>` + row('✅ ĐÃ THU (TM + CK)', formatMoney(c.cash + c.transfer), 'text-emerald-700 text-sm')
+      + row('Tổng thanh toán (gồm cấn trừ)', formatMoney(c.settled) + ' / ' + formatMoney(_pay.cod));
+    if (c.over > 0) { h += row('⛔ Vượt số cần thu', formatMoney(c.over), 'text-rose-700 text-sm'); ok.disabled = true; ok.textContent = 'Số tiền đang vượt cần thu'; }
+    else if (c.debt > 0) { h += row(c.settled > 0 ? '📝 CÒN NỢ' : '📝 CHƯA NHẬP TIỀN → GHI NỢ', formatMoney(c.debt), 'text-amber-800 text-sm'); ok.disabled = false; ok.textContent = (c.settled > 0 ? 'Xác nhận (còn nợ ' : 'Xác nhận ghi nợ (') + formatMoney(c.debt) + ')'; }
+    else { h += row('✔ Đã đủ tiền', '', 'text-emerald-700 text-sm'); ok.disabled = false; ok.textContent = 'Xác nhận đã thu đủ'; }
   }
-  await driverApplyStatus(canonicalId, 'success', '', amt);
+  box.innerHTML = h;
+}
+async function confirmPay() {
+  const c = payCalc(); if (!c || !_pay) return;
+  const P = _pay;
+  if (P.mode === 'paid') {
+    if (c.over > 0) return;
+    if (c.offset > 0 && !(document.getElementById('payOffsetNote').value || '').trim()) { await appConfirm('Vui lòng ghi chú lý do cấn trừ giải thưởng (vd: thưởng chương trình tháng 11) rồi bấm xác nhận lại.'); document.getElementById('payOffsetNote').focus(); return; }
+  }
+  if (c.debt > 0 && P.nodebt && !(await appConfirm(`⚠️ ${P.name} là KH KHÔNG CÔNG NỢ.\nSẽ ghi nợ ${formatMoney(c.debt)}.\nVẫn xác nhận giao?`))) return;
+  const pay = normPay({ mode: (c.settled <= 0) ? 'debt' : 'paid', cash: c.cash, transfer: c.transfer, offset: c.offset,
+    offsetNote: P.mode === 'paid' ? (document.getElementById('payOffsetNote').value || '').trim() : '',
+    note: P.mode === 'debt' ? (document.getElementById('payDebtNote').value || '').trim() : '' });
+  const id = P.id, inv = P.inv, settled = c.settled;
+  closePayModal();
+  if (inv) await driverApplyOrderStatus(id, inv, 'success', '', settled, pay); else await driverApplyStatus(id, 'success', '', settled, pay);
 }
 
 function openDriverRejectPicker(canonicalId) {
@@ -2945,6 +3130,7 @@ async function submitDriverRejectReason(reason) {
         mainStop.status = truckStop.status;
         mainStop.failedReason = truckStop.failedReason;
         mainStop.collected = truckStop.collected == null ? null : truckStop.collected;
+        mainStop.pay = truckStop.pay || null;
         mainStop.truckId = t.id;
       }
     });
@@ -2957,6 +3143,7 @@ async function submitDriverRejectReason(reason) {
   let failedStops = allMergedStops.filter(s => s.status === 'failed');
   let collectedCod = successStops.reduce((sum, s) => sum + collectedOf(s), 0);
   let debtCod = successStops.reduce((sum, s) => sum + (parseFloat(s.totalCod) || 0), 0) - collectedCod;
+  const _pt = successStops.map(payTotals), _cash = _pt.reduce((a, t) => a + t.cash, 0), _trf = _pt.reduce((a, t) => a + t.transfer, 0), _off = _pt.reduce((a, t) => a + t.offset, 0);
 
       let activeTrucks = fleet.filter(t => t.stops.length > 0);
       let idleTrucks = fleet.filter(t => t.stops.length === 0);
@@ -2974,7 +3161,7 @@ async function submitDriverRejectReason(reason) {
       if (elTotalQty) elTotalQty.innerText = `${Math.round(totalQty)} Thùng`;
       if (elTotalStops) elTotalStops.innerText = `${allMergedStops.length} điểm giao (${unmappedStops.length} chưa map)`;
       if (elTotalCod) elTotalCod.innerText = formatMoney(totalCod);
-      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod)}` + (debtCod > 0 ? ` • Nợ: ${formatMoney(debtCod)}` : '');
+      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod - _off)}` + ((_cash || _trf) ? ` (TM ${fmtShortMoney(_cash)} • CK ${fmtShortMoney(_trf)})` : '') + (_off > 0 ? ` • Cấn trừ: ${formatMoney(_off)}` : '') + (debtCod > 0 ? ` • Nợ: ${formatMoney(debtCod)}` : '');
       if (elActiveTrucks) elActiveTrucks.innerText = `${activeTrucks.length} Xe`;
       if (elIdleTrucks) elIdleTrucks.innerText = `Xe trống: ${idleTrucks.length} Xe`;
 
@@ -3246,11 +3433,11 @@ async function submitDriverRejectReason(reason) {
       if (mapSelectMode && map) { renderSelectModeMap(false); return; }
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers(); pinsLayer.clearLayers();
-      updateMapLegend();
+      updateMapLegend(); renderMapFilterPanel();
       const d = [warehouseDepot.lat, warehouseDepot.lon], truck = fleet.find(t => t.id === activeTruckId);
       let actLine = null, actLatLngs = null;
       fleet.forEach(t => {
-        const r = (t.stops || []).filter(x => x.isMapped && !x.archived);
+        const r = (t.stops || []).filter(x => x.isMapped && !x.archived && mapStopVisible(x));
         if (!r.length) return;
         const isAct = t.id === activeTruckId, pts = [d, ...r.map(x => [x.lat, x.lon]), d];
         const line = L.polyline(pts, { color: truckColor(t.id), weight: isAct ? 4 : 2.5, opacity: isAct ? 0.9 : 0.5, dashArray: isAct ? '4,4' : '2,7', interactive: false });
@@ -3259,8 +3446,9 @@ async function submitDriverRejectReason(reason) {
       });
       const bounds = L.latLngBounds([d]);
       const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
-      const cmap = getColoc();
-      allMergedStops.filter(x => x.isMapped && !x.archived).forEach(x => {
+      const visList = allMergedStops.filter(x => x.isMapped && !x.archived && mapStopVisible(x));
+      const cmap = mapExpanded ? colocMap(colocBase(visList)) : getColoc();
+      visList.forEach(x => {
         if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
         const grp = cmap.get(x.canonicalId); if (grp && grp[0] !== x) return;   // ghim chồng nhau: chỉ vẽ 1 ghim đại diện
         const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
@@ -3469,7 +3657,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const poly = lassoPts.map(p => [p.lat, p.lng]);
       setTimeout(() => { if (lassoLayer) lassoLayer.clearLayers(); }, 250);
       if (poly.length < 4) return;
-      allMergedStops.forEach(s => { if (isSelectableStop(s) && pointInPoly(s.lat, s.lon, poly)) selectedStopIds.add(s.canonicalId); });
+      allMergedStops.forEach(s => { if (isSelectableStop(s) && mapStopVisible(s) && pointInPoly(s.lat, s.lon, poly)) selectedStopIds.add(s.canonicalId); });
       afterMapSelectionChange();
     }
     function toggleMapSelectMode() {
@@ -3500,14 +3688,15 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     function renderSelectModeMap(fit) {
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
       routeLayer.clearLayers(); pinsLayer.clearLayers();
-      updateMapLegend();
+      updateMapLegend(); renderMapFilterPanel();
       const d = [warehouseDepot.lat, warehouseDepot.lon], bounds = L.latLngBounds([d]);
       fleet.forEach(t => {
-        const r = (t.stops || []).filter(x => x.isMapped && isPendingStop(x));
+        const r = (t.stops || []).filter(x => x.isMapped && isPendingStop(x) && mapStopVisible(x));
         if (r.length) routeLayer.addLayer(L.polyline([d, ...r.map(x => [x.lat, x.lon]), d], { color: truckColor(t.id), weight: 2, opacity: 0.45, dashArray: '3,6', interactive: false }));
       });
-      const cmSel = colocMap(allMergedStops.filter(x => x.isMapped && isPendingStop(x)));
-      allMergedStops.filter(x => x.isMapped && isPendingStop(x)).forEach(x => {   // đã giao / thất bại / đã đóng chuyến: ẨN
+      const selList = allMergedStops.filter(x => x.isMapped && isPendingStop(x) && mapStopVisible(x));
+      const cmSel = colocMap(selList);
+      selList.forEach(x => {   // đã giao / thất bại / đã đóng chuyến: ẨN
         bounds.extend([x.lat, x.lon]);
         const grp = cmSel.get(x.canonicalId); if (grp && grp[0] !== x) return;
         const members = grp || [x];
@@ -3525,6 +3714,65 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       });
       if (fit && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
     }
+
+    // ===== MỞ RỘNG BẢN ĐỒ + LỌC THEO XE / CHƯA XẾP TUYẾN =====
+    let mapExpanded = false, mapOnlyPending = false, mapPanelOpen = true;
+    const mapHiddenKeys = new Set();   // 't<id>' hoặc 'none' (chưa xếp tuyến). Rỗng = hiện tất cả
+    function stopKey(s) { return fleet.some(t => t.id === s.truckId) ? 't' + s.truckId : 'none'; }
+    function mapStopVisible(s) {
+      if (!mapExpanded) return true;
+      if (mapOnlyPending && s.status !== 'pending') return false;
+      return !mapHiddenKeys.has(stopKey(s));
+    }
+    function ordersLeftOf(s) { if (isMultiOrder(s)) return s.orders.filter(o => o.status === 'pending').length; return s.status === 'pending' ? Math.max(1, invCountOf(s)) : 0; }
+    function ordersTotalOf(s) { return Math.max(1, invCountOf(s)); }
+    function mapGroupStats(list) {
+      const r = { stops: list.length, orders: 0, left: 0, done: 0, failed: 0, qty: 0 };
+      list.forEach(s => {
+        r.orders += ordersTotalOf(s); r.left += ordersLeftOf(s); r.qty += parseFloat(s.totalQty) || 0;
+        if (isMultiOrder(s)) { r.done += s.orders.filter(o => o.status === 'success').length; r.failed += s.orders.filter(o => o.status === 'failed').length; }
+        else if (s.status === 'success') r.done += ordersTotalOf(s); else if (s.status === 'failed') r.failed += ordersTotalOf(s);
+      });
+      return r;
+    }
+    function renderMapFilterPanel() {
+      const el = document.getElementById('mapFilterPanel'); if (!el) return;
+      el.classList.toggle('hidden', !mapExpanded); if (!mapExpanded) return;
+      const live = allMergedStops.filter(s => !s.archived);
+      const groups = fleet.map(t => ({ key: 't' + t.id, label: t.name.split('(')[0].trim(), color: truckColor(t.id), list: live.filter(s => s.truckId === t.id) })).filter(g => g.list.length || true);
+      groups.push({ key: 'none', label: 'Chưa xếp tuyến', color: '#64748b', list: live.filter(s => !fleet.some(t => t.id === s.truckId)) });
+      const row = g => {
+        const st = mapGroupStats(g.list), on = !mapHiddenKeys.has(g.key), noGps = g.list.filter(s => !s.isMapped).length;
+        return `<label class="flex items-start gap-2 px-2 py-1.5 border-b border-slate-100 cursor-pointer ${on ? '' : 'opacity-50'}">
+          <input type="checkbox" class="mt-0.5 shrink-0" ${on ? 'checked' : ''} onchange="toggleMapKey(${jsq(g.key)}, this.checked)">
+          <span class="w-3 h-3 rounded-full shrink-0 mt-0.5 border border-white shadow" style="background:${g.color}"></span>
+          <span class="min-w-0 flex-1"><span class="font-bold text-slate-800 block truncate">${esc(g.label)}</span>
+            <span class="text-slate-500 block">${st.stops} điểm • ${st.orders} đơn • ${Math.round(st.qty)} thùng</span>
+            <span class="block"><b class="${st.left ? 'text-amber-700' : 'text-emerald-700'}">còn ${st.left} chưa giao</b>${st.done ? ` • <span class="text-emerald-700">${st.done} xong</span>` : ''}${st.failed ? ` • <span class="text-rose-600">${st.failed} lỗi</span>` : ''}${noGps ? ` • <span class="text-slate-400">${noGps} chưa GPS</span>` : ''}</span></span>
+        </label>`;
+      };
+      const vis = live.filter(s => mapStopVisible(s)), tot = mapGroupStats(vis), all = mapGroupStats(live);
+      el.innerHTML = `<div class="flex items-center justify-between px-2 py-1.5 bg-slate-100 rounded-t-xl border-b border-slate-200">
+          <span class="font-extrabold text-slate-800">Lọc theo xe</span>
+          <span class="flex items-center gap-2"><button class="text-blue-700 font-bold underline" onclick="mapFilterAll(true)">Tất cả</button><button class="text-slate-500 font-bold underline" onclick="mapFilterAll(false)">Bỏ hết</button></span>
+        </div>
+        <label class="flex items-center gap-2 px-2 py-1.5 border-b border-slate-200 bg-amber-50 cursor-pointer"><input type="checkbox" ${mapOnlyPending ? 'checked' : ''} onchange="toggleMapOnlyPending(this.checked)"><span class="font-bold text-amber-900">Chỉ hiện đơn chưa giao</span></label>
+        ${groups.map(row).join('')}
+        <div class="px-2 py-1.5 bg-slate-50 rounded-b-xl text-slate-700"><b>Đang hiện:</b> ${tot.stops} điểm • ${tot.orders} đơn<br><span class="text-amber-800 font-bold">${tot.left} đơn chưa giao</span> / tổng ${all.orders} đơn toàn bộ</div>`;
+    }
+    function mapRefreshAfterFilter() { if (mapSelectMode) renderSelectModeMap(true); else renderRouteOnMap(); }
+    function toggleMapKey(key, on) { if (on) mapHiddenKeys.delete(key); else mapHiddenKeys.add(key); mapRefreshAfterFilter(); }
+    function toggleMapOnlyPending(v) { mapOnlyPending = !!v; mapRefreshAfterFilter(); }
+    function mapFilterAll(on) { mapHiddenKeys.clear(); if (!on) { fleet.forEach(t => mapHiddenKeys.add('t' + t.id)); mapHiddenKeys.add('none'); } mapRefreshAfterFilter(); }
+    function toggleMapExpand(force) {
+      const w = document.getElementById('mapWrap'); if (!w || !map) return;
+      mapExpanded = (typeof force === 'boolean') ? force : !mapExpanded;
+      w.classList.toggle('map-expanded', mapExpanded);
+      const t = document.getElementById('btnMapExpandText'), i = document.getElementById('btnMapExpandIcon');
+      if (t) t.innerText = mapExpanded ? 'Thu nhỏ' : 'Mở rộng'; if (i) i.innerText = mapExpanded ? '⤡' : '⤢';
+      setTimeout(() => { map.invalidateSize(); mapRefreshAfterFilter(); }, 60);
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && mapExpanded && !document.querySelector('[style*="2147483000"]')) toggleMapExpand(false); });
 
     let mobileView = 'list';
     function toggleMobileView() {
