@@ -889,6 +889,7 @@
       s.status = s.status || 'pending'; s.failedReason = s.failedReason || '';
       s.truckId = (s.truckId === undefined) ? null : s.truckId;
       s.baseId = s.baseId || String(s.canonicalId || '').split('#')[0];
+      s.collected = (s.collected == null || s.collected === '') ? null : (parseFloat(s.collected) || 0);
       s.archived = !!s.archived; s.locked = !!s.locked; s.tripNo = s.tripNo || 0;
       s.tags = Array.isArray(s.tags) ? s.tags : []; s.saleName = s.saleName || ''; s.salePhone = s.salePhone || '';
   return s;
@@ -902,7 +903,7 @@
       fleet = (Array.isArray(sess.fleet) ? sess.fleet : fleet).map(t => {
         const list = (t.stops || []).map(ts => {
           let m = byId.get(ts.canonicalId);
-          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; } return m; }
+          if (m) { if (ts.status && ts.status !== 'pending' && m.status === 'pending') { m.status = ts.status; m.failedReason = ts.failedReason || ''; m.collected = ts.collected == null ? null : ts.collected; } return m; }
           m = hydrateStop(ts); stops.push(m); byId.set(m.canonicalId, m); return m;
         });
         return { ...t, stops: list };
@@ -919,7 +920,7 @@
       return {
         v: 2, order_date: getTodayString(), meta: { deviceId: DEVICE_ID, ts: Date.now() }, activeTruckId,
         allMergedStops: allMergedStops.map(serializeStop),
-        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, stopSeq: s.stopSeq })) }))
+        fleet: fleet.map(t => ({ ...t, stops: (t.stops || []).map(s => ({ canonicalId: s.canonicalId, status: s.status, failedReason: s.failedReason, collected: s.collected == null ? null : s.collected, stopSeq: s.stopSeq })) }))
       };
     }
     function saveLocalCache() {
@@ -971,7 +972,7 @@
         (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
           const m = byId.get(rs.canonicalId);
           if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
-          if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; }
+          if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; m.collected = rs.collected == null ? null : rs.collected; }
         });
       });
       _cloudHasStops = allMergedStops.length > 0;
@@ -1082,15 +1083,16 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
 
     // ---------- App tài xế: ghi trạng thái theo kiểu "vá" (không bao giờ ghi đè daily_orders) ----------
     function driverOrderDate() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('date') || getTodayString(); }
-    async function driverApplyStatus(canonicalId, status, reason) {
+    async function driverApplyStatus(canonicalId, status, reason, collected) {
       const truck = fleet.find(t => t.id === activeTruckId);
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
       s.status = status; s.failedReason = reason || '';
+      s.collected = status === 'success' ? (collected == null ? (parseFloat(s.totalCod) || 0) : collected) : null;
       recordDeliveryHistory(s);
       renderDriverAppCards();
-      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason });
+      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected });
       await flushDriverSync();
     }
     async function flushDriverSync() {
@@ -1104,7 +1106,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (error) throw error;
         if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
-        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.doneAt = new Date().toISOString(); } });
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.doneAt = new Date().toISOString(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
           order_date: date, truck_id: Number(activeTruckId),
           truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
@@ -1131,7 +1133,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
           if (!truck) { truck = { id: activeTruckId, stops: [] }; fleet.push(truck); }
           truck.stops = data.stops.map(sanitizeDriverStop); truck.name = data.truck_name || truck.name || `Xe ${activeTruckId}`; truck.driver = data.driver_name || truck.driver || '';
           truck.plate = data.plate || truck.plate || ''; truck.phone = data.driver_phone || truck.phone || ''; truck.maxCapacity = data.max_capacity || truck.maxCapacity || 150;
-          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; } });
+          pendingDriverSync.forEach((v, id) => { const st = truck.stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; } });
         }
         renderDriverAppCards();
         if (!silent) alert('Đã cập nhật dữ liệu mới nhất!');
@@ -1231,6 +1233,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       return s;
     }
 
+    function collectedOf(s) { const tc = parseFloat(s.totalCod) || 0; if (s.status !== 'success') return 0; return (s.collected == null || s.collected === '') ? tc : Math.max(0, Math.min(tc, parseFloat(s.collected) || 0)); }
     function formatMoney(amount) {
       return (amount || 0).toLocaleString('vi-VN') + " đ";
     }
@@ -1546,15 +1549,12 @@ async function restoreMasterBackupFromCloud() {
         const { inv: invId, cust: rawCustId } = keyOf(row);
         if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
         if (known.has(invId)) {
-  dupInv.add(invId);
-  const ex = allMergedStops.find(x => x.invoices.has(invId));
-  if (ex && !ex.salePhone) {
-    const raw = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
-    const ph = raw.match(/(\+?84|0)[\d .\-]{8,11}\d/);
-    if (ph) { ex.salePhone = normalizePhone(ph[0]); ex.saleName = raw.replace(ph[0], '').replace(/\s+/g, ' ').trim(); }
-  }
-  return;
-}      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
+          dupInv.add(invId);
+          const _sr = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
+          const _ph = _sr.match(/(\+?84|0)[\d .\-]{8,11}\d/);
+          if (_ph) { const _ex = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_ex && !_ex.salePhone) { _ex.salePhone = normalizePhone(_ph[0]); _ex.saleName = _sr.replace(_ph[0], '').replace(/\s+/g, ' ').trim(); } }
+          return;
+        }      // hóa đơn đã nạp ở đợt trước => không cộng dồn lần nữa
         const custName = row['Tên khách hàng'] || row['Tên KH'] || '';
         const itemName = row['Tên hàng'] || row['Hàng hóa'] || 'Hàng tổng hợp';
         const rawQty = parseMoney(row['Số lượng'] === undefined || row['Số lượng'] === '' ? 1 : row['Số lượng']);
@@ -1847,7 +1847,9 @@ while (improved && pass < 80 && performance.now() < deadline) {
       const targetTruck = fleet.find(t => t.id === targetTruckId);
       if (!targetTruck) return;
       const picked = [...selectedStopIds].map(id => allMergedStops.find(x => x.canonicalId === id)).filter(Boolean);
-      const movable = picked.filter(x => !x.archived && x.status === 'pending');      // điểm đã giao / đã đóng chuyến thì không gán lại
+      const lockedOther = picked.filter(x => !x.archived && x.status === 'pending' && x.truckId != null && x.truckId !== targetTruckId && isTruckLocked(x.truckId));
+      if (lockedOther.length) alert(`Có ${lockedOther.length} điểm đang nằm trên xe đã phát link nên KHÔNG chuyển được (hãy dùng Thu hồi trước). Các điểm này sẽ được bỏ qua.`);
+      const movable = picked.filter(x => !x.archived && x.status === 'pending' && !(x.truckId != null && x.truckId !== targetTruckId && isTruckLocked(x.truckId)));      // điểm đã giao / đã đóng chuyến thì không gán lại
       if (movable.length === 0) { selectedStopIds.clear(); updateManualRoutingBarState(); renderStopsList(); return alert("Các đơn đang chọn đều đã giao hoặc đã đóng chuyến nên không thể gán lại."); }
       const addQty = movable.filter(x => x.truckId !== targetTruckId).reduce((a, x) => a + (parseFloat(x.totalQty) || 0), 0);
       const currentLoad = truckLoadOf(targetTruck);
@@ -1995,7 +1997,7 @@ function sanitizeDriverStop(st) {
     custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
     lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
     totalQty: num(st.totalQty), totalCod: num(st.totalCod),
-    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''),
+    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), collected: st.collected == null ? null : num(st.collected),
     items: (Array.isArray(st.items) ? st.items : []).map(it => ({ qty: num(it && it.qty), unit: String((it && it.unit) || ''), itemName: String((it && it.itemName) || '') }))
   };
 }
@@ -2069,7 +2071,7 @@ async function completeTrip(truckId) {
   const truck = fleet.find(t => t.id === Number(truckId));
   if (!truck || truck.stops.length === 0) return alert("Xe này chưa có chuyến nào đang chạy.");
   const ok = truck.stops.filter(x => x.status === 'success'), bad = truck.stops.filter(x => x.status === 'failed'), pend = truck.stops.filter(x => x.status === 'pending');
-  const codOk = ok.reduce((a, x) => a + (parseFloat(x.totalCod) || 0), 0);
+  const codOk = ok.reduce((a, x) => a + collectedOf(x), 0);
   if (!(await appConfirm(`HOÀN TẤT CHUYẾN ${truck.tripNo || 1} • ${truck.name}?\n\n• Đã giao: ${ok.length} điểm (thu ${formatMoney(codOk)})\n• Giao thất bại: ${bad.length} điểm\n• Chưa giao: ${pend.length} điểm\n\nXe sẽ được giải phóng để nhận chuyến sau.`))) return;
   const back = truck.stops.filter(x => x.status !== 'success');
   let returnBack = false;
@@ -2170,7 +2172,7 @@ function renderDriverAppCards() {
     return;
   }
 
-  let totalCodCollected = truck.stops.filter(s => s.status === 'success').reduce((sum, s) => sum + (parseFloat(s.totalCod) || 0), 0);
+  let totalCodCollected = truck.stops.reduce((sum, s) => sum + collectedOf(s), 0);
   if (elCod) elCod.innerText = formatMoney(totalCodCollected);
 
   renderDriverMiniMapRoute(truck.stops);
@@ -2232,6 +2234,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
           ${(s.items || []).map(it => `• <strong>${it.qty} ${esc(it.unit)}</strong> ${esc(it.itemName)}`).join('<br>')}
         </div>
 
+        ${(s.status === 'success' && s.collected != null && s.collected < (parseFloat(s.totalCod) || 0)) ? `<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">💰 Thu ${formatMoney(s.collected)} • CÒN NỢ ${formatMoney((parseFloat(s.totalCod) || 0) - s.collected)}</div>` : ''}
         ${s.failedReason ? `<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⚠️ Lý do: ${esc(s.failedReason)}</div>` : ''}
 
         <div class="flex items-center gap-2 pt-1 border-t">
@@ -2256,7 +2259,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
     // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
     const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
     const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
-    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; } });
+    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; } });
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
       custName: s.custName || '',
@@ -2269,6 +2272,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
       totalCod: s.totalCod || 0,
       status: s.status || 'pending',
       failedReason: s.failedReason || '',
+      collected: s.collected == null ? null : s.collected,
       stopSeq: s.stopSeq || 1,
       lifoSeq: s.lifoSeq || 1,
       truckId: truck.id,
@@ -2299,7 +2303,25 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
   }
 }
 
- async function driverMarkSuccess(canonicalId) { await driverApplyStatus(canonicalId, 'success', ''); }
+ async function driverMarkSuccess(canonicalId) {
+  const truck = fleet.find(t => t.id === activeTruckId);
+  const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
+  if (!s) return;
+  const total = parseFloat(s.totalCod) || 0;
+  let amt = total;
+  if (total > 0) {
+    const ans = await appPrompt(`ĐÃ GIAO • ${s.custName}\nCần thu: ${formatMoney(total)}\n\nNhập SỐ TIỀN THỰC THU (để nguyên = thu đủ, 0 = ghi nợ toàn bộ):`, String(total));
+    if (ans === null || ans === undefined || ans === false) return;
+    const raw = String(ans).trim();
+    amt = raw === '' ? total : parseMoney(raw);
+    if (!isFinite(amt) || amt < 0) amt = 0;
+    if (amt > total) amt = total;
+    if (amt < total && (s.tags || []).includes('nodebt')) {
+      if (!(await appConfirm(`⚠️ ${s.custName} là KH KHÔNG CÔNG NỢ.\nThu ${formatMoney(amt)} / ${formatMoney(total)} (còn nợ ${formatMoney(total - amt)}).\nVẫn xác nhận giao?`))) return;
+    }
+  }
+  await driverApplyStatus(canonicalId, 'success', '', amt);
+}
 
 function openDriverRejectPicker(canonicalId) {
   rejectingStopCanonicalId = canonicalId;
@@ -2372,6 +2394,7 @@ async function submitDriverRejectReason(reason) {
       if (mainStop) {
         mainStop.status = truckStop.status;
         mainStop.failedReason = truckStop.failedReason;
+        mainStop.collected = truckStop.collected == null ? null : truckStop.collected;
         mainStop.truckId = t.id;
       }
     });
@@ -2382,7 +2405,8 @@ async function submitDriverRejectReason(reason) {
 
   let successStops = allMergedStops.filter(s => s.status === 'success');
   let failedStops = allMergedStops.filter(s => s.status === 'failed');
-  let collectedCod = successStops.reduce((sum, s) => sum + (parseFloat(s.totalCod) || 0), 0);
+  let collectedCod = successStops.reduce((sum, s) => sum + collectedOf(s), 0);
+  let debtCod = successStops.reduce((sum, s) => sum + (parseFloat(s.totalCod) || 0), 0) - collectedCod;
 
       let activeTrucks = fleet.filter(t => t.stops.length > 0);
       let idleTrucks = fleet.filter(t => t.stops.length === 0);
@@ -2400,7 +2424,7 @@ async function submitDriverRejectReason(reason) {
       if (elTotalQty) elTotalQty.innerText = `${Math.round(totalQty)} Thùng`;
       if (elTotalStops) elTotalStops.innerText = `${allMergedStops.length} điểm giao (${unmappedStops.length} chưa map)`;
       if (elTotalCod) elTotalCod.innerText = formatMoney(totalCod);
-      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod)}`;
+      if (elCollectedCod) elCollectedCod.innerText = `Đã thu: ${formatMoney(collectedCod)}` + (debtCod > 0 ? ` • Nợ: ${formatMoney(debtCod)}` : '');
       if (elActiveTrucks) elActiveTrucks.innerText = `${activeTrucks.length} Xe`;
       if (elIdleTrucks) elIdleTrucks.innerText = `Xe trống: ${idleTrucks.length} Xe`;
 
@@ -2579,7 +2603,7 @@ async function submitDriverRejectReason(reason) {
 
       // Tab 1: Toàn bộ đơn vừa nạp từ file Excel (Khắc phục lỗi 1)
       if (currentStopTab === 'all_imported') {
-        let list = allMergedStops.filter(x => !mapSelectMode || isPendingStop(x));
+        let list = allMergedStops.filter(x => !x.archived && (!mapSelectMode || isPendingStop(x)));
         list = applyListFilters(list);
         if (summaryText) summaryText.innerText = `${list.length} đơn đã nạp`;
         
@@ -2680,7 +2704,7 @@ async function submitDriverRejectReason(reason) {
       });
       const bounds = L.latLngBounds([d]);
       const actStops = truck ? (truck.stops || []).filter(x => x.isMapped) : [];
-      allMergedStops.filter(x => x.isMapped).forEach(x => {
+      allMergedStops.filter(x => x.isMapped && !x.archived).forEach(x => {
         if (actStops.length === 0 || actStops.includes(x)) bounds.extend([x.lat, x.lon]);
         const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
         const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
@@ -2730,7 +2754,7 @@ async function submitDriverRejectReason(reason) {
           const has = fleet.some(t => t.id === x.truckId);
           if (flt.truck === 'none' ? has : x.truckId !== Number(flt.truck)) return false;
         }
-        if (q && !vnNorm([x.custName, x.canonicalId, x.baseId, x.phone, x.addr].join(' ')).includes(q)) return false;
+        if (q && !vnNorm([x.custName, x.canonicalId, x.baseId, x.phone, x.addr, x.saleName, (x.tags || []).map(g => g === 'lunch' ? 'nghi trua' : 'no xau khong cong no').join(' ')].join(' ')).includes(q)) return false;
         return true;
       });
       const d = depotPt(), dist = x => x.isMapped ? calcDistanceKm(d.lat, d.lon, x.lat, x.lon) : 1e9;
