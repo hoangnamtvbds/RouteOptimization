@@ -297,7 +297,7 @@
             </div>
           </div>
           <!-- BẢNG LỌC THEO XE (chỉ hiện khi mở rộng bản đồ) -->
-          <div id="geoPanel" class="hidden absolute top-12 left-2 z-[1000] w-[340px] max-w-[92vw] overflow-y-auto bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-lg text-[11px] text-slate-700" style="max-height:calc(100% - 130px)"></div>
+          <div id="geoPanel" class="hidden absolute top-12 left-2 z-[1000] w-[380px] max-w-[94vw] overflow-y-auto bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-lg text-xs text-slate-700" style="max-height:calc(100% - 130px)"></div>
           <div id="mapFilterPanel" class="hidden absolute top-12 left-2 z-[1000] w-[230px] max-w-[62vw] overflow-y-auto bg-white/95 backdrop-blur border border-slate-300 rounded-xl shadow-lg text-[11px] text-slate-700"></div>
           <div class="absolute bottom-28 right-2 z-[1000] flex flex-col-reverse items-end gap-1.5 pointer-events-none">
             <button id="btnMapSelect" onclick="toggleMapSelectMode()" class="pointer-events-auto bg-white hover:bg-amber-50 text-slate-700 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-bold flex items-center gap-1 transition">
@@ -3789,9 +3789,13 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     // CHUẨN HÓA VỊ TRÍ KHÁCH HÀNG (MASTER)
     // Chỉ đổi TỌA ĐỘ theo mã KH. KHÔNG gộp mã KH / tên / SĐT / đơn hàng.
     // =========================================================================
-    var GEO_IGN_KEY = 'FMCG_GEO_IGNORED_V1';
-    var geo = { panelOpen: false, collapsed: false, showAll: false, tab: 'search', q: '', sel: null, newLat: null, newLon: null, pick: false, radius: 20, limit: 30, anchors: {}, undo: [], ignored: new Set(), ver: 0, gKey: '', groups: [], layer: null, selLayer: null, hiLayer: null, renderer: null, marker: null, ignLoaded: false, msg: '', msgT: null };
+    var GEO_IGN_KEY = 'FMCG_GEO_IGNORED_V1', GEO_EXC_KEY = 'FMCG_GEO_EXCLUDED_V1', GEO_DOT_KEY = 'FMCG_GEO_DOTMUL_V1';
+    var geo = { panelOpen: false, collapsed: false, showAll: false, tab: 'search', q: '', sel: null, newLat: null, newLon: null, pick: false, radius: 20, limit: 30, anchors: {}, undo: [], ignored: new Set(), off: new Set(), excluded: new Set(), dotMul: 0, ver: 0, gKey: '', groups: [], layer: null, selLayer: null, hiLayer: null, renderer: null, marker: null, ignLoaded: false, msg: '', msgT: null };
     try { JSON.parse(localStorage.getItem(GEO_IGN_KEY) || '[]').forEach(k => geo.ignored.add(k)); } catch (e) {}
+    try { JSON.parse(localStorage.getItem(GEO_EXC_KEY) || '[]').forEach(k => geo.excluded.add(k)); } catch (e) {}
+    function geoIsTouch() { try { return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 720; } catch (e) { return false; } }
+    try { geo.dotMul = parseFloat(localStorage.getItem(GEO_DOT_KEY)) || 0; } catch (e) {}
+    if (!geo.dotMul) geo.dotMul = geoIsTouch() ? 1.5 : 1.15;
 
     function geoRecs() { const a = []; masterGpsMap.forEach(m => { if (m && Number.isFinite(m.lat) && Number.isFinite(m.lon)) a.push(m); }); return a; }
     function geoDist(a, b) {   // mét (xấp xỉ phẳng, đủ chính xác trong khoảng vài trăm mét)
@@ -3802,11 +3806,12 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       if (!map || typeof L === 'undefined') return false;
       if (!geo.layer) {
         if (!map.getPane('geoPane')) { map.createPane('geoPane'); map.getPane('geoPane').style.zIndex = 450; }
-        geo.renderer = L.canvas({ pane: 'geoPane', padding: 0.5 });
+        geo.renderer = L.canvas({ pane: 'geoPane', padding: 0.5, tolerance: geoIsTouch() ? 12 : 7 });   // tolerance: vùng bấm rộng hơn chấm nhìn thấy
         geo.layer = L.layerGroup().addTo(map);
         geo.hiLayer = L.layerGroup().addTo(map);
         geo.selLayer = L.layerGroup().addTo(map);
         map.on('click', geoMapClick);
+        map.on('zoomend', geoResizeDots);
       }
       return true;
     }
@@ -3814,9 +3819,9 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
 
     // ---- Gom nhóm điểm nghi trùng: các KH cách nhau <= bán kính được xem là 1 nhóm ----
     function geoBuildGroups() {
-      const sig = [geo.ver, geo.radius, masterGpsMap.size, geo.ignored.size].join('|');
+      const sig = [geo.ver, geo.radius, masterGpsMap.size, geo.ignored.size, geo.excluded.size].join('|');
       if (sig === geo.gKey) return geo.groups;
-      const recs = geoRecs(), R = Math.max(geo.radius, 0.5), cell = (Math.max(R, 5) / 111320) * 1.1;
+      const recs = geoRecs().filter(m => !geo.excluded.has(m.id)), R = Math.max(geo.radius, 0.5), cell = (Math.max(R, 5) / 111320) * 1.1;
       const par = recs.map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
       const grid = new Map(), kOf = (x, y) => x + ',' + y;
       recs.forEach((m, i) => { const k = kOf(Math.floor(m.lat / cell), Math.floor(m.lon / cell)); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); });
@@ -3845,6 +3850,18 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     }
 
     // ---- Vẽ các chấm KH lên bản đồ ----
+    function geoDotRadius(dup) {
+      const z = map ? map.getZoom() : 16, zf = Math.max(0.6, Math.min(1.6, 0.6 + (z - 12) * 0.12));   // zoom xa thì nhỏ lại, zoom gần thì to ra
+      return Math.round((7 * geo.dotMul * zf + (dup ? 1.5 : 0)) * 10) / 10;
+    }
+    function geoResizeDots() {
+      if (!geo.layer) return;
+      geo.layer.eachLayer(l => { if (l.setRadius) l.setRadius(geoDotRadius(!!l._geoDup)); });
+    }
+    function geoSetDotMul(v) {
+      geo.dotMul = parseFloat(v) || 1; try { localStorage.setItem(GEO_DOT_KEY, String(geo.dotMul)); } catch (e) {}
+      geoResizeDots();
+    }
     function geoDrawDots() {
       if (!geoEnsureLayers()) return;
       geo.layer.clearLayers();
@@ -3852,9 +3869,9 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const dup = new Set(); geoBuildGroups().forEach(g => { if (!g.ignored) g.ids.forEach(i => dup.add(i)); });
       geoRecs().forEach(m => {
         const d = dup.has(m.id);
-        L.circleMarker([m.lat, m.lon], { renderer: geo.renderer, radius: d ? 5 : 4, weight: 1, color: '#ffffff', fillColor: d ? '#f97316' : '#0ea5e9', fillOpacity: 0.95, bubblingMouseEvents: false })
-          .bindTooltip(esc(m.id + ' • ' + m.name), { direction: 'top', opacity: 0.95 })
-          .on('click', () => geoSelect(m.id)).addTo(geo.layer);
+        const c = L.circleMarker([m.lat, m.lon], { renderer: geo.renderer, radius: geoDotRadius(d), weight: 2, color: '#ffffff', fillColor: d ? '#f97316' : '#0ea5e9', fillOpacity: 0.95, bubblingMouseEvents: false });
+        c._geoDup = d;
+        c.bindTooltip(esc(m.id + ' • ' + m.name), { direction: 'top', opacity: 0.95 }).on('click', () => geoSelect(m.id)).addTo(geo.layer);
       });
     }
     function geoShowSelMarker() {
@@ -3864,9 +3881,9 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const changed = geo.newLat !== null, lat = changed ? geo.newLat : m.lat, lon = changed ? geo.newLon : m.lon;
       if (changed) {   // ghim mờ + nét đứt tại vị trí đang lưu để so sánh
         L.polyline([[m.lat, m.lon], [lat, lon]], { color: '#64748b', weight: 2, dashArray: '4,4', interactive: false }).addTo(geo.selLayer);
-        L.circleMarker([m.lat, m.lon], { radius: 6, color: '#64748b', weight: 2, fillColor: '#cbd5e1', fillOpacity: 0.8, interactive: false }).addTo(geo.selLayer);
+        L.circleMarker([m.lat, m.lon], { radius: 8, color: '#64748b', weight: 2, fillColor: '#cbd5e1', fillOpacity: 0.8, interactive: false }).addTo(geo.selLayer);
       }
-      const icon = L.divIcon({ className: '', html: '<div style="font-size:30px;line-height:30px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.55))">📍</div>', iconSize: [30, 30], iconAnchor: [15, 30] });
+      const icon = L.divIcon({ className: '', html: '<div style="font-size:' + (geoIsTouch() ? 42 : 34) + 'px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.55))">📍</div>', iconSize: [geoIsTouch() ? 42 : 34, geoIsTouch() ? 42 : 34], iconAnchor: [geoIsTouch() ? 21 : 17, geoIsTouch() ? 42 : 34] });
       geo.marker = L.marker([lat, lon], { icon, draggable: true, zIndexOffset: 3000 }).addTo(geo.selLayer);
       geo.marker.on('dragend', () => { const p = geo.marker.getLatLng(); geo.newLat = parseFloat(p.lat.toFixed(6)); geo.newLon = parseFloat(p.lng.toFixed(6)); geoShowSelMarker(); geoSyncCoordUI(); });
     }
@@ -3923,22 +3940,32 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       try { localStorage.setItem(GEO_IGN_KEY, JSON.stringify(arr)); } catch (e) {}
       try { await cloudSetSetting('geo_ignored', arr); } catch (e) { console.warn(e); }
     }
+    async function geoPersistExcluded() {
+      const arr = Array.from(geo.excluded);
+      try { localStorage.setItem(GEO_EXC_KEY, JSON.stringify(arr)); } catch (e) {}
+      try { await cloudSetSetting('geo_excluded', arr); } catch (e) { console.warn(e); }
+    }
     async function geoLoadIgnoredCloud() {
-      const { data } = await db.from('app_settings').select('setting_val').eq('key_name', 'geo_ignored').maybeSingle();
-      if (data && Array.isArray(data.setting_val)) { data.setting_val.forEach(k => geo.ignored.add(k)); geo.ver++; try { localStorage.setItem(GEO_IGN_KEY, JSON.stringify(Array.from(geo.ignored))); } catch (e) {} }
+      const { data } = await db.from('app_settings').select('key_name,setting_val').in('key_name', ['geo_ignored', 'geo_excluded']);
+      (data || []).forEach(r => {
+        if (!Array.isArray(r.setting_val)) return;
+        if (r.key_name === 'geo_ignored') { r.setting_val.forEach(k => geo.ignored.add(k)); try { localStorage.setItem(GEO_IGN_KEY, JSON.stringify(Array.from(geo.ignored))); } catch (e) {} }
+        else { r.setting_val.forEach(k => geo.excluded.add(k)); try { localStorage.setItem(GEO_EXC_KEY, JSON.stringify(Array.from(geo.excluded))); } catch (e) {} }
+      });
+      geo.ver++;
     }
     function geoIgnore(key, on) {
       if (on) geo.ignored.add(key); else geo.ignored.delete(key);
       geo.ver++; geoPersistIgnored(); geoDrawDots(); renderGeoPanel();
       geoToast(on ? 'Đã đánh dấu KHÔNG gộp. Sẽ không gợi ý lại nhóm này.' : 'Đã bỏ đánh dấu, nhóm này sẽ được gợi ý lại.');
     }
-    function geoResetIgnored() { geo.ignored.clear(); geo.ver++; geoPersistIgnored(); geoDrawDots(); renderGeoPanel(); geoToast('Đã hiện lại tất cả nhóm đã đánh dấu.'); }
+    function geoResetIgnored() { geo.ignored.clear(); geo.excluded.clear(); geo.off.clear(); geo.ver++; geoPersistIgnored(); geoPersistExcluded(); geoDrawDots(); renderGeoPanel(); geoToast('Đã hiện lại tất cả nhóm và điểm đã loại.'); }
 
     // ---- Chọn KH ----
-    function geoSelect(id) {
+    function geoSelect(id, noAnchor) {
       let m = masterGpsMap.get(id); if (!m) m = masterGpsMap.get(Number(id)); if (!m || !geoEnsureLayers()) return;
       geo.sel = m.id; geo.newLat = null; geo.newLon = null; geo.pick = false; geoCursor(); geo.hiLayer.clearLayers();
-      const g = geoBuildGroups().find(x => x.ids.includes(m.id)); if (g) geo.anchors[g.key] = m.id;   // mặc định giữ vị trí của KH đang chọn
+      const g = geoBuildGroups().find(x => x.ids.includes(m.id)); if (g && !noAnchor && !geo.off.has(m.id)) geo.anchors[g.key] = m.id;   // mặc định giữ vị trí của KH đang chọn
       geo.collapsed = false; renderGeoPanel(); geoShowSelMarker(); geoFocus(m.lat, m.lon, 18);
     }
     function geoDeselect() { geo.sel = null; geo.newLat = null; geo.newLon = null; geo.pick = false; geoCursor(); if (geo.selLayer) { geo.selLayer.clearLayers(); geo.hiLayer.clearLayers(); } renderGeoPanel(); }
@@ -3968,14 +3995,14 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     }
 
     // ---- Ghi tọa độ mới vào master (Cloud + máy) và cập nhật đơn hôm nay ----
-    async function geoApplyCoords(changes, label, isUndo, ignKey) {
+    async function geoApplyCoords(changes, label, isUndo, ignKeys, excIds) {
       const recs = [], old = [];
       changes.forEach(c => { const r = masterGpsMap.get(c.id); if (!r) return; old.push({ id: r.id, lat: r.lat, lon: r.lon }); recs.push(Object.assign({}, r, { lat: c.lat, lon: c.lon })); });
       if (!recs.length) throw new Error('Không tìm thấy KH để cập nhật');
       if (db) await upsertMasterChunks(recs);   // lỗi Cloud => dừng, không đổi gì trên máy
       recs.forEach(r => masterGpsMap.set(r.id, r));
       try { localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values()))); } catch (e) {}
-      if (!isUndo) { geo.undo.push({ label, items: old, ign: ignKey || null }); if (geo.undo.length > 10) geo.undo.shift(); }
+      if (!isUndo) { geo.undo.push({ label, items: old, ign: ignKeys || [], exc: excIds || [] }); if (geo.undo.length > 10) geo.undo.shift(); }
       const byId = new Map(recs.map(r => [r.id, r])), touched = [];
       allMergedStops.forEach(s => { const r = byId.get(s.baseId || s.canonicalId); if (r && !s.archived) { s.lat = r.lat; s.lon = r.lon; s.isMapped = true; touched.push(s); } });
       geo.ver++;
@@ -4002,51 +4029,78 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const last = geo.undo[geo.undo.length - 1]; if (!last) return;
       try {
         await geoApplyCoords(last.items.map(i => ({ id: i.id, lat: i.lat, lon: i.lon })), '', true);
-        geo.undo.pop(); if (last.ign) { geo.ignored.delete(last.ign); geoPersistIgnored(); }
+        geo.undo.pop(); if (last.ign && last.ign.length) { last.ign.forEach(k => geo.ignored.delete(k)); geoPersistIgnored(); } if (last.exc && last.exc.length) { last.exc.forEach(k => geo.excluded.delete(k)); geoPersistExcluded(); } geo.ver++;
         geo.newLat = null; geo.newLon = null; geoAfterChange(); geoToast('Đã hoàn tác: ' + last.label);
       } catch (e) { alert('Lỗi hoàn tác: ' + (e.message || e)); }
     }
 
     // ---- Nhóm trùng: xem / gộp vị trí / không gộp ----
-    function geoSetAnchor(key, id) { geo.anchors[key] = id; renderGeoPanel(); }
+    function geoSetAnchor(key, id) { geo.anchors[key] = id; geo.off.delete(id); renderGeoPanel(); }
+    function geoToggleOff(id, on) { if (on) geo.off.delete(id); else geo.off.add(id); renderGeoPanel(); }
+    function geoPickFor(id) {   // đặt vị trí riêng cho 1 điểm: mở form + bật chế độ bấm bản đồ
+      geoSelect(id, true); geo.pick = true; geoCursor(); geoSyncCoordUI();
+      geoToast('Bấm lên bản đồ đúng vị trí của KH này (hoặc kéo ghim 📍), rồi bấm Lưu vị trí.');
+    }
+    function geoExcludeOff(key) {
+      const g = geoBuildGroups().find(x => x.key === key); if (!g) return;
+      const dropped = g.ids.filter(id => geo.off.has(id)); if (!dropped.length) return;
+      dropped.forEach(id => { geo.excluded.add(id); geo.off.delete(id); });
+      geo.ver++; geoPersistExcluded(); geoDrawDots(); renderGeoPanel();
+      geoToast(`Đã loại ${dropped.length} điểm khỏi gợi ý trùng (tọa độ giữ nguyên).`);
+    }
     function geoViewGroup(key) {
       const g = geoBuildGroups().find(x => x.key === key); if (!g || !geoEnsureLayers()) return;
       geo.hiLayer.clearLayers(); const pts = [];
-      g.ids.forEach(id => { const m = masterGpsMap.get(id); if (!m) return; pts.push([m.lat, m.lon]); L.circleMarker([m.lat, m.lon], { renderer: geo.renderer, radius: 12, color: '#ea580c', weight: 3, fillOpacity: 0.08, interactive: false }).addTo(geo.hiLayer); });
+      g.ids.forEach(id => { const m = masterGpsMap.get(id); if (!m) return; pts.push([m.lat, m.lon]); L.circleMarker([m.lat, m.lon], { renderer: geo.renderer, radius: 16, color: '#ea580c', weight: 3, fillOpacity: 0.08, interactive: false }).addTo(geo.hiLayer); });
       if (!pts.length) return;
       const p = document.getElementById('geoPanel'), ph = (p && window.innerWidth < 720) ? p.offsetHeight + 20 : 0;
       map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [40, 40 + ph], paddingBottomRight: [40, 40], maxZoom: 19 });
     }
     async function geoMergeGroup(key) {
       const g = geoBuildGroups().find(x => x.key === key); if (!g) return;
-      const anchorId = (geo.anchors[key] && g.ids.includes(geo.anchors[key])) ? geo.anchors[key] : g.anchor, A = masterGpsMap.get(anchorId); if (!A) return;
-      const others = g.ids.filter(id => id !== anchorId && masterGpsMap.get(id) && geoDist(masterGpsMap.get(id), A) > 0.2);
-      if (!others.length) return alert('Các KH này đã cùng một tọa độ rồi.');
-      if (!(await appConfirm(`GỘP VỊ TRÍ ${g.ids.length} KH về vị trí của "${A.name}" (${anchorId})?\n\n• Chỉ đổi TỌA ĐỘ của ${others.length} KH còn lại.\n• Mã KH, tên, SĐT, địa chỉ của từng KH GIỮ NGUYÊN (không gộp khách).\n• Có thể bấm "Hoàn tác" ngay sau đó.`))) return;
+      const active = g.ids.filter(id => !geo.off.has(id) && masterGpsMap.get(id));
+      if (active.length < 2) return alert('Cần ít nhất 2 điểm được tick để gộp vị trí.');
+      let anchorId = geo.anchors[key]; if (!active.includes(anchorId)) anchorId = active.includes(g.anchor) ? g.anchor : active[0];
+      const A = masterGpsMap.get(anchorId); if (!A) return;
+      const others = active.filter(id => id !== anchorId && geoDist(masterGpsMap.get(id), A) > 0.2);
+      const dropped = g.ids.filter(id => geo.off.has(id));
+      if (!others.length) return alert('Các KH được tick đã cùng một tọa độ rồi.');
+      if (!(await appConfirm(`GỘP VỊ TRÍ ${active.length} KH về vị trí của "${A.name}" (${anchorId})?\n\n• Chỉ đổi TỌA ĐỘ của ${others.length} KH còn lại.\n• Mã KH, tên, SĐT, địa chỉ và ĐƠN HÀNG của từng KH GIỮ NGUYÊN (không gộp khách, không gộp đơn).\n` + (dropped.length ? `• ${dropped.length} điểm bỏ tick được giữ nguyên tọa độ và loại khỏi gợi ý trùng.\n` : '') + `• Có thể bấm "Hoàn tác" ngay sau đó.`))) return;
       try {
-        await geoApplyCoords(others.map(id => ({ id, lat: A.lat, lon: A.lon })), `Gộp vị trí ${g.ids.length} KH về ${anchorId}`, false, key);
-        geo.ignored.add(key); geoPersistIgnored();   // nhóm đã xử lý: không gợi ý lại
-        geo.hiLayer.clearLayers(); geoAfterChange(); geoToast(`Đã gộp vị trí ${g.ids.length} KH (giữ nguyên mã KH). Bấm Hoàn tác nếu cần.`);
+        const newKey = active.join('|');
+        await geoApplyCoords(others.map(id => ({ id, lat: A.lat, lon: A.lon })), `Gộp vị trí ${active.length} KH về ${anchorId}`, false, [key, newKey], dropped.filter(id => !geo.excluded.has(id)));
+        geo.ignored.add(key); geo.ignored.add(newKey); geoPersistIgnored();   // nhóm đã xử lý: không gợi ý lại
+        dropped.forEach(id => { geo.excluded.add(id); geo.off.delete(id); }); if (dropped.length) geoPersistExcluded();
+        geo.ver++; geo.hiLayer.clearLayers(); geoAfterChange(); geoToast(`Đã gộp vị trí ${active.length} KH (giữ nguyên mã KH và đơn). Bấm Hoàn tác nếu cần.`);
       } catch (e) { alert('Lỗi lưu Cloud: ' + (e.message || e)); }
     }
     function geoGroupHTML(g, idx) {
-      const anchor = (geo.anchors[g.key] && g.ids.includes(geo.anchors[g.key])) ? geo.anchors[g.key] : g.anchor, A = masterGpsMap.get(anchor); if (!A) return '';
+      const active = g.ids.filter(id => !geo.off.has(id));
+      let anchor = (geo.anchors[g.key] && active.includes(geo.anchors[g.key])) ? geo.anchors[g.key] : (active.includes(g.anchor) ? g.anchor : (active[0] || g.anchor));
+      const A = masterGpsMap.get(anchor); if (!A) return '';
+      const offN = g.ids.length - active.length;
       const rows = g.ids.map(id => {
         const m = masterGpsMap.get(id); if (!m) return '';
-        return `<div class="flex items-center gap-1.5 py-0.5"><input type="radio" name="ga${idx}" ${id === anchor ? 'checked' : ''} ${g.ignored ? 'disabled' : ''} onchange="geoSetAnchor(${jsq(g.key)}, ${jsq(id)})" title="Giữ vị trí của KH này">
-          <button class="min-w-0 flex-1 text-left truncate hover:text-blue-700" onclick="geoSelect(${jsq(id)})"><b>${esc(id)}</b> • ${esc(m.name)}</button>
-          <span class="shrink-0 text-slate-500">${id === anchor ? 'giữ vị trí' : Math.round(geoDist(m, A)) + ' m'}</span></div>`;
+        const on = !geo.off.has(id), isA = id === anchor;
+        return `<div class="flex items-center gap-2 py-1 ${on ? '' : 'opacity-50'}">
+          <input type="checkbox" class="w-5 h-5 shrink-0" ${on ? 'checked' : ''} ${(isA || g.ignored) ? 'disabled' : ''} onchange="geoToggleOff(${jsq(id)}, this.checked)" title="Tick = thuộc nhóm gộp vị trí. Bỏ tick = không gộp điểm này">
+          <input type="radio" class="w-4 h-4 shrink-0" name="ga${idx}" ${isA ? 'checked' : ''} ${(g.ignored || !on) ? 'disabled' : ''} onchange="geoSetAnchor(${jsq(g.key)}, ${jsq(id)})" title="Giữ vị trí của KH này (điểm gốc)">
+          <button class="min-w-0 flex-1 text-left leading-tight hover:text-blue-700" onclick="geoSelect(${jsq(id)})"><b>${esc(id)}</b> • ${esc(m.name)}</button>
+          <span class="shrink-0 text-slate-500 text-right" style="min-width:48px">${isA ? 'giữ vị trí' : (on ? Math.round(geoDist(m, A)) + ' m' : 'bỏ ra')}</span>
+          <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-slate-300 text-slate-700" onclick="geoPickFor(${jsq(id)})" title="Đặt vị trí riêng cho KH này">✎ Riêng</button></div>`;
       }).join('');
-      const bs = 'font-bold rounded px-2 py-1 text-[11px]';
+      const bs = 'font-bold rounded px-2.5 py-1.5 text-xs';
       const btns = g.ignored
-        ? `<span class="text-slate-500">Đã đánh dấu KHÔNG gộp</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, false)">Bỏ đánh dấu</button>`
-        : (g.same
+        ? `<span class="text-slate-500">Đã xử lý / đánh dấu KHÔNG gộp</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, false)">Bỏ đánh dấu</button>`
+        : ((g.same && !offN)
           ? `<span class="text-slate-600">Đang cùng 1 tọa độ.</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true)">Đúng, không báo lại</button>`
-          : `<button class="${bs} bg-blue-600 text-white" onclick="geoMergeGroup(${jsq(g.key)})">🔗 Gộp vị trí</button><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true)">Không gộp</button>`);
+          : `<button class="${bs} bg-blue-600 text-white ${active.length < 2 ? 'opacity-40' : ''}" onclick="geoMergeGroup(${jsq(g.key)})">🔗 Gộp vị trí (${active.length})</button>`
+            + (offN ? `<button class="${bs} bg-white border border-rose-300 text-rose-700" onclick="geoExcludeOff(${jsq(g.key)})">🚫 Loại ${offN} điểm bỏ tick</button>` : '')
+            + `<button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true)">Không gộp</button>`);
       return `<div class="border ${g.ignored ? 'border-slate-200 bg-slate-50' : 'border-orange-300 bg-orange-50'} rounded-lg p-2 space-y-1">
-        <div class="font-bold text-slate-800">${g.ids.length} KH • xa nhất ${Math.round(g.maxD)} m${g.same ? ' • CÙNG 1 TỌA ĐỘ' : ''}</div>
+        <div class="font-bold text-slate-800">${g.ids.length} KH • xa nhất ${Math.round(g.maxD)} m${g.same ? ' • CÙNG 1 TỌA ĐỘ' : ''}${offN ? ` • <span class="text-rose-700">${offN} bỏ tick</span>` : ''}</div>
         ${rows}
-        <div class="flex flex-wrap items-center gap-1 pt-1">${btns}<button class="${bs} bg-white border border-slate-300 text-slate-700" onclick="geoViewGroup(${jsq(g.key)})">🔍 Xem</button></div></div>`;
+        <div class="flex flex-wrap items-center gap-1.5 pt-1">${btns}<button class="${bs} bg-white border border-slate-300 text-slate-700" onclick="geoViewGroup(${jsq(g.key)})">🔍 Xem</button></div></div>`;
     }
 
     // ---- Tìm KH ----
@@ -4073,7 +4127,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const el = document.getElementById('geoPanel'); if (!el) return;
       el.classList.toggle('hidden', !geo.panelOpen); if (!geo.panelOpen) return;
       const st = el.scrollTop, total = geoRecs().length, all = geoBuildGroups(), groups = all.filter(g => !g.ignored), ignN = all.length - groups.length;
-      const m = geo.sel !== null ? masterGpsMap.get(geo.sel) : null, bs = 'font-bold rounded px-2 py-1 text-[11px]';
+      const m = geo.sel !== null ? masterGpsMap.get(geo.sel) : null, bs = 'font-bold rounded px-2.5 py-1.5 text-xs';
       let h = `<div class="flex items-center justify-between px-2 py-1.5 bg-slate-100 rounded-t-xl border-b border-slate-200 sticky top-0 z-10">
         <span class="font-extrabold text-slate-800">📍 Chuẩn hóa vị trí KH</span>
         <span class="flex items-center gap-1"><button onclick="geoToggleCollapse()" class="px-2 text-slate-600 font-bold">${geo.collapsed ? '▾ Mở' : '▴ Thu gọn'}</button><button onclick="geoClosePanel()" class="px-1.5 text-slate-500 font-bold">✕</button></span></div>`;
@@ -4084,15 +4138,16 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       h += `<div class="p-2 space-y-2">
         <div id="geoMsg" class="${geo.msg ? '' : 'hidden'} bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded px-2 py-1">${esc(geo.msg)}</div>
         <div class="flex items-center justify-between gap-2"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" ${geo.showAll ? 'checked' : ''} onchange="geoToggleShowAll(this.checked)"><span class="font-bold text-slate-800">Hiện toàn bộ KH có vị trí (<span id="geoCount">${total}</span>)</span></label><button onclick="geoFitAll()" class="${bs} bg-white border border-slate-300 text-slate-700 shrink-0">Xem hết</button></div>
-        <div class="text-[10px] text-slate-500">Chấm xanh: KH bình thường • Chấm cam: có KH khác ở rất gần (nghi trùng vị trí).</div>
+        <div class="flex items-center justify-between gap-2"><span class="text-[11px] text-slate-500">Chấm xanh: bình thường • Chấm cam: nghi trùng vị trí.</span>
+          <label class="flex items-center gap-1 shrink-0 text-[11px] text-slate-600">Cỡ chấm <select onchange="geoSetDotMul(this.value)" class="border border-slate-300 rounded px-1 py-1 bg-white text-xs">${[[0.8, 'Nhỏ'], [1.15, 'Vừa'], [1.5, 'Lớn'], [2, 'Rất lớn'], [2.6, 'Cực lớn']].map(o => `<option value="${o[0]}" ${Math.abs(geo.dotMul - o[0]) < 0.08 ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label></div>
         <div class="flex gap-1"><button onclick="geoSetTab('search')" class="${bs} flex-1 ${geo.tab === 'search' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'}">🔎 Tìm KH</button><button onclick="geoSetTab('dup')" class="${bs} flex-1 ${geo.tab === 'dup' ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700'}">🧩 Gợi ý trùng (${groups.length})</button></div>`;
       if (geo.tab === 'search') {
         h += `<input id="geoSearch" type="text" autocomplete="off" value="${esc(geo.q)}" oninput="geoSearch(this.value)" placeholder="Tìm theo tên hoặc mã KH…" class="select-text w-full border border-slate-300 rounded-lg px-3 py-2 text-xs">
           <div id="geoResults" class="max-h-44 overflow-y-auto border border-slate-200 rounded-lg bg-white"></div>`;
       } else {
         h += `<div class="flex items-center gap-2"><span class="font-bold text-slate-700">Coi là trùng nếu cách nhau:</span><select onchange="geoSetRadius(this.value)" class="border border-slate-300 rounded px-1 py-1 bg-white">${[[0, 'Trùng hoàn toàn'], [10, '≤ 10 m'], [20, '≤ 20 m'], [30, '≤ 30 m'], [50, '≤ 50 m']].map(o => `<option value="${o[0]}" ${geo.radius === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>
-          <div class="text-slate-600"><b>${groups.length}</b> nhóm nghi trùng${ignN ? ` • ${ignN} nhóm đã xử lý <button class="text-blue-700 underline" onclick="geoResetIgnored()">Hiện lại</button>` : ''}</div>
-          <div class="text-[10px] text-slate-500">Chọn nút tròn để chọn KH giữ vị trí. "Gộp vị trí" chỉ đổi tọa độ, KHÔNG gộp mã KH.</div>`;
+          <div class="text-slate-600"><b>${groups.length}</b> nhóm nghi trùng${(ignN || geo.excluded.size) ? ` • ${ignN} nhóm đã xử lý${geo.excluded.size ? ', ' + geo.excluded.size + ' điểm đã loại' : ''} <button class="text-blue-700 underline" onclick="geoResetIgnored()">Hiện lại</button>` : ''}</div>
+          <div class="text-[11px] text-slate-500 leading-snug">☑ Tick = thuộc nhóm gộp (bỏ tick điểm sai). ◉ = điểm giữ vị trí gốc. ✎ Riêng = đặt vị trí đúng cho riêng điểm đó. "Gộp vị trí" chỉ đổi tọa độ các điểm đang tick, KHÔNG gộp mã KH hay đơn.</div>`;
         h += groups.slice(0, geo.limit).map((g, i) => geoGroupHTML(g, i)).join('');
         if (groups.length > geo.limit) h += `<button onclick="geo.limit += 30; renderGeoPanel()" class="${bs} w-full bg-slate-200 text-slate-700">Xem thêm ${Math.min(30, groups.length - geo.limit)} nhóm</button>`;
       }
