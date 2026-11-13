@@ -971,7 +971,7 @@
     }
     function applyDepotToMap() {
       const k = JSON.stringify(warehouseDepot); if (k === _depotKey) return; _depotKey = k;
-      if (map) { map.setView([warehouseDepot.lat, warehouseDepot.lon], 13); drawDepotPin(); }
+      if (map) { if (!(typeof geo !== 'undefined' && geo.panelOpen)) map.setView([warehouseDepot.lat, warehouseDepot.lon], 13); drawDepotPin(); }
     }
 
     // ---------- Chuẩn hóa / phục hồi dữ liệu (Set <-> Array) ----------
@@ -3468,7 +3468,7 @@ async function submitDriverRejectReason(reason) {
             <button onclick="openStopDetail(${jsq(x.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
           </div>`).addTo(pinsLayer);
       });
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+      if (bounds.isValid() && !(typeof geo !== 'undefined' && geo.panelOpen)) map.fitBounds(bounds, { padding: [30, 30] });   // đang chỉnh vị trí KH: không tự nhảy bản đồ
     }
 
     // -------------------------------------------------------------------------
@@ -3717,7 +3717,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         });
         m.addTo(pinsLayer);
       });
-      if (fit && bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+      if (fit && bounds.isValid() && !(typeof geo !== 'undefined' && geo.panelOpen)) map.fitBounds(bounds, { padding: [30, 30] });
     }
 
     // ===== MỞ RỘNG BẢN ĐỒ + LỌC THEO XE / CHƯA XẾP TUYẾN =====
