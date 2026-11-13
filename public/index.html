@@ -4025,8 +4025,38 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         geoToast('Đã lưu vị trí mới của ' + id + (db ? ' lên Cloud.' : ' (chỉ trên máy này, chưa kết nối Cloud).'));
       } catch (e) { alert('Lỗi lưu Cloud: ' + (e.message || e)); geoSyncCoordUI(); }
     }
+    // ---- Xóa KH đã đóng cửa / không hoạt động khỏi Master (Cloud) ----
+    async function geoDeleteCustomer(id) {
+      const m = masterGpsMap.get(id); if (!m) return;
+      if (!db || !cloudReady) return alert('Chưa kết nối Cloud nên chưa thể xóa KH. Bấm biểu tượng Cloud để đồng bộ lại rồi thử lại.');
+      const used = allMergedStops.filter(s => !s.archived && (s.baseId || s.canonicalId) === id);
+      if (used.length) return alert(`KH "${m.name}" (${id}) đang có ${used.length} điểm giao trong đơn hôm nay nên chưa thể xóa.\nHãy giao xong / đóng chuyến rồi xóa sau.`);
+      const al = Array.from(storeAliasMap.entries()).filter(([k, v]) => k === id || (v && v.targetId === id));
+      if (al.length) return alert(`KH "${m.name}" (${id}) đang được dùng trong bảng Gộp Trùng (${al.map(x => x[0]).join(', ')}).\nHãy xóa mục gộp đó ở nút "Gộp Trùng" trước rồi xóa KH.`);
+      if (!(await appConfirm(`XÓA KH "${m.name}" (${id}) khỏi Master?\n\n• KH bị xóa khỏi Cloud, mọi máy sẽ không còn thấy.\n• Nếu sau này Sale lên đơn lại mã này, điểm sẽ thành "Điểm Mới" chưa có map.\n• Có thể bấm "Hoàn tác" ngay sau đó.`))) return;
+      try {
+        const { error } = await db.from('master_customers').delete().eq('id', id);
+        if (error) throw error;
+        masterGpsMap.delete(id);
+        try { localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values()))); } catch (e) {}
+        geo.off.delete(id); geo.excluded.delete(id);
+        if (geo.sel === id) { geo.sel = null; geo.newLat = null; geo.newLon = null; geo.pick = false; geoCursor(); }
+        geo.undo.push({ label: 'Xóa KH ' + id, items: [], del: [Object.assign({}, m)], ign: [], exc: [] }); if (geo.undo.length > 10) geo.undo.shift();
+        geo.ver++; updateMasterCountBadge(masterGpsMap.size, 'Supabase Cloud'); geoAfterChange();
+        geoToast(`Đã xóa ${id} khỏi Master. Bấm Hoàn tác nếu xóa nhầm.`);
+      } catch (e) { alert('Lỗi xóa trên Cloud: ' + (e.message || e)); }
+    }
     async function geoUndo() {
       const last = geo.undo[geo.undo.length - 1]; if (!last) return;
+      if (last.del && last.del.length) {   // hoàn tác xóa KH: ghi lại vào Cloud
+        try {
+          if (db) await upsertMasterChunks(last.del);
+          last.del.forEach(r => masterGpsMap.set(r.id, r));
+          try { localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values()))); } catch (e) {}
+          geo.undo.pop(); geo.ver++; updateMasterCountBadge(masterGpsMap.size, 'Supabase Cloud'); geoAfterChange(); geoToast('Đã khôi phục: ' + last.label);
+        } catch (e) { alert('Lỗi hoàn tác: ' + (e.message || e)); }
+        return;
+      }
       try {
         await geoApplyCoords(last.items.map(i => ({ id: i.id, lat: i.lat, lon: i.lon })), '', true);
         geo.undo.pop(); if (last.ign && last.ign.length) { last.ign.forEach(k => geo.ignored.delete(k)); geoPersistIgnored(); } if (last.exc && last.exc.length) { last.exc.forEach(k => geo.excluded.delete(k)); geoPersistExcluded(); } geo.ver++;
@@ -4087,7 +4117,8 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
           <input type="radio" class="w-4 h-4 shrink-0" name="ga${idx}" ${isA ? 'checked' : ''} ${(g.ignored || !on) ? 'disabled' : ''} onchange="geoSetAnchor(${jsq(g.key)}, ${jsq(id)})" title="Giữ vị trí của KH này (điểm gốc)">
           <button class="min-w-0 flex-1 text-left leading-tight hover:text-blue-700" onclick="geoSelect(${jsq(id)})"><b>${esc(id)}</b> • ${esc(m.name)}</button>
           <span class="shrink-0 text-slate-500 text-right" style="min-width:48px">${isA ? 'giữ vị trí' : (on ? Math.round(geoDist(m, A)) + ' m' : 'bỏ ra')}</span>
-          <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-slate-300 text-slate-700" onclick="geoPickFor(${jsq(id)})" title="Đặt vị trí riêng cho KH này">✎ Riêng</button></div>`;
+          <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-slate-300 text-slate-700" onclick="geoPickFor(${jsq(id)})" title="Đặt vị trí riêng cho KH này">✎ Riêng</button>
+          <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-rose-300 text-rose-700" onclick="geoDeleteCustomer(${jsq(id)})" title="Xóa KH này (đã đóng cửa / không hoạt động)">🗑</button></div>`;
       }).join('');
       const bs = 'font-bold rounded px-2.5 py-1.5 text-xs';
       const btns = g.ignored
@@ -4158,7 +4189,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
           <div class="text-slate-600">Đang lưu: <b>${m.lat}, ${m.lon}</b> • <a target="_blank" rel="noopener" class="text-blue-700 underline" href="https://www.google.com/maps?q=${m.lat},${m.lon}">Google Maps</a></div>
           <div class="flex gap-1"><input id="geoCoordInput" type="text" autocomplete="off" class="select-text flex-1 min-w-0 border border-slate-300 rounded px-2 py-1 text-[11px]" placeholder="Dán 11.xxxx, 106.xxxx hoặc link Google Maps"><button onclick="geoApplyInput()" class="${bs} bg-white border border-slate-300 text-slate-700 shrink-0">Áp dụng</button></div>
           <div id="geoChangeInfo" class="text-slate-400"></div>
-          <div class="flex flex-wrap gap-1"><button id="geoPickBtn" onclick="geoTogglePick()" class="${bs} bg-white border border-slate-300 text-slate-700">🎯 Bấm bản đồ để đặt</button><button onclick="geoResetNew()" class="${bs} bg-white border border-slate-300 text-slate-700">Đặt lại</button><button id="geoSaveBtn" onclick="geoSave()" class="${bs} bg-blue-600 text-white">💾 Lưu vị trí</button></div>
+          <div class="flex flex-wrap gap-1"><button id="geoPickBtn" onclick="geoTogglePick()" class="${bs} bg-white border border-slate-300 text-slate-700">🎯 Bấm bản đồ để đặt</button><button onclick="geoResetNew()" class="${bs} bg-white border border-slate-300 text-slate-700">Đặt lại</button><button id="geoSaveBtn" onclick="geoSave()" class="${bs} bg-blue-600 text-white">💾 Lưu vị trí</button><button onclick="geoDeleteCustomer(${jsq(m.id)})" class="${bs} bg-white border border-rose-300 text-rose-700">🗑 Xóa KH</button></div>
           <div class="text-[10px] text-slate-500">Kéo ghim 📍 hoặc bấm lên bản đồ để chọn vị trí đúng, rồi bấm Lưu. Vị trí được lưu theo mã KH, mọi máy cùng thấy.</div>
           <div class="font-bold text-slate-800 pt-1">Gợi ý trùng quanh KH này</div>
           ${sg ? geoGroupHTML(sg, 'sel') : `<div class="text-slate-500">Không có KH nào khác ${geo.radius ? 'trong ' + geo.radius + ' m' : 'cùng tọa độ'}.</div>`}</div>`;
