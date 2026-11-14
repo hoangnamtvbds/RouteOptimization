@@ -184,11 +184,6 @@
           <span class="hidden sm:inline">Gộp Trùng</span>
         </button>
 
-        <button onclick="openSyncModal()" title="Đồng bộ giữa các thiết bị" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
-          <i data-lucide="cloud" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span class="hidden sm:inline">Đồng Bộ</span>
-        </button>
-
         <button onclick="clearTodayTestOrders()" title="Xóa toàn bộ đơn test để nạp lại từ đầu" class="bg-rose-900/60 hover:bg-rose-700 text-rose-300 hover:text-white text-[11px] px-2 py-1 rounded border border-rose-600/50 flex items-center gap-1 transition">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           <span class="hidden sm:inline">Xóa Đơn Test</span>
@@ -493,12 +488,14 @@
           <i data-lucide="map" class="w-3.5 h-3.5"></i> <span id="textToggleMiniMap">Ẩn Map</span>
         </button>
         <button onclick="openDistModal()" title="Đo khoảng cách" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] px-2 py-1.5 rounded-lg border border-blue-600">📏</button>
+        <button onclick="driverResort()" title="Sắp lại các điểm chưa giao từ vị trí hiện tại" class="bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-2 py-1.5 rounded-lg border border-amber-300">🔀<span class="hidden sm:inline"> Sắp lại</span></button>
         <button onclick="refreshDriverData()" class="bg-blue-800 hover:bg-blue-900 text-white text-[11px] p-2 rounded-lg border border-blue-600">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         </button>
       </div>
     </header>
 
+    <div id="drvSkewBar" class="hidden bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1.5 text-center"></div>
     <!-- BẢN ĐỒ THU NHỎ CHO TÀI XẾ -->
     <div id="drvMiniMapContainer" class="relative shrink-0 border-b border-slate-300 shadow-inner">
       <div id="drvMiniMap"></div>
@@ -872,6 +869,7 @@
     <label class="block">Địa chỉ<textarea id="ecAddr" rows="2" class="w-full border rounded p-1.5 mt-0.5"></textarea></label> 
 <div class="flex flex-wrap gap-x-4 gap-y-1 py-1 font-semibold">
   <label class="flex items-center gap-1"><input type="checkbox" id="ecTagLunch"> 🕛 Hay nghỉ trưa</label>
+  <span class="flex items-center gap-1 font-normal">từ <input type="time" id="ecLunchFrom" value="12:00" class="border rounded px-1 py-0.5"> đến <input type="time" id="ecLunchTo" value="14:30" class="border rounded px-1 py-0.5"></span>
   <label class="flex items-center gap-1"><input type="checkbox" id="ecTagNoDebt"> ⛔ Nợ xấu / Không công nợ</label>
 </div>
     <label class="block">Tọa độ / Link Google Maps<input id="ecCoords" type="text" placeholder="11.xxxx, 106.xxxx" class="w-full border rounded p-1.5 mt-0.5 font-mono"></label>
@@ -885,35 +883,6 @@
     </div>
   </div>
 </div>
-
-  <!-- MODAL ĐỒNG BỘ CLOUD -->
-  <div id="syncModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
-    <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-          <i data-lucide="cloud" class="w-4 h-4 text-emerald-600"></i> Đồng Bộ Dữ Liệu Kế Toán & Quản Lý
-        </h3>
-        <button onclick="closeSyncModal()" class="text-slate-400 hover:text-slate-600">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-      </div>
-      <div class="space-y-2 text-xs">
-        <div class="p-2 bg-slate-50 border rounded-xl space-y-1.5">
-          <div class="font-bold text-slate-700">1. Máy gửi (Kế toán sau khi xếp xong):</div>
-          <button onclick="copySyncDataToClipboard()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded-lg font-bold shadow transition">
-            Sao Chép Mã Đồng Bộ Toàn Bộ
-          </button>
-        </div>
-        <div class="p-2 bg-slate-50 border rounded-xl space-y-1.5">
-          <div class="font-bold text-slate-700">2. Máy nhận (Quản lý / Thiết bị khác):</div>
-          <textarea id="syncDataInputArea" rows="3" placeholder="Dán mã đồng bộ vào đây rồi bấm Nạp..." class="w-full p-2 border rounded-lg text-xs bg-white"></textarea>
-          <button onclick="applySyncDataFromText()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-lg font-bold shadow transition">
-            Nạp & Đồng Bộ Vĩnh Viễn
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- PRINT CONTAINER -->
   <div id="printArea" class="hidden"></div>
@@ -1128,11 +1097,12 @@
       const { data, error } = await db.from('daily_orders').select('session_data').eq('order_date', today).maybeSingle();
       if (error) throw error;
       if (data && data.session_data && Array.isArray(data.session_data.allMergedStops)) applySession(data.session_data);
-      const { data: rows, error: e2 } = await db.from('dispatch_sessions').select('truck_id,stops').eq('order_date', today);
+      const { data: rows, error: e2 } = await db.from('dispatch_sessions').select('truck_id,stops,resort_info,driver_skew_min').eq('order_date', today);
       if (e2) throw e2;
       const byId = new Map(allMergedStops.map(s => [s.canonicalId, s]));
       (rows || []).forEach(r => {
         const tr = fleet.find(t => t.id === Number(r.truck_id));
+        if (tr) { tr.clockSkew = r.driver_skew_min || 0; const ri = r.resort_info; if (ri && ri.id && ri.id !== tr.lastResortId && ri.trip === (tr.tripNo || 1) && (tr.stops || []).length) adoptResortOrder(tr, r.stops, ri); }
         (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
           const m = byId.get(rs.canonicalId);
           if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
@@ -1245,6 +1215,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       setTimeout(() => { try { initMap(); renderRouteOnMap(); } catch (e) {} }, 150);
       refreshAllViews();
       const res = await reloadAllFromCloud();
+      syncServerTime();
       if (res) await seedAfterFirstLoad(res);
     }
 
@@ -1255,10 +1226,9 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
-      s.doneAt = new Date().toISOString();
+      s.doneAt = nowIso();
       s.status = status; s.failedReason = reason || '';
       s.collected = status === 'success' ? (collected == null ? (parseFloat(s.totalCod) || 0) : collected) : null; s.pay = status === 'success' ? normPay(pay) : null;
-      recordDeliveryHistory(s);
       renderDriverAppCards();
       pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected, pay: s.pay, doneAt: s.doneAt });
       await flushDriverSync();
@@ -1268,11 +1238,10 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       const o = (s && Array.isArray(s.orders)) ? s.orders.find(x => x.inv === inv) : null; if (!o) return;
-      o.doneAt = new Date().toISOString();
+      o.doneAt = nowIso();
       o.status = status; o.failedReason = status === 'failed' ? (reason || '') : '';
       o.collected = status === 'success' ? (collected == null ? (parseFloat(o.cod) || 0) : collected) : null; o.pay = status === 'success' ? normPay(pay) : null;
       recomputeStopFromOrders(s); s.doneAt = o.doneAt;
-      if (s.status !== 'pending') recordDeliveryHistory(s);
       if (_opId === canonicalId) { const cur = s.orders[_opIdx]; if (cur && cur.inv === inv) { const nx = s.orders.findIndex((x, i) => i > _opIdx && x.status === 'pending'); if (nx >= 0) _opIdx = nx; } }
       renderDriverAppCards(); renderOrdersPopup();
       pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, pay: s.pay || null, orders: orderStates(s), doneAt: s.doneAt });
@@ -1290,22 +1259,23 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (driverLinkDead(data)) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
-        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = v.doneAt || new Date().toISOString(); } });
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = v.doneAt || nowIso(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
           order_date: date, truck_id: Number(activeTruckId),
           truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
           driver_phone: (data && data.driver_phone) || truck.phone, plate: (data && data.plate) || truck.plate,
-          max_capacity: (data && data.max_capacity) || truck.maxCapacity, stops, updated_at: new Date().toISOString()
+          max_capacity: (data && data.max_capacity) || truck.maxCapacity, stops, driver_skew_min: clockSkewMin(), updated_at: new Date().toISOString()
         }, { onConflict: 'order_date,truck_id' });
         if (e2) throw e2;
         batch.forEach((v, k) => { if (pendingDriverSync.get(k) === v) pendingDriverSync.delete(k); });
       } catch (e) { console.warn('Chưa gửi được trạng thái lên Cloud, sẽ tự thử lại:', e); }
       finally { _drvFlushing = false; }
     }
-    setInterval(() => { if (isDriverMode) flushDriverSync(); }, 15000);
+    setInterval(() => { if (isDriverMode) { syncServerTime(); flushDriverSync(); } }, 15000);
 
     async function driverCloudRefresh(silent) {
       if (!(await ensureSupabase())) { if (!silent) alert('Chưa kết nối được Cloud. Đang hiển thị dữ liệu đã lưu trong link.'); return; }
+      syncServerTime();
       try {
         const dep = await db.from('app_settings').select('setting_val').eq('key_name', 'warehouse_depot').maybeSingle();
         if (dep.data && dep.data.setting_val && dep.data.setting_val.lat) warehouseDepot = dep.data.setting_val;
@@ -1373,7 +1343,6 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     const STORAGE_KEY_FLEET = "FMCG_FLEET_CONFIG_V4";
     const STORAGE_KEY_SESSION = "FMCG_DAILY_SESSION_V4";
     const STORAGE_KEY_DEPOT = "FMCG_WAREHOUSE_DEPOT_V4";
-    const STORAGE_KEY_HISTORY = "FMCG_DELIVERY_HISTORY_30D_V4";
 
     let masterGpsMap = new Map();
     let salePhoneMap = {};
@@ -1479,7 +1448,6 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     function invCountOf(s) { const n = (s && s.invoices) ? (s.invoices.size != null ? s.invoices.size : (s.invoices.length || 0)) : 0; return Math.max(n, (s && Array.isArray(s.orders)) ? s.orders.length : 0); }
     function isMultiOrder(s) { return !!(s && Array.isArray(s.orders) && s.orders.length >= 2); }
     function orderCollected(o) { if (!o || o.status !== 'success') return 0; const c = parseFloat(o.cod) || 0; return (o.collected == null || o.collected === '') ? c : Math.max(0, Math.min(c, parseFloat(o.collected) || 0)); }
-    function codDueOf(s) { return isMultiOrder(s) ? s.orders.filter(o => o.status === 'success').reduce((a, o) => a + (parseFloat(o.cod) || 0), 0) : (parseFloat(s.totalCod) || 0); }
     function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected, pay: o.pay || null, doneAt: o.doneAt || '' })); }
     // Tổng hợp trạng thái cả điểm từ các đơn: còn đơn chờ => pending; xong hết: có đơn giao được => success (giao 1 phần nếu có đơn hỏng); không đơn nào giao được => failed
     function recomputeStopFromOrders(s) {
@@ -2056,7 +2024,7 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
     }
     function vnNowHour() {   // giờ hiện tại dạng số thập phân (13.5 = 13h30); trước 6h sáng coi như xuất phát 7h30
       try {
-        const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+        const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(nowMs()));
         const v = (parseInt(p.find(x => x.type === 'hour').value, 10) % 24) + parseInt(p.find(x => x.type === 'minute').value, 10) / 60;
         return v < 6 ? 7.5 : v;
       } catch (e) { return 7.5; }
@@ -2068,13 +2036,13 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
       const D = P.map(a => P.map(b => distKm(a, b)));
       let route = [], cur = 0; const left = new Set(); for (let i = 1; i <= n; i++) left.add(i);
       while (left.size) { let bi = -1, bd = Infinity; left.forEach(i => { if (D[cur][i] < bd) { bd = D[cur][i]; bi = i; } }); route.push(bi); left.delete(bi); cur = bi; }
-      const LUNCH_FROM = 12, LUNCH_TO = 14.5, DEPART = vnNowHour(), SPEED = 25, SERVICE = 0.15, LUNCH_PENALTY = 500;  // giờ, km/h, giờ/điểm, km phạt
+      const DEPART = vnNowHour(), SPEED = 25, SERVICE = 0.15, LUNCH_PENALTY = 500;  // giờ, km/h, giờ/điểm, km phạt
 const cost = r => {
   let c = 0, p = 0, t = DEPART;
   for (const i of r) {
     const d = D[p][i]; c += d; t += d / SPEED;
     const tg = stops[i - 1].tags;
-    if (tg && tg.includes('lunch') && t < LUNCH_TO && t + SERVICE > LUNCH_FROM) { c += LUNCH_PENALTY; t = LUNCH_TO; }   // rơi vào 12h00-14h30 => phạt nặng (né), nếu bất khả kháng thì tính chờ đến 14h30
+    if (tg && tg.includes('lunch')) { const lr = lunchRangeOf(tg); if (t < lr.to && t + SERVICE + LUNCH_BUF > lr.from) { c += LUNCH_PENALTY; t = lr.to; } }   // rơi vào 12h00-14h30 => phạt nặng (né), nếu bất khả kháng thì tính chờ đến 14h30
     t += SERVICE; p = i;
   }
   return c + D[p][n + 1];
@@ -2623,7 +2591,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
     // =========================================================================
     let AUTH = null, _authResolve = null, _authGuardsOn = false;
     const AUTH_KEY = 'npp_auth_session';
-    const ROLE_LABEL = { super: 'Super Admin', admin: 'Admin', accountant: 'Kế toán' };
+    const ROLE_LABEL = { super: 'Super Admin', admin: 'Admin', accountant: 'Kế toán', driver: 'Tài xế' };
     const PERM_DEFS = { edit_pin: 'Sửa KH / đổi điểm GPS', merge_dup: 'Gộp trùng (GPS & mã KiotViet)' };
 
     async function authSha(salt, pass) {
@@ -2655,7 +2623,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       openDepotModal: ['admin', ''], saveDepotCoordinates: ['admin', 'Cập nhật vị trí kho'],
       promptMasterAdmin: ['admin', 'Mở Quản trị Master'], saveSingleMasterFromAdmin: ['admin', 'Sửa Master 1 điểm'],
       forcePushLocalMasterToCloud: ['admin', 'Đẩy Master từ máy lên Cloud'], restoreMasterBackupFromCloud: ['admin', 'Khôi phục Master từ backup'],
-      openSyncModal: ['admin', ''], resetApp: ['admin', ''], clearTodayTestOrders: ['admin', ''], completeTrip: ['admin', ''],
+      resetApp: ['admin', ''], clearTodayTestOrders: ['admin', ''], completeTrip: ['admin', ''],
       openFleetConfigModal: ['admin', ''], closeFleetModal: ['admin', ''], addNewVehicle: ['admin', ''], removeVehicle: ['admin', ''], updateVehicle: ['admin', ''],
       geoDeleteCustomer: ['admin', 'Xóa khách khỏi Master'],
       openUsersModal: ['admin', ''], openLogModal: ['admin', ''],
@@ -2676,7 +2644,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       geoDeleteCustomer: a => String(a[0] || ''), saveDepotCoordinates: () => ''
     };
     // Nút nào bị ẩn hẳn khi không đủ quyền (nút tạo động cũng bị ẩn nhờ CSS)
-    const ACL_HIDE = ['openDepotModal', 'promptMasterAdmin', 'openSyncModal', 'resetApp', 'clearTodayTestOrders', 'completeTrip', 'openFleetConfigModal',
+    const ACL_HIDE = ['openDepotModal', 'promptMasterAdmin', 'resetApp', 'clearTodayTestOrders', 'completeTrip', 'openFleetConfigModal',
       'openAliasModal', 'openEditCustomer', 'promptEditStopCoordinates', 'geoMergeGroup', 'geoDeleteCustomer', 'geoPickFor'];
 
     function authInstallGuards() {
@@ -2900,6 +2868,123 @@ while (improved && pass < 80 && performance.now() < deadline) {
     document.addEventListener('visibilitychange', () => { if (isDriverMode && !driverLinkEnded && driverOrderDate() !== getTodayString()) markDriverLinkEnded(); });
     // [/PATCH 2]
 
+    // =========================================================================
+    // [PATCH 5] GIỜ CHUẨN TỪ MÁY CHỦ (không phụ thuộc đồng hồ điện thoại tài xế)
+    // =========================================================================
+    let _srv = null;
+    async function syncServerTime() {
+      try {
+        if (!db && !(await ensureSupabase())) return;
+        const p0 = performance.now();
+        const { data, error } = await db.rpc('server_now');
+        if (error || !data) return;
+        const p1 = performance.now(), t = new Date(data).getTime();
+        if (!isFinite(t)) return;
+        _srv = { t: t + (p1 - p0) / 2, p: p1 };      // giờ máy chủ tại thời điểm p1 (bù nửa độ trễ mạng)
+        if (isDriverMode) drvUpdateSkewBar();
+      } catch (e) {}
+    }
+    function nowMs() { return _srv ? _srv.t + (performance.now() - _srv.p) : Date.now(); }   // performance.now() không bị đổi khi chỉnh giờ máy
+    function nowIso() { return new Date(nowMs()).toISOString(); }
+    function clockSkewMin() { return _srv ? Math.round((Date.now() - nowMs()) / 60000) : 0; }
+    function drvUpdateSkewBar() {
+      const b = document.getElementById('drvSkewBar'); if (!b) return;
+      const m = clockSkewMin();
+      if (Math.abs(m) >= 2) { b.textContent = '⚠ Đồng hồ máy lệch ' + Math.abs(m) + ' phút so với giờ chuẩn. Giờ giao vẫn được ghi theo giờ chuẩn; nên bật giờ tự động trong Cài đặt.'; b.classList.remove('hidden'); }
+      else b.classList.add('hidden');
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncServerTime(); });
+    window.addEventListener('online', () => { syncServerTime(); });
+    setInterval(() => { if (!isDriverMode) syncServerTime(); }, 300000);
+
+    // =========================================================================
+    // [PATCH 6] GIỜ NGHỈ TRƯA RIÊNG TỪNG KHÁCH (lưu trong tags dạng "lunch=11:30-13:30") + ĐỆM 20 PHÚT
+    // =========================================================================
+    const LUNCH_DEFAULT = { from: 12, to: 14.5 }, LUNCH_BUF = 1 / 3;
+    function hmToNum(s) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '')); return m ? (+m[1]) + (+m[2]) / 60 : null; }
+    function numToHM(n) { const tm = Math.round(n * 60); return String(Math.floor(tm / 60)).padStart(2, '0') + ':' + String(tm % 60).padStart(2, '0'); }
+    function lunchRangeOf(tags) {
+      for (const t of (tags || [])) {
+        const m = /^lunch=(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(String(t));
+        if (m) { const a = hmToNum(m[1]), b = hmToNum(m[2]); if (a != null && b != null && b > a) return { from: a, to: b, custom: true }; }
+      }
+      return { from: LUNCH_DEFAULT.from, to: LUNCH_DEFAULT.to, custom: false };
+    }
+    function lunchTextOf(tags) { const r = lunchRangeOf(tags); return numToHM(r.from) + '–' + numToHM(r.to); }
+    // Mô phỏng 1 chuỗi điểm từ vị trí start: tổng km (chim bay) + số khách nghỉ trưa bị đụng giờ
+    function simRoute(start, list) {
+      let p = start, t = vnNowHour(), km = 0, hits = 0;
+      for (const s of list) {
+        const d = distKm(p, s); km += d; t += d / 25;
+        if (s.tags && s.tags.includes('lunch')) { const lr = lunchRangeOf(s.tags); if (t < lr.to && t + 0.15 + LUNCH_BUF > lr.from) { hits++; t = lr.to; } }
+        t += 0.15; p = s;
+      }
+      km += distKm(p, depotPt());
+      return { km, hits };
+    }
+
+    // =========================================================================
+    // [PATCH 7] TÀI XẾ CHỦ ĐỘNG SẮP LẠI TUYẾN (các điểm chưa giao) + BÁO KẾ TOÁN
+    // =========================================================================
+    async function driverResort() {
+      if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi.');
+      const truck = fleet.find(t => t.id === activeTruckId); if (!truck) return;
+      const ordered = (truck.stops || []).slice().sort((a, b) => (a.stopSeq || 0) - (b.stopSeq || 0));
+      const pend = ordered.filter(s => s.status === 'pending' && s.isMapped && s.lat && s.lon);
+      if (pend.length < 2) return alert('Cần ít nhất 2 điểm chưa giao có tọa độ để sắp lại.');
+      let pos = await getMyPos(), from = 'vị trí GPS của bạn';
+      if (!pos) {
+        const last = ordered.filter(s => s.status !== 'pending' && s.isMapped && s.lat).sort((a, b) => String(b.doneAt || '').localeCompare(String(a.doneAt || '')))[0];
+        if (last) { pos = { lat: last.lat, lon: last.lon }; from = 'điểm vừa giao xong (không lấy được GPS)'; } else { pos = depotPt(); from = 'kho (không lấy được GPS)'; }
+      }
+      await syncServerTime();
+      const before = simRoute(pos, pend), newOrder = orderStops(pend, pos), after = simRoute(pos, newOrder);
+      if (newOrder.every((s, i) => s.canonicalId === pend[i].canonicalId)) return alert('Thứ tự hiện tại đã tối ưu từ ' + from + ', không cần đổi.');
+      const hm = numToHM(vnNowHour());
+      if (!(await appConfirm(`SẮP LẠI ${pend.length} ĐIỂM CHƯA GIAO\nBắt đầu từ ${from}, lúc ${hm}\n\n• Quãng đường: ${before.km.toFixed(1)} → ${after.km.toFixed(1)} km (ước tính chim bay)\n• Khách nghỉ trưa bị đụng giờ: ${before.hits} → ${after.hits}\n\nÁp dụng thứ tự mới? Kế toán sẽ được báo.`))) return;
+      const doneFirst = ordered.filter(s => s.status !== 'pending'), noGps = ordered.filter(s => s.status === 'pending' && !pend.includes(s));
+      const seqd = [...doneFirst, ...newOrder, ...noGps], seq = new Map(seqd.map((s, i) => [s.canonicalId, i + 1]));
+      const info = { id: genLinkKey(), at: nowIso(), trip: driverTripNo, n: pend.length, kmOld: +before.km.toFixed(1), kmNew: +after.km.toFixed(1), hitsOld: before.hits, hitsNew: after.hits };
+      if (!(await driverPushOrder(truck, seq, info))) return;
+      seqd.forEach((s, i) => { s.stopSeq = i + 1; });
+      truck.stops = seqd;
+      renderDriverAppCards();
+      alert('Đã sắp lại tuyến và báo cho kế toán.');
+    }
+    async function driverPushOrder(truck, seq, info) {
+      if (!(await ensureSupabase())) { alert('Chưa kết nối được Cloud nên chưa gửi được thứ tự mới. Thử lại khi có mạng.'); return false; }
+      const date = driverOrderDate();
+      const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', date).eq('truck_id', activeTruckId).maybeSingle();
+      if (error || !data) { alert('Không tải được dữ liệu xe từ Cloud. Thử lại.'); return false; }
+      if (driverLinkDead(data)) { markDriverLinkEnded(); return false; }
+      const stops = (data.stops || []).map(s => Object.assign({}, s, { stopSeq: seq.has(s.canonicalId) ? seq.get(s.canonicalId) : s.stopSeq })).sort((a, b) => (a.stopSeq || 0) - (b.stopSeq || 0));
+      const up = await db.from('dispatch_sessions').update({ stops, resort_info: info, updated_at: new Date().toISOString() }).eq('order_date', date).eq('truck_id', activeTruckId);
+      if (up.error) { alert('Lỗi gửi thứ tự mới: ' + up.error.message + ' — đã chạy file setup3.sql chưa?'); return false; }
+      try { await db.from('activity_log').insert({ username: 'driver:' + activeTruckId, display_name: ((truck.name || '') + ' • ' + (truck.driver || '')).trim(), role: 'driver', action: 'Tài xế sắp lại tuyến', detail: `${info.n} điểm, ${info.kmOld}→${info.kmNew} km, nghỉ trưa bị đụng ${info.hitsOld}→${info.hitsNew}` }); } catch (e) {}
+      return true;
+    }
+    // Máy kế toán nhận thứ tự mới từ tài xế (và không ghi đè lại bằng thứ tự cũ)
+    function adoptResortOrder(truck, cloudStops, info) {
+      if (!truck || !info || !Array.isArray(cloudStops)) return false;
+      const seq = new Map(cloudStops.filter(x => (x.tripNo || 1) === (truck.tripNo || 1)).map(x => [x.canonicalId, x.stopSeq]));
+      let max = 0; seq.forEach(v => { if (v > max) max = v; });
+      truck.stops.forEach(s => { if (seq.has(s.canonicalId)) s.stopSeq = seq.get(s.canonicalId); else s.stopSeq = ++max; });
+      truck.stops.sort((a, b) => (a.stopSeq || 0) - (b.stopSeq || 0));
+      truck.lastResortId = info.id; truck.lastResort = info;
+      resortNotify(truck, info);
+      return true;
+    }
+    function resortNotify(truck, info) {
+      try {
+        const msg = `🔄 ${truck.name}${truck.driver ? ' (' + truck.driver + ')' : ''} vừa SẮP LẠI TUYẾN lúc ${fmtHM(info.at)}: ${info.n} điểm chưa giao, ${info.kmOld}→${info.kmNew} km` + ((info.hitsOld || info.hitsNew) ? `, khách nghỉ trưa bị đụng ${info.hitsOld}→${info.hitsNew}` : '');
+        let box = document.getElementById('resortBanner');
+        if (!box) { box = document.createElement('div'); box.id = 'resortBanner'; box.className = 'fixed left-2 bottom-24 md:bottom-4 z-[2500] flex flex-col gap-1.5 max-w-[92vw] md:max-w-sm'; document.body.appendChild(box); }
+        const el = document.createElement('div');
+        el.className = 'bg-amber-500 text-white text-xs font-bold rounded-xl shadow-xl px-3 py-2 flex items-start gap-2 cursor-pointer';
+        el.innerHTML = '<span class="flex-1">' + esc(msg) + '</span><span>✕</span>'; el.onclick = () => el.remove(); box.appendChild(el);
+      } catch (e) {}
+    }
+
 window.addEventListener('DOMContentLoaded', () => {
       bootstrapApp().catch(err => { console.error(err); hideBoot(); setCloudStatus(false, 'Lỗi khởi tạo: ' + (err.message || err)); });
     });
@@ -3014,14 +3099,6 @@ function markDriverLinkEnded() {
   renderDriverAppCards();
 }
 
-function isTokenExpired(token) {
-  try {
-    let data = JSON.parse(decodeURIComponent(escape(atob(token))));
-    return data.createdAt ? ((Date.now() - data.createdAt) / 3600000) > 48 : false;
-  } catch (e) {
-    return false;
-  }
-}
 
 function buildDriverFullUrl(truck) {
   // Link ngắn: đơn hàng đọc từ Supabase (dispatch_sessions), không nhúng dữ liệu vào link nữa
@@ -3102,6 +3179,7 @@ async function completeTrip(truckId) {
   });
   logAct('Hoàn tất chuyến', truck.name + ' (chuyến ' + tripNo + ')');
   truck.stops = []; truck.linkIssued = false; truck.linkToken = null; truck.tripNo = tripNo + 1;
+  truck.lastResort = null; truck.lastResortId = null;
   truck.linkKey = null; await lockDriverLinkCloud(truck.id);
   refreshAllViews();
   await savePermanentEdits();
@@ -3246,7 +3324,7 @@ function renderDriverAppCards() {
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
         </div>
 ${(s.tags || []).includes('nodebt') ? '<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⛔ Khách không công nợ: CHỈ GIAO KHI THU ĐỦ TIỀN</div>' : ''}
-${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">🕛 Hay nghỉ trưa (12h00–14h30): ghé trước hoặc sau giờ này</div>' : ''}
+${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">🕛 Hay nghỉ trưa (' + lunchTextOf(s.tags) + '): ghé trước hoặc sau giờ này</div>' : ''}
         <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl text-xs">
           <div>
             <span class="text-[10px] text-slate-400 uppercase font-bold">Cần thu COD:</span>
@@ -3305,8 +3383,9 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
   const tripNo = truck.tripNo || 1;
   try {
     // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
-    const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
+    const { data: cur } = await db.from('dispatch_sessions').select('stops,resort_info').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
     const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
+    { const ri = cur && cur.resort_info; if (ri && ri.id && ri.id !== truck.lastResortId && ri.trip === (truck.tripNo || 1) && (truck.stops || []).length) adoptResortOrder(truck, cur.stops, ri); }   // không ghi đè thứ tự mới của tài xế
     (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; s.pay = normPay(c.pay); s.doneAt = c.doneAt || s.doneAt || ''; } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
@@ -3493,11 +3572,6 @@ async function submitDriverRejectReason(reason) {
     // -------------------------------------------------------------------------
     // 10. GIAO DIỆN BÁO CÁO & HIỂN THỊ DANH SÁCH ĐƠN
     // -------------------------------------------------------------------------
-    function changeDashboardDateRange(range) {
-      currentHistoryRange = range;
-      updateDashboardReport();
-    }
-
     function toggleFailureAnalysis() {
       let list = document.getElementById('failureReasonsBarList');
       let icon = document.getElementById('iconToggleFailure');
@@ -3696,7 +3770,7 @@ async function submitDriverRejectReason(reason) {
 
       if (elName) elName.innerText = `${truck.name} (${truck.plate}) • Chuyến ${truck.tripNo || 1}`;
       const btnDone = document.getElementById('btnCompleteTrip'); if (btnDone) btnDone.classList.toggle('hidden', truck.stops.length === 0);
-      if (elDriver) elDriver.innerText = `• ${truck.driver} ${normalizePhone(truck.phone)}`;
+      if (elDriver) elDriver.innerText = `• ${truck.driver} ${normalizePhone(truck.phone)}` + (truck.lastResort ? ` • 🔄 sắp lại tuyến lúc ${fmtHM(truck.lastResort.at)}` : '') + (Math.abs(truck.clockSkew || 0) >= 2 ? ` • ⚠ đồng hồ máy tài xế lệch ${Math.abs(truck.clockSkew)} phút` : '');
       if (elLoad) elLoad.innerText = `${Math.round(totalLoad)}/${truck.maxCapacity}`;
       if (elBar) {
         elBar.style.width = pct + '%';
@@ -3886,7 +3960,7 @@ async function submitDriverRejectReason(reason) {
           const has = fleet.some(t => t.id === x.truckId);
           if (flt.truck === 'none' ? has : x.truckId !== Number(flt.truck)) return false;
         }
-        if (q && !vnNorm([x.custName, x.canonicalId, x.baseId, x.phone, x.addr, x.saleName, (x.tags || []).map(g => g === 'lunch' ? 'nghi trua' : 'no xau khong cong no').join(' ')].join(' ')).includes(q)) return false;
+        if (q && !vnNorm([x.custName, x.canonicalId, x.baseId, x.phone, x.addr, x.saleName, (x.tags || []).filter(g => g === 'lunch' || g === 'nodebt').map(g => g === 'lunch' ? 'nghi trua' : 'no xau khong cong no').join(' ')].join(' ')).includes(q)) return false;
         return true;
       });
       const d = depotPt(), dist = x => x.isMapped ? calcDistanceKm(d.lat, d.lon, x.lat, x.lon) : 1e9;
@@ -3958,7 +4032,7 @@ return `
       return `<span class="text-[10px] text-white font-bold px-1.5 py-0.5 rounded" style="background:${stopColor(s)}">Chưa giao</span>`;
     }
 const TAG_DEFS = { lunch: { label: '🕛 Nghỉ trưa', cls: 'bg-amber-100 text-amber-800' }, nodebt: { label: '⛔ Không công nợ', cls: 'bg-rose-100 text-rose-800' } };
-function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t => `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${TAG_DEFS[t].cls}">${TAG_DEFS[t].label}</span>`).join(''); }
+function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t => `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${TAG_DEFS[t].cls}">${TAG_DEFS[t].label}${t === 'lunch' ? ' ' + lunchTextOf(tags) : ''}</span>`).join(''); }
     function truckDot(id) { return `<span style="background:${truckColor(id)}" class="w-2.5 h-2.5 rounded-full inline-block border border-white shrink-0"></span>`; }
     function isPendingStop(s) { return !s.archived && s.status === 'pending'; }
     function stopPinHtml(s, sel, dim) {
@@ -4678,6 +4752,7 @@ function openEditCustomer(canonicalId, ev) {
   document.getElementById('ecPhone').value = normalizePhone(s.phone) || '';
   document.getElementById('ecAddr').value = s.addr || ''; 
 document.getElementById('ecTagLunch').checked = (s.tags || []).includes('lunch');
+{ const _lr = lunchRangeOf(s.tags); document.getElementById('ecLunchFrom').value = numToHM(_lr.from); document.getElementById('ecLunchTo').value = numToHM(_lr.to); }
 document.getElementById('ecTagNoDebt').checked = (s.tags || []).includes('nodebt');
   document.getElementById('ecCoords').value = s.isMapped ? `${s.lat}, ${s.lon}` : '';
   const a = document.getElementById('ecMapLink');
@@ -4705,7 +4780,12 @@ async function saveEditCustomer(mode) {
   const coordsStr = document.getElementById('ecCoords').value.trim();
   if (!name) return alert('Tên quán không được để trống!');
 const tags = [];
-if (document.getElementById('ecTagLunch').checked) tags.push('lunch');
+if (document.getElementById('ecTagLunch').checked) {
+  tags.push('lunch');
+  const _f = document.getElementById('ecLunchFrom').value, _t = document.getElementById('ecLunchTo').value, _a = hmToNum(_f), _b = hmToNum(_t);
+  if (_a == null || _b == null || _b <= _a) return alert('Giờ nghỉ trưa không hợp lệ: "đến" phải sau "từ".');
+  if (!(_f === '12:00' && _t === '14:30')) tags.push('lunch=' + _f + '-' + _t);
+}
 if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
 
   let lat = stop.isMapped ? stop.lat : null, lon = stop.isMapped ? stop.lon : null;
@@ -5000,38 +5080,6 @@ async function removeVehicle(id) {
       }
     }
 
-    function openSyncModal() {
-      document.getElementById('syncModal').classList.remove('hidden');
-    }
-
-    function closeSyncModal() {
-      document.getElementById('syncModal').classList.add('hidden');
-    }
-
-    function copySyncDataToClipboard() {
-      const payload = { depot: warehouseDepot, aliases: Object.fromEntries(storeAliasMap), session: buildSessionPayload() };
-      navigator.clipboard.writeText(JSON.stringify(payload)).then(() => {
-        alert("ĐÃ COPY MÃ ĐỒNG BỘ TOÀN BỘ!\n\nMở máy khác và dán vào ô 'Máy nhận' (dự phòng - bình thường Cloud tự đồng bộ).");
-      });
-    }
-
-    async function applySyncDataFromText() {
-      const raw = (document.getElementById('syncDataInputArea').value || '').trim();
-      if (!raw) return alert("Vui lòng dán mã đồng bộ vào ô trước!");
-      if (!cloudReady) return alert("Chưa kết nối Cloud, không thể nạp lúc này.");
-      try {
-        const p = JSON.parse(raw);
-        if (p.depot) warehouseDepot = p.depot;
-        if (p.aliases) storeAliasMap = new Map(Object.entries(p.aliases));
-        applySession(p.session || p);
-        _cloudHasStops = false;
-        await persistSettings(['depot', 'aliases']);
-        await savePermanentEdits();
-        alert("ĐỒNG BỘ THÀNH CÔNG VÀ ĐÃ LƯU LÊN CLOUD!");
-        location.reload();
-      } catch (err) { alert("Mã đồng bộ không hợp lệ: " + err.message); }
-    }
-
     function openGoogleNavMultiStop() {
       let truck = fleet.find(t => t.id === activeTruckId);
       if (!truck) return;
@@ -5223,8 +5271,7 @@ async function removeVehicle(id) {
       let curMonth = getTodayString().substring(0, 7);
       let lastMonth = localStorage.getItem("FMCG_LAST_ACTIVE_MONTH");
       if (lastMonth && lastMonth !== curMonth) {
-        let oldHistory = localStorage.getItem(STORAGE_KEY_HISTORY);
-        if (oldHistory) localStorage.setItem(`FMCG_ARCHIVE_${lastMonth}`, oldHistory);
+        try { localStorage.removeItem('FMCG_DELIVERY_HISTORY_30D_V4'); } catch (e) {}
         localStorage.removeItem(STORAGE_KEY_SESSION);
         allMergedStops = [];
         fleet.forEach(t => t.stops = []);
@@ -5232,24 +5279,6 @@ async function removeVehicle(id) {
       localStorage.setItem("FMCG_LAST_ACTIVE_MONTH", curMonth);
     }
 
-    function recordDeliveryHistory(stop) {
-      try {
-        let history = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || "[]");
-        history.push({
-          date: getTodayString(),
-          stopId: stop.canonicalId,
-          custName: stop.custName,
-          status: stop.status,
-          failedReason: stop.failedReason || '',
-          cod: stop.totalCod,
-          qty: stop.totalQty,
-          timestamp: Date.now()
-        });
-        let cutoff = Date.now() - (30 * 86400000);
-        history = history.filter(h => h.timestamp >= cutoff);
-        localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
-      } catch (e) {}
-    }
 
     
 
