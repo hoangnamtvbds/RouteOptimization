@@ -79,6 +79,20 @@
     </div>
   </div>
 
+  <div id="authMyPassModal" class="hidden fixed inset-0 z-[9600] bg-black/60 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-2.5">
+      <h3 id="mpTitle" class="font-bold text-sm text-slate-800"></h3>
+      <input id="mpOld" type="password" autocomplete="current-password" placeholder="Mật khẩu hiện tại (hoặc mật khẩu tạm)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm select-text">
+      <input id="mpNew" type="password" autocomplete="new-password" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm select-text">
+      <input id="mpNew2" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm select-text" onkeydown="if(event.key==='Enter')authSubmitMyPass()">
+      <div id="mpErr" class="text-xs text-rose-600 font-semibold min-h-[16px]"></div>
+      <div class="flex gap-2">
+        <button id="mpCancel" onclick="closeMyPassModal()" class="flex-1 border rounded-lg py-2 text-sm">Hủy</button>
+        <button onclick="authSubmitMyPass()" class="flex-1 bg-blue-600 text-white font-bold rounded-lg py-2 text-sm">Đổi mật khẩu</button>
+      </div>
+    </div>
+  </div>
+
   <div id="authUsersModal" class="hidden fixed inset-0 z-[3000] bg-black/50 flex items-center justify-center p-3">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
       <div class="flex items-center justify-between px-4 py-3 border-b">
@@ -149,6 +163,7 @@
         <!-- [PATCH 1] thanh tài khoản -->
         <div id="authBar" class="hidden items-center gap-1.5 mr-1">
           <span id="authChip" class="hidden md:inline text-[11px] bg-slate-800 text-slate-200 px-2 py-1 rounded border border-slate-700"></span>
+          <button onclick="openMyPassModal()" title="Đổi mật khẩu của tôi" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">🔑<span class="hidden sm:inline"> Đổi MK</span></button>
           <button id="btnAuthUsers" onclick="openUsersModal()" title="Quản lý tài khoản" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">👥<span class="hidden sm:inline"> Tài khoản</span></button>
           <button id="btnAuthLog" onclick="openLogModal()" title="Nhật ký thao tác" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">📜<span class="hidden sm:inline"> Nhật ký</span></button>
           <button onclick="authLogout()" title="Đăng xuất" class="bg-slate-800 hover:bg-rose-800 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">⎋<span class="hidden sm:inline"> Thoát</span></button>
@@ -2697,7 +2712,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       if (!(await ensureSupabase())) return false;
       try {
         const { data } = await db.from('app_users').select('*').eq('id', s.id).maybeSingle();
-        if (data && data.active && data.pass_hash === s.h) { authSetSession(data); return true; }
+        if (data && data.active && !data.must_change_pw && data.pass_hash === s.h) { authSetSession(data); return true; }
       } catch (e) {}
       try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
       return false;
@@ -2718,6 +2733,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
         try { await db.from('app_users').update({ last_login: new Date().toISOString() }).eq('id', data.id); } catch (e) {}
         logAct('Đăng nhập', '');
         document.getElementById('authPass').value = '';
+        if (data.must_change_pw) { document.getElementById('authOverlay').classList.add('hidden'); await authForceChange(); }
         if (_authResolve) { const r = _authResolve; _authResolve = null; r(true); }
       } catch (e) { err.textContent = e.message || String(e); }
       finally { btn.disabled = false; btn.textContent = 'Đăng nhập'; }
@@ -2751,6 +2767,38 @@ while (improved && pass < 80 && performance.now() < deadline) {
         if (data.role !== AUTH.role || JSON.stringify(data.perms || {}) !== JSON.stringify(AUTH.perms || {})) { authSetSession(data); applyRoleUI(); }
       } catch (e) {}
     }, 60000);
+
+    // ---------- [PATCH 4] Tự đổi mật khẩu + bắt buộc đổi lần đầu / sau khi bị reset ----------
+    let _forceResolve = null;
+    function openMyPassModal(forced) {
+      ['mpOld', 'mpNew', 'mpNew2'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('mpErr').textContent = '';
+      document.getElementById('mpTitle').textContent = forced === true ? '🔑 Đặt mật khẩu mới (bắt buộc ở lần đăng nhập này)' : '🔑 Đổi mật khẩu của tôi';
+      document.getElementById('mpCancel').style.display = forced === true ? 'none' : '';
+      document.getElementById('authMyPassModal').classList.remove('hidden');
+    }
+    function closeMyPassModal() { if (_forceResolve) return; document.getElementById('authMyPassModal').classList.add('hidden'); }
+    function authForceChange() { return new Promise(r => { _forceResolve = r; openMyPassModal(true); }); }
+    async function authSubmitMyPass() {
+      const err = document.getElementById('mpErr'); err.textContent = '';
+      const o = document.getElementById('mpOld').value || '', n = document.getElementById('mpNew').value || '', n2 = document.getElementById('mpNew2').value || '';
+      if (!o) { err.textContent = 'Nhập mật khẩu hiện tại'; return; }
+      if (n.length < 6) { err.textContent = 'Mật khẩu mới tối thiểu 6 ký tự'; return; }
+      if (n !== n2) { err.textContent = 'Hai lần nhập mật khẩu mới không khớp'; return; }
+      if (n === o) { err.textContent = 'Mật khẩu mới phải khác mật khẩu cũ'; return; }
+      try {
+        const { data, error } = await db.from('app_users').select('salt,pass_hash').eq('id', AUTH.id).maybeSingle();
+        if (error || !data) throw new Error(error ? error.message : 'Không tìm thấy tài khoản');
+        if (data.pass_hash !== (await authSha(data.salt, o))) { err.textContent = 'Mật khẩu hiện tại không đúng'; return; }
+        const salt = authSalt(), hh = await authSha(salt, n);
+        const up = await db.from('app_users').update({ salt, pass_hash: hh, must_change_pw: false }).eq('id', AUTH.id);
+        if (up.error) throw new Error(up.error.message + ' — đã chạy file setup2.sql chưa?');
+        AUTH.h = hh; try { localStorage.setItem(AUTH_KEY, JSON.stringify({ id: AUTH.id, h: hh })); } catch (e) {}
+        logAct('Đổi mật khẩu của mình', '');
+        document.getElementById('authMyPassModal').classList.add('hidden');
+        if (_forceResolve) { const r = _forceResolve; _forceResolve = null; r(true); } else alert('Đã đổi mật khẩu thành công.');
+      } catch (e) { err.textContent = e.message || String(e); }
+    }
 
     // ---------- Quản lý tài khoản ----------
     function closeUsersModal() { document.getElementById('authUsersModal').classList.add('hidden'); }
@@ -2786,7 +2834,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       if (pw.length < 6) return alert('Mật khẩu tối thiểu 6 ký tự');
       if (role === 'admin' && AUTH.role !== 'super') return authDeny('super');
       const salt = authSalt();
-      const { error } = await db.from('app_users').insert({ username: un, display_name: nm || un, salt, pass_hash: await authSha(salt, pw), role, perms: {}, active: true, created_by: AUTH.username });
+      const { error } = await db.from('app_users').insert({ username: un, display_name: nm || un, salt, pass_hash: await authSha(salt, pw), role, perms: {}, active: true, must_change_pw: true, created_by: AUTH.username });
       if (error) return alert(/duplicate|unique/i.test(error.message) ? 'Tên đăng nhập này đã tồn tại, chọn tên khác.' : 'Lỗi: ' + error.message);
       logAct('Tạo tài khoản', un + ' (' + ROLE_LABEL[role] + ')');
       ['nuUser', 'nuName', 'nuPass'].forEach(id => document.getElementById(id).value = '');
@@ -2799,13 +2847,13 @@ while (improved && pass < 80 && performance.now() < deadline) {
       logAct(active ? 'Mở khóa tài khoản' : 'Khóa tài khoản', un); renderUsers();
     }
     async function authResetPass(id, un) {
-      const pw = await appPrompt('Nhập mật khẩu MỚI cho ' + un + ' (tối thiểu 6 ký tự):');
+      const pw = await appPrompt('Đặt mật khẩu TẠM cho ' + un + ' (tối thiểu 6 ký tự). Người đó sẽ bị bắt đổi lại khi đăng nhập:');
       if (pw === null) return;
       if (pw.length < 6) return alert('Mật khẩu tối thiểu 6 ký tự');
       const salt = authSalt();
-      const { error } = await db.from('app_users').update({ salt, pass_hash: await authSha(salt, pw) }).eq('id', id);
+      const { error } = await db.from('app_users').update({ salt, pass_hash: await authSha(salt, pw), must_change_pw: true }).eq('id', id);
       if (error) return alert('Lỗi: ' + error.message);
-      logAct('Đổi mật khẩu tài khoản', un); alert('Đã đổi mật khẩu. Người đó sẽ phải đăng nhập lại.');
+      logAct('Đổi mật khẩu tài khoản', un); alert('Đã đặt mật khẩu tạm. Hãy báo cho ' + un + ' mật khẩu này; họ sẽ phải tự đổi khi đăng nhập.');
     }
     async function authSetPerm(id, key, on) {
       const { data } = await db.from('app_users').select('perms,username').eq('id', id).maybeSingle(); if (!data) return;
