@@ -63,6 +63,53 @@
   </style>
 </head>
 <body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased select-none">
+
+  <!-- ===== [PATCH 1] ĐĂNG NHẬP & QUẢN LÝ TÀI KHOẢN ===== -->
+  <div id="authOverlay" class="hidden fixed inset-0 z-[9500] bg-slate-900 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-3">
+      <div class="text-center">
+        <div class="text-3xl">🚚</div>
+        <h2 class="font-extrabold text-slate-800 text-base mt-1">Điều Phối Tuyến NPP</h2>
+        <p class="text-[11px] text-slate-500">Đăng nhập để tiếp tục</p>
+      </div>
+      <input id="authUser" type="text" autocomplete="username" placeholder="Tên đăng nhập" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm select-text" onkeydown="if(event.key==='Enter')document.getElementById('authPass').focus()">
+      <input id="authPass" type="password" autocomplete="current-password" placeholder="Mật khẩu" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm select-text" onkeydown="if(event.key==='Enter')authDoLogin()">
+      <div id="authErr" class="text-xs text-rose-600 font-semibold min-h-[16px]"></div>
+      <button id="authBtn" onclick="authDoLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-2 rounded-lg">Đăng nhập</button>
+    </div>
+  </div>
+
+  <div id="authUsersModal" class="hidden fixed inset-0 z-[3000] bg-black/50 flex items-center justify-center p-3">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 class="font-bold text-sm">👥 Quản lý tài khoản</h3>
+        <button onclick="closeUsersModal()" class="text-slate-500 text-lg leading-none px-2">✕</button>
+      </div>
+      <div class="p-3 border-b bg-slate-50 grid grid-cols-2 gap-2 text-xs">
+        <input id="nuUser" placeholder="Tên đăng nhập (a-z, 0-9)" class="border rounded px-2 py-1.5 select-text">
+        <input id="nuName" placeholder="Tên hiển thị" class="border rounded px-2 py-1.5 select-text">
+        <input id="nuPass" type="text" placeholder="Mật khẩu (tối thiểu 6 ký tự)" class="border rounded px-2 py-1.5 select-text">
+        <select id="nuRole" class="border rounded px-2 py-1.5"></select>
+        <button onclick="authCreateUser()" class="col-span-2 bg-blue-600 text-white font-bold rounded py-1.5">＋ Tạo tài khoản</button>
+      </div>
+      <div id="authUsersList" class="overflow-y-auto flex-1 divide-y text-xs"></div>
+    </div>
+  </div>
+
+  <div id="authLogModal" class="hidden fixed inset-0 z-[3000] bg-black/50 flex items-center justify-center p-3">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 class="font-bold text-sm">📜 Nhật ký thao tác (300 dòng gần nhất)</h3>
+        <div class="flex items-center gap-2">
+          <button onclick="renderLogs()" class="text-xs border rounded px-2 py-1">↻ Tải lại</button>
+          <button onclick="closeLogModal()" class="text-slate-500 text-lg leading-none px-2">✕</button>
+        </div>
+      </div>
+      <div id="authLogList" class="overflow-y-auto flex-1 text-[11px]"></div>
+    </div>
+  </div>
+  <!-- ===== [/PATCH 1] ===== -->
+
   <div id="bootOverlay" class="fixed inset-0 z-[9999] bg-slate-900/90 flex flex-col items-center justify-center text-white text-sm gap-3">
     <div class="animate-spin w-8 h-8 border-4 border-white/30 border-t-white rounded-full"></div>
     <div id="bootOverlayText">Đang kết nối Cloud...</div>
@@ -99,6 +146,14 @@
 
       <!-- Quick Actions -->
       <div class="flex items-center space-x-1.5">
+        <!-- [PATCH 1] thanh tài khoản -->
+        <div id="authBar" class="hidden items-center gap-1.5 mr-1">
+          <span id="authChip" class="hidden md:inline text-[11px] bg-slate-800 text-slate-200 px-2 py-1 rounded border border-slate-700"></span>
+          <button id="btnAuthUsers" onclick="openUsersModal()" title="Quản lý tài khoản" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">👥<span class="hidden sm:inline"> Tài khoản</span></button>
+          <button id="btnAuthLog" onclick="openLogModal()" title="Nhật ký thao tác" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">📜<span class="hidden sm:inline"> Nhật ký</span></button>
+          <button onclick="authLogout()" title="Đăng xuất" class="bg-slate-800 hover:bg-rose-800 text-slate-200 text-[11px] px-2 py-1 rounded border border-slate-700">⎋<span class="hidden sm:inline"> Thoát</span></button>
+        </div>
+
         <button onclick="openDepotModal()" title="Cập nhật mốc kho NPP" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
           <i data-lucide="warehouse" class="w-3.5 h-3.5 text-amber-400"></i>
           <span class="hidden sm:inline">Vị Trí Kho</span>
@@ -1066,6 +1121,7 @@
         (r.stops || []).forEach(rs => {   // trạng thái tài xế báo là mới nhất
           const m = byId.get(rs.canonicalId);
           if (!m || m.archived || !tr || m.truckId !== tr.id || (rs.tripNo || 1) !== (tr.tripNo || 1)) return;
+          if (rs.doneAt) m.doneAt = rs.doneAt;
           if (Array.isArray(rs.orders) && rs.orders.length && isMultiOrder(m)) { if (mergeOrderStates(m, rs.orders, true)) recomputeStopFromOrders(m); return; }
           if (rs.status && rs.status !== 'pending' && m.status !== rs.status) { m.status = rs.status; m.failedReason = rs.failedReason || ''; m.collected = rs.collected == null ? null : rs.collected; m.pay = normPay(rs.pay); }
         });
@@ -1169,6 +1225,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
 
     async function bootstrapApp() {
       if (checkDriverRoutingModeSync()) { hideBoot(); return; }
+      if (!(await authGate())) return;
       loadLocalCache(); checkMonthlyAutoReset();
       setTimeout(() => { try { initMap(); renderRouteOnMap(); } catch (e) {} }, 150);
       refreshAllViews();
@@ -1183,11 +1240,12 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       if (!s) return;
+      s.doneAt = new Date().toISOString();
       s.status = status; s.failedReason = reason || '';
       s.collected = status === 'success' ? (collected == null ? (parseFloat(s.totalCod) || 0) : collected) : null; s.pay = status === 'success' ? normPay(pay) : null;
       recordDeliveryHistory(s);
       renderDriverAppCards();
-      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected, pay: s.pay });
+      pendingDriverSync.set(canonicalId, { status, failedReason: s.failedReason, collected: s.collected, pay: s.pay, doneAt: s.doneAt });
       await flushDriverSync();
     }
     async function driverApplyOrderStatus(canonicalId, inv, status, reason, collected, pay) {
@@ -1195,13 +1253,14 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (driverLinkEnded) return alert('Chuyến này đã kết thúc hoặc bị thu hồi, không thể cập nhật.');
       const s = truck ? truck.stops.find(x => x.canonicalId === canonicalId) : null;
       const o = (s && Array.isArray(s.orders)) ? s.orders.find(x => x.inv === inv) : null; if (!o) return;
+      o.doneAt = new Date().toISOString();
       o.status = status; o.failedReason = status === 'failed' ? (reason || '') : '';
       o.collected = status === 'success' ? (collected == null ? (parseFloat(o.cod) || 0) : collected) : null; o.pay = status === 'success' ? normPay(pay) : null;
-      recomputeStopFromOrders(s);
+      recomputeStopFromOrders(s); s.doneAt = o.doneAt;
       if (s.status !== 'pending') recordDeliveryHistory(s);
       if (_opId === canonicalId) { const cur = s.orders[_opIdx]; if (cur && cur.inv === inv) { const nx = s.orders.findIndex((x, i) => i > _opIdx && x.status === 'pending'); if (nx >= 0) _opIdx = nx; } }
       renderDriverAppCards(); renderOrdersPopup();
-      pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, pay: s.pay || null, orders: orderStates(s) });
+      pendingDriverSync.set(canonicalId, { status: s.status, failedReason: s.failedReason, collected: s.collected, pay: s.pay || null, orders: orderStates(s), doneAt: s.doneAt });
       await flushDriverSync();
     }
     async function flushDriverSync() {
@@ -1213,9 +1272,10 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         const date = driverOrderDate(), truck = fleet.find(t => t.id === activeTruckId) || {};
         const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', date).eq('truck_id', activeTruckId).maybeSingle();
         if (error) throw error;
+        if (driverLinkDead(data)) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops) && data.stops.length && data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo) { pendingDriverSync.clear(); markDriverLinkEnded(); return; }   // link cũ: chuyến đã đóng
         const stops = (data && Array.isArray(data.stops) && data.stops.length) ? data.stops : (truck.stops || []).map(serializeStop);
-        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = new Date().toISOString(); } });
+        batch.forEach((v, id) => { const st = stops.find(x => x.canonicalId === id); if (st) { st.status = v.status; st.failedReason = v.failedReason; st.collected = v.collected; st.pay = v.pay || null; if (v.orders && Array.isArray(st.orders)) { mergeOrderStates(st, v.orders, true); recomputeStopFromOrders(st); } st.doneAt = v.doneAt || new Date().toISOString(); } });
         const { error: e2 } = await db.from('dispatch_sessions').upsert({
           order_date: date, truck_id: Number(activeTruckId),
           truck_name: (data && data.truck_name) || truck.name, driver_name: (data && data.driver_name) || truck.driver,
@@ -1236,6 +1296,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (dep.data && dep.data.setting_val && dep.data.setting_val.lat) warehouseDepot = dep.data.setting_val;
         const { data, error } = await db.from('dispatch_sessions').select('*').eq('order_date', driverOrderDate()).eq('truck_id', activeTruckId).maybeSingle();
         if (error) throw error; driverLoaded = true;
+        if (driverLinkDead(data)) { markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops) && (data.stops.length === 0 || (data.stops[0].tripNo && data.stops[0].tripNo !== driverTripNo))) { markDriverLinkEnded(); return; }
         if (data && Array.isArray(data.stops)) {
           let truck = fleet.find(t => t.id === activeTruckId);
@@ -1396,7 +1457,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       return (Array.isArray(arr) ? arr : []).map(o => { o = o || {}; return {
         inv: String(o.inv || ''), qty: num(o.qty), cod: num(o.cod),
         status: ['pending', 'success', 'failed'].includes(o.status) ? o.status : 'pending',
-        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected), pay: normPay(o.pay),
+        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected), pay: normPay(o.pay), doneAt: o.doneAt ? String(o.doneAt) : '',
         items: (Array.isArray(o.items) ? o.items : []).map(it => ({ itemName: String((it && it.itemName) || ''), qty: num(it && it.qty), unit: String((it && it.unit) || ''), lineAmount: num(it && it.lineAmount) }))
       }; }).filter(o => o.inv);
     }
@@ -1404,7 +1465,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     function isMultiOrder(s) { return !!(s && Array.isArray(s.orders) && s.orders.length >= 2); }
     function orderCollected(o) { if (!o || o.status !== 'success') return 0; const c = parseFloat(o.cod) || 0; return (o.collected == null || o.collected === '') ? c : Math.max(0, Math.min(c, parseFloat(o.collected) || 0)); }
     function codDueOf(s) { return isMultiOrder(s) ? s.orders.filter(o => o.status === 'success').reduce((a, o) => a + (parseFloat(o.cod) || 0), 0) : (parseFloat(s.totalCod) || 0); }
-    function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected, pay: o.pay || null })); }
+    function orderStates(s) { return (s.orders || []).map(o => ({ inv: o.inv, status: o.status, failedReason: o.failedReason || '', collected: o.collected == null ? null : o.collected, pay: o.pay || null, doneAt: o.doneAt || '' })); }
     // Tổng hợp trạng thái cả điểm từ các đơn: còn đơn chờ => pending; xong hết: có đơn giao được => success (giao 1 phần nếu có đơn hỏng); không đơn nào giao được => failed
     function recomputeStopFromOrders(s) {
       if (!isMultiOrder(s)) return;
@@ -1425,6 +1486,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         if (force || o.status === 'pending') {
           const col = (st.collected == null || st.collected === '') ? null : (parseFloat(st.collected) || 0);
           const np = st.status === 'success' ? normPay(st.pay) : null; if (o.status !== st.status || (o.failedReason || '') !== (st.failedReason || '') || o.collected !== col || JSON.stringify(o.pay || null) !== JSON.stringify(np)) ch = true;
+          if (st.doneAt) o.doneAt = String(st.doneAt);
           o.status = st.status; o.failedReason = st.status === 'failed' ? String(st.failedReason || '') : ''; o.collected = st.status === 'success' ? col : null; o.pay = np;
         }
       });
@@ -1467,7 +1529,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     }
     function orderBadgeHtml(n) { return `<div style="position:absolute;bottom:-7px;right:-9px;background:#0d9488;color:#fff;border-radius:9999px;font-size:9px;font-weight:800;padding:0 4px;border:1.5px solid #fff;line-height:14px">📦${n}</div>`; }
     function orderRowsHtml(s) {
-      return s.orders.map((o, i) => `<button type="button" onclick="openOrdersPopup(${jsq(s.canonicalId)}, ${i})" class="w-full flex items-center justify-between gap-2 py-1 text-left"><span class="truncate">${orderIcon(o.status)} <strong>Đơn ${i + 1}</strong> <span class="font-mono text-slate-500">${esc(o.inv)}</span></span><span class="shrink-0 font-bold">${o.qty} Thùng • ${formatMoney(o.cod)}</span></button>`).join('');
+      return s.orders.map((o, i) => `<button type="button" onclick="openOrdersPopup(${jsq(s.canonicalId)}, ${i})" class="w-full flex items-center justify-between gap-2 py-1 text-left"><span class="truncate">${orderIcon(o.status)} <strong>Đơn ${i + 1}</strong> <span class="font-mono text-slate-500">${esc(o.inv)}</span>${o.doneAt ? ' <span class="text-slate-500">• ' + fmtHM(o.doneAt) + '</span>' : ''}</span><span class="shrink-0 font-bold">${o.qty} Thùng • ${formatMoney(o.cod)}</span></button>`).join('');
     }
     function multiOrderBtnHtml(s) {
       const n = s.orders.length, ok = s.orders.filter(o => o.status === 'success').length, bad = s.orders.filter(o => o.status === 'failed').length, done = ok + bad;
@@ -1736,7 +1798,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     }
 
     async function promptMasterAdmin() {
-      let pass = await appPrompt("Nhập mật khẩu Quản Trị Master Data GPS:");
+      let pass = "1111"; // đã có đăng nhập Admin, không hỏi mật khẩu nữa
       if (pass === "1111") {
         document.getElementById('masterAdminModal').classList.remove('hidden');
         safeRenderIcons();
@@ -1972,6 +2034,18 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
     }
     function depotPt() { return { lat: warehouseDepot.lat, lon: warehouseDepot.lon }; }
     // Sắp thứ tự các điểm: xuất phát từ `start`, đi hết các điểm rồi QUAY VỀ KHO. Nearest-neighbor + 2-opt + Or-opt (tính theo bảng khoảng cách).
+    // [PATCH 3] tiện ích giờ (giờ Việt Nam)
+    function fmtHM(iso) {
+      if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return '';
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
+    }
+    function vnNowHour() {   // giờ hiện tại dạng số thập phân (13.5 = 13h30); trước 6h sáng coi như xuất phát 7h30
+      try {
+        const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+        const v = (parseInt(p.find(x => x.type === 'hour').value, 10) % 24) + parseInt(p.find(x => x.type === 'minute').value, 10) / 60;
+        return v < 6 ? 7.5 : v;
+      } catch (e) { return 7.5; }
+    }
     function orderStops(stops, start) {
       const n = stops.length;
       if (n <= 1) return [...stops];
@@ -1979,13 +2053,13 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
       const D = P.map(a => P.map(b => distKm(a, b)));
       let route = [], cur = 0; const left = new Set(); for (let i = 1; i <= n; i++) left.add(i);
       while (left.size) { let bi = -1, bd = Infinity; left.forEach(i => { if (D[cur][i] < bd) { bd = D[cur][i]; bi = i; } }); route.push(bi); left.delete(bi); cur = bi; }
-      const LUNCH_FROM = 11, LUNCH_TO = 13.5, DEPART = 7.5, SPEED = 25, SERVICE = 0.15, LUNCH_PENALTY = 30;  // giờ, km/h, giờ/điểm, km phạt
+      const LUNCH_FROM = 12, LUNCH_TO = 14.5, DEPART = vnNowHour(), SPEED = 25, SERVICE = 0.15, LUNCH_PENALTY = 500;  // giờ, km/h, giờ/điểm, km phạt
 const cost = r => {
   let c = 0, p = 0, t = DEPART;
   for (const i of r) {
     const d = D[p][i]; c += d; t += d / SPEED;
     const tg = stops[i - 1].tags;
-    if (tg && tg.includes('lunch') && t >= LUNCH_FROM && t < LUNCH_TO) c += LUNCH_PENALTY;   // đến đúng giờ nghỉ trưa => bị phạt
+    if (tg && tg.includes('lunch') && t < LUNCH_TO && t + SERVICE > LUNCH_FROM) { c += LUNCH_PENALTY; t = LUNCH_TO; }   // rơi vào 12h00-14h30 => phạt nặng (né), nếu bất khả kháng thì tính chờ đến 14h30
     t += SERVICE; p = i;
   }
   return c + D[p][n + 1];
@@ -2528,6 +2602,256 @@ while (improved && pass < 80 && performance.now() < deadline) {
     // -------------------------------------------------------------------------
     // 8. KHỞI CHẠY HỆ THỐNG AN TOÀN & SUPABASE REALTIME
     // -------------------------------------------------------------------------
+
+    // =========================================================================
+    // [PATCH 1] ĐĂNG NHẬP & PHÂN QUYỀN 3 CẤP (bảng app_users, không dùng RLS)
+    // =========================================================================
+    let AUTH = null, _authResolve = null, _authGuardsOn = false;
+    const AUTH_KEY = 'npp_auth_session';
+    const ROLE_LABEL = { super: 'Super Admin', admin: 'Admin', accountant: 'Kế toán' };
+    const PERM_DEFS = { edit_pin: 'Sửa KH / đổi điểm GPS', merge_dup: 'Gộp trùng (GPS & mã KiotViet)' };
+
+    async function authSha(salt, pass) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + ':' + pass));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    function authSalt() { return Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join(''); }
+    function can(p) {
+      if (!AUTH) return false;
+      if (AUTH.role === 'super' || AUTH.role === 'admin') return true;
+      if (p === 'super' || p === 'admin') return false;
+      if (p === 'staff') return true;
+      return !!(AUTH.perms && AUTH.perms[p]);
+    }
+    function authDeny(p) {
+      alert('Tài khoản ' + (AUTH ? ROLE_LABEL[AUTH.role] : '') + ' không có quyền thực hiện thao tác này.' + (PERM_DEFS[p] ? '\nNhờ Admin tick cấp thêm quyền "' + PERM_DEFS[p] + '".' : ''));
+    }
+    // Nhật ký: Super Admin KHÔNG bao giờ được ghi
+    function logAct(action, detail) {
+      try {
+        if (!AUTH || AUTH.role === 'super' || isDriverMode || !db) return;
+        db.from('activity_log').insert({ username: AUTH.username, display_name: AUTH.name, role: AUTH.role, action: String(action), detail: String(detail || '').slice(0, 500) }).then(() => {}, () => {});
+      } catch (e) {}
+    }
+
+    // fn: [quyền cần có, nhãn ghi nhật ký ('' = không ghi)]
+    const ACL = {
+      // --- chỉ Admin ---
+      openDepotModal: ['admin', ''], saveDepotCoordinates: ['admin', 'Cập nhật vị trí kho'],
+      promptMasterAdmin: ['admin', 'Mở Quản trị Master'], saveSingleMasterFromAdmin: ['admin', 'Sửa Master 1 điểm'],
+      forcePushLocalMasterToCloud: ['admin', 'Đẩy Master từ máy lên Cloud'], restoreMasterBackupFromCloud: ['admin', 'Khôi phục Master từ backup'],
+      openSyncModal: ['admin', ''], resetApp: ['admin', ''], clearTodayTestOrders: ['admin', ''], completeTrip: ['admin', ''],
+      openFleetConfigModal: ['admin', ''], closeFleetModal: ['admin', ''], addNewVehicle: ['admin', ''], removeVehicle: ['admin', ''], updateVehicle: ['admin', ''],
+      geoDeleteCustomer: ['admin', 'Xóa khách khỏi Master'],
+      openUsersModal: ['admin', ''], openLogModal: ['admin', ''],
+      // --- Kế toán cần Admin tick thêm ---
+      openEditCustomer: ['edit_pin', ''], saveEditCustomer: ['edit_pin', 'Sửa thông tin KH'],
+      promptEditStopCoordinates: ['edit_pin', ''], triggerClickToPin: ['edit_pin', ''], saveStopNewCoords: ['edit_pin', 'Đổi điểm GPS'],
+      geoSave: ['edit_pin', 'Lưu vị trí GPS (bản đồ)'], geoUndo: ['edit_pin', 'Hoàn tác thao tác GPS'], geoPickFor: ['edit_pin', ''],
+      geoMergeGroup: ['merge_dup', 'Gộp trùng GPS'], openAliasModal: ['merge_dup', ''],
+      addManualAliasMapping: ['merge_dup', 'Gộp mã KiotViet'], removeAliasMapping: ['merge_dup', 'Gỡ gộp mã KiotViet'],
+      // --- Kế toán mặc định ---
+      runSmartFleetDispatch: ['staff', 'Xếp tuyến tự động'], applyManualTruckAssignment: ['staff', 'Xếp tay vào xe'],
+      unassignSelectedStops: ['staff', 'Bỏ xếp khỏi xe'], reassignStopToAnotherTruck: ['staff', 'Chuyển xe cho 1 điểm'],
+      mergeInvoiceRows: ['staff', 'Nạp file hóa đơn'], printLifoPackingSlip: ['staff', 'In phiếu xếp hàng'], printTruckProductSummary: ['staff', 'In tổng hợp hàng']
+    };
+    const ACL_DETAIL = {
+      saveStopNewCoords: a => String(a[0] || ''), geoMergeGroup: a => String(a[0] || ''),
+      reassignStopToAnotherTruck: a => String(a[1] || ''), mergeInvoiceRows: a => ((a[0] && a[0].length) || 0) + ' dòng',
+      geoDeleteCustomer: a => String(a[0] || ''), saveDepotCoordinates: () => ''
+    };
+    // Nút nào bị ẩn hẳn khi không đủ quyền (nút tạo động cũng bị ẩn nhờ CSS)
+    const ACL_HIDE = ['openDepotModal', 'promptMasterAdmin', 'openSyncModal', 'resetApp', 'clearTodayTestOrders', 'completeTrip', 'openFleetConfigModal',
+      'openAliasModal', 'openEditCustomer', 'promptEditStopCoordinates', 'geoMergeGroup', 'geoDeleteCustomer', 'geoPickFor'];
+
+    function authInstallGuards() {
+      if (_authGuardsOn) return; _authGuardsOn = true;
+      Object.keys(ACL).forEach(fn => {
+        const orig = window[fn]; if (typeof orig !== 'function') return;
+        const perm = ACL[fn][0], label = ACL[fn][1];
+        window[fn] = function () {
+          if (!can(perm)) { authDeny(perm); return; }
+          if (label) { let d = ''; try { d = ACL_DETAIL[fn] ? ACL_DETAIL[fn](arguments) : ''; } catch (e) {} logAct(label, d); }
+          return orig.apply(this, arguments);
+        };
+      });
+    }
+    function applyRoleUI() {
+      let st = document.getElementById('authStyle');
+      if (!st) { st = document.createElement('style'); st.id = 'authStyle'; document.head.appendChild(st); }
+      st.textContent = ACL_HIDE.filter(fn => !can(ACL[fn][0])).map(fn => `[onclick*="${fn}("]{display:none!important}`).join('\n');
+      const bar = document.getElementById('authBar');
+      if (bar && AUTH) {
+        bar.classList.remove('hidden'); bar.classList.add('flex');
+        document.getElementById('authChip').textContent = (AUTH.name || AUTH.username) + ' • ' + ROLE_LABEL[AUTH.role];
+        ['btnAuthUsers', 'btnAuthLog'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = can('admin') ? '' : 'none'; });
+      }
+    }
+    function authSetSession(row) {
+      AUTH = { id: row.id, username: row.username, name: row.display_name || row.username, role: row.role, perms: row.perms || {}, h: row.pass_hash };
+      try { localStorage.setItem(AUTH_KEY, JSON.stringify({ id: row.id, h: row.pass_hash })); } catch (e) {}
+    }
+    async function authRestore() {
+      let s = null; try { s = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
+      if (!s || !s.id) return false;
+      if (!(await ensureSupabase())) return false;
+      try {
+        const { data } = await db.from('app_users').select('*').eq('id', s.id).maybeSingle();
+        if (data && data.active && data.pass_hash === s.h) { authSetSession(data); return true; }
+      } catch (e) {}
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+      return false;
+    }
+    async function authDoLogin() {
+      const u = (document.getElementById('authUser').value || '').trim().toLowerCase();
+      const p = document.getElementById('authPass').value || '';
+      const err = document.getElementById('authErr'), btn = document.getElementById('authBtn'); err.textContent = '';
+      if (!u || !p) { err.textContent = 'Nhập tên đăng nhập và mật khẩu'; return; }
+      btn.disabled = true; btn.textContent = 'Đang kiểm tra...';
+      try {
+        if (!(await ensureSupabase())) throw new Error('Không kết nối được máy chủ, kiểm tra mạng rồi thử lại.');
+        const { data, error } = await db.from('app_users').select('*').eq('username', u).maybeSingle();
+        if (error) throw new Error(error.message + ' — đã chạy file setup.sql chưa?');
+        if (!data || data.pass_hash !== (await authSha(data.salt, p))) throw new Error('Sai tên đăng nhập hoặc mật khẩu');
+        if (!data.active) throw new Error('Tài khoản đã bị khóa. Liên hệ quản trị.');
+        authSetSession(data);
+        try { await db.from('app_users').update({ last_login: new Date().toISOString() }).eq('id', data.id); } catch (e) {}
+        logAct('Đăng nhập', '');
+        document.getElementById('authPass').value = '';
+        if (_authResolve) { const r = _authResolve; _authResolve = null; r(true); }
+      } catch (e) { err.textContent = e.message || String(e); }
+      finally { btn.disabled = false; btn.textContent = 'Đăng nhập'; }
+    }
+    function authAfterLogin() {
+      document.getElementById('authOverlay').classList.add('hidden');
+      applyRoleUI();
+      const bo = document.getElementById('bootOverlay'); if (bo) bo.classList.remove('hidden');
+    }
+    async function authGate() {
+      authInstallGuards();
+      if (await authRestore()) { applyRoleUI(); return true; }
+      hideBoot();
+      document.getElementById('authOverlay').classList.remove('hidden');
+      await new Promise(r => { _authResolve = r; });
+      authAfterLogin();
+      return true;
+    }
+    function authLogout() {
+      logAct('Đăng xuất', '');
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+      setTimeout(() => location.reload(), 150);
+    }
+    // Mỗi 60s kiểm tra lại: tk bị khóa / đổi mật khẩu / đổi quyền => áp dụng ngay
+    setInterval(async () => {
+      if (!AUTH || isDriverMode || !db) return;
+      try {
+        const { data, error } = await db.from('app_users').select('*').eq('id', AUTH.id).maybeSingle();
+        if (error) return;
+        if (!data || !data.active || data.pass_hash !== AUTH.h) { try { localStorage.removeItem(AUTH_KEY); } catch (e) {} alert('Tài khoản đã bị khóa hoặc đổi mật khẩu. Vui lòng đăng nhập lại.'); location.reload(); return; }
+        if (data.role !== AUTH.role || JSON.stringify(data.perms || {}) !== JSON.stringify(AUTH.perms || {})) { authSetSession(data); applyRoleUI(); }
+      } catch (e) {}
+    }, 60000);
+
+    // ---------- Quản lý tài khoản ----------
+    function closeUsersModal() { document.getElementById('authUsersModal').classList.add('hidden'); }
+    async function openUsersModal() {
+      const sel = document.getElementById('nuRole');
+      sel.innerHTML = (AUTH.role === 'super' ? '<option value="admin">Admin</option>' : '') + '<option value="accountant">Kế toán</option>';
+      document.getElementById('authUsersModal').classList.remove('hidden');
+      await renderUsers();
+    }
+    async function renderUsers() {
+      const box = document.getElementById('authUsersList'); box.innerHTML = '<div class="p-4 text-slate-400">Đang tải...</div>';
+      let q = db.from('app_users').select('id,username,display_name,role,perms,active,last_login').order('role').order('username');
+      if (AUTH.role !== 'super') q = q.neq('role', 'super');   // Admin/Kế toán không thấy Super Admin
+      const { data, error } = await q;
+      if (error) { box.innerHTML = '<div class="p-4 text-rose-600">' + esc(error.message) + '</div>'; return; }
+      box.innerHTML = (data || []).map(u => {
+        const manage = u.id !== AUTH.id && u.role !== 'super' && (AUTH.role === 'super' || u.role === 'accountant');
+        const lg = u.last_login ? new Date(u.last_login).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'chưa đăng nhập';
+        const perms = (u.role === 'accountant' && manage) ? Object.keys(PERM_DEFS).map(k => `<label class="inline-flex items-center gap-1 mr-3"><input type="checkbox" ${u.perms && u.perms[k] ? 'checked' : ''} onchange="authSetPerm(${u.id}, '${k}', this.checked)"> ${PERM_DEFS[k]}</label>`).join('') : '';
+        return `<div class="p-3 ${u.active ? '' : 'bg-slate-100 opacity-70'}">
+          <div class="flex items-center justify-between gap-2">
+            <div><b>${esc(u.display_name || u.username)}</b> <span class="text-slate-500">(${esc(u.username)})</span>
+              <span class="ml-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">${ROLE_LABEL[u.role]}</span>${u.active ? '' : ' <span class="text-rose-600 font-bold">• ĐÃ KHÓA</span>'}
+              <div class="text-[10px] text-slate-400">Đăng nhập gần nhất: ${lg}</div></div>
+            ${manage ? `<div class="flex gap-1 shrink-0"><button onclick="authResetPass(${u.id}, ${jsq(u.username)})" class="border rounded px-2 py-1">Đổi MK</button><button onclick="authToggleActive(${u.id}, ${u.active ? 'false' : 'true'}, ${jsq(u.username)})" class="border rounded px-2 py-1 ${u.active ? 'text-rose-700' : 'text-emerald-700'}">${u.active ? 'Khóa' : 'Mở khóa'}</button></div>` : ''}
+          </div>${perms ? `<div class="mt-1.5 text-[11px] text-slate-700">Quyền thêm: ${perms}</div>` : ''}</div>`;
+      }).join('') || '<div class="p-4 text-slate-400">Chưa có tài khoản nào.</div>';
+    }
+    async function authCreateUser() {
+      const un = (document.getElementById('nuUser').value || '').trim().toLowerCase(), nm = (document.getElementById('nuName').value || '').trim();
+      const pw = document.getElementById('nuPass').value || '', role = document.getElementById('nuRole').value;
+      if (!/^[a-z0-9._-]{3,30}$/.test(un)) return alert('Tên đăng nhập 3-30 ký tự: chữ thường không dấu, số, . _ -');
+      if (pw.length < 6) return alert('Mật khẩu tối thiểu 6 ký tự');
+      if (role === 'admin' && AUTH.role !== 'super') return authDeny('super');
+      const salt = authSalt();
+      const { error } = await db.from('app_users').insert({ username: un, display_name: nm || un, salt, pass_hash: await authSha(salt, pw), role, perms: {}, active: true, created_by: AUTH.username });
+      if (error) return alert(/duplicate|unique/i.test(error.message) ? 'Tên đăng nhập này đã tồn tại, chọn tên khác.' : 'Lỗi: ' + error.message);
+      logAct('Tạo tài khoản', un + ' (' + ROLE_LABEL[role] + ')');
+      ['nuUser', 'nuName', 'nuPass'].forEach(id => document.getElementById(id).value = '');
+      renderUsers();
+    }
+    async function authToggleActive(id, active, un) {
+      if (!(await appConfirm((active ? 'MỞ KHÓA' : 'KHÓA') + ' tài khoản ' + un + '?'))) return;
+      const { error } = await db.from('app_users').update({ active }).eq('id', id);
+      if (error) return alert('Lỗi: ' + error.message);
+      logAct(active ? 'Mở khóa tài khoản' : 'Khóa tài khoản', un); renderUsers();
+    }
+    async function authResetPass(id, un) {
+      const pw = await appPrompt('Nhập mật khẩu MỚI cho ' + un + ' (tối thiểu 6 ký tự):');
+      if (pw === null) return;
+      if (pw.length < 6) return alert('Mật khẩu tối thiểu 6 ký tự');
+      const salt = authSalt();
+      const { error } = await db.from('app_users').update({ salt, pass_hash: await authSha(salt, pw) }).eq('id', id);
+      if (error) return alert('Lỗi: ' + error.message);
+      logAct('Đổi mật khẩu tài khoản', un); alert('Đã đổi mật khẩu. Người đó sẽ phải đăng nhập lại.');
+    }
+    async function authSetPerm(id, key, on) {
+      const { data } = await db.from('app_users').select('perms,username').eq('id', id).maybeSingle(); if (!data) return;
+      const perms = Object.assign({}, data.perms || {}); if (on) perms[key] = true; else delete perms[key];
+      const { error } = await db.from('app_users').update({ perms }).eq('id', id);
+      if (error) { alert('Lỗi: ' + error.message); return renderUsers(); }
+      logAct((on ? 'Cấp quyền ' : 'Thu quyền ') + PERM_DEFS[key], data.username);
+    }
+
+    // ---------- Nhật ký ----------
+    function closeLogModal() { document.getElementById('authLogModal').classList.add('hidden'); }
+    async function openLogModal() { document.getElementById('authLogModal').classList.remove('hidden'); await renderLogs(); }
+    async function renderLogs() {
+      const box = document.getElementById('authLogList'); box.innerHTML = '<div class="p-4 text-slate-400">Đang tải...</div>';
+      const { data, error } = await db.from('activity_log').select('at,username,display_name,role,action,detail').neq('role', 'super').order('at', { ascending: false }).limit(300);
+      if (error) { box.innerHTML = '<div class="p-4 text-rose-600">' + esc(error.message) + '</div>'; return; }
+      box.innerHTML = '<table class="w-full"><thead class="bg-slate-100 sticky top-0"><tr><th class="text-left p-1.5">Giờ</th><th class="text-left p-1.5">Người dùng</th><th class="text-left p-1.5">Thao tác</th><th class="text-left p-1.5">Chi tiết</th></tr></thead><tbody>' +
+        (data || []).map(r => `<tr class="border-t"><td class="p-1.5 whitespace-nowrap">${new Date(r.at).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</td><td class="p-1.5">${esc(r.display_name || r.username)} <span class="text-slate-400">(${ROLE_LABEL[r.role] || r.role})</span></td><td class="p-1.5 font-semibold">${esc(r.action)}</td><td class="p-1.5 text-slate-600">${esc(r.detail || '')}</td></tr>`).join('') + '</tbody></table>';
+    }
+    // [/PATCH 1]
+
+
+    // =========================================================================
+    // [PATCH 2] KHÓA / TỰ HỦY LINK TÀI XẾ
+    //  - dispatch_sessions.link_token: null = link cũ (chưa vá) | 'REVOKED' = đã khóa | chuỗi = khóa hợp lệ (phải khớp &k= trên link)
+    //  - Link hết hạn khi sang ngày mới (so với tham số date= trên link)
+    // =========================================================================
+    function genLinkKey() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+    async function cloudSetLinkToken(truckId, token) {
+      if (!db) return;
+      try { await db.from('dispatch_sessions').update({ link_token: token }).eq('order_date', getTodayString()).eq('truck_id', Number(truckId)); }
+      catch (e) { console.warn('Không đặt được link_token:', e); }
+    }
+    function lockDriverLinkCloud(truckId) { return cloudSetLinkToken(truckId, 'REVOKED'); }
+    function driverLinkKey() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('k') || ''; }
+    function driverLinkDead(row) {
+      if (driverOrderDate() !== getTodayString()) return true;          // qua ngày => hủy
+      const tk = row && row.link_token;
+      if (tk === 'REVOKED') return true;                                 // điều phối đã thu hồi / hoàn tất
+      if (tk && tk !== driverLinkKey()) return true;                     // link cũ của lần phát trước
+      return false;
+    }
+    setInterval(() => { if (isDriverMode && !driverLinkEnded && driverOrderDate() !== getTodayString()) markDriverLinkEnded(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (isDriverMode && !driverLinkEnded && driverOrderDate() !== getTodayString()) markDriverLinkEnded(); });
+    // [/PATCH 2]
+
 window.addEventListener('DOMContentLoaded', () => {
       bootstrapApp().catch(err => { console.error(err); hideBoot(); setCloudStatus(false, 'Lỗi khởi tạo: ' + (err.message || err)); });
     });
@@ -2614,6 +2938,7 @@ function checkDriverRoutingModeSync() {
   try { if (localStorage.getItem('kmGps') === '1') startDriverGps(); } catch (e) { }
 
   // 4. Đồng bộ trạng thái mới nhất + vị trí kho từ Cloud, nghe realtime
+  if (orderDate !== getTodayString()) markDriverLinkEnded();
   driverCloudRefresh(true);
   setupDriverRealtime();
   return true;
@@ -2630,7 +2955,7 @@ function sanitizeDriverStop(st) {
     custName: String(st.custName || ''), addr: String(st.addr || ''), phone: String(st.phone || ''),
     lat: okGps ? lat : null, lon: okGps ? lon : null, isMapped: okGps,
     totalQty: num(st.totalQty), totalCod: num(st.totalCod), orders: normOrders(st.orders), invoices: Array.isArray(st.invoices) ? st.invoices.map(String) : [],
-    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), collected: st.collected == null ? null : num(st.collected), pay: normPay(st.pay),
+    status: ['pending', 'success', 'failed'].includes(st.status) ? st.status : 'pending', failedReason: String(st.failedReason || ''), doneAt: String(st.doneAt || ''), collected: st.collected == null ? null : num(st.collected), pay: normPay(st.pay),
     items: (Array.isArray(st.items) ? st.items : []).map(it => ({ qty: num(it && it.qty), unit: String((it && it.unit) || ''), itemName: String((it && it.itemName) || '') }))
   };
 }
@@ -2653,7 +2978,7 @@ function isTokenExpired(token) {
 function buildDriverFullUrl(truck) {
   // Link ngắn: đơn hàng đọc từ Supabase (dispatch_sessions), không nhúng dữ liệu vào link nữa
   const base = window.location.origin + window.location.pathname;
-  return `${base}#/driver?truck=${truck.id}&trip=${truck.tripNo || 1}&date=${getTodayString()}`;
+  return `${base}#/driver?truck=${truck.id}&trip=${truck.tripNo || 1}&date=${getTodayString()}` + (truck.linkKey ? `&k=${encodeURIComponent(truck.linkKey)}` : '');
 }
 
 async function generateStandaloneDriverLink(targetTruckId) {
@@ -2662,11 +2987,14 @@ async function generateStandaloneDriverLink(targetTruckId) {
   if (!truck || truck.stops.length === 0) return alert("Xe này chưa có đơn hàng nào được xếp!");
 
   // Phát link = KHÓA chuyến: các điểm hiện có giữ nguyên thứ tự, chỉ cho nối thêm điểm vào cuối
+  logAct('Phát link tài xế', truck.name + ' (chuyến ' + (truck.tripNo || 1) + ')');
   truck.linkIssued = true;
   truck.linkToken = getTodayString();
   truck.stops.forEach(s => { s.locked = true; });
   await savePermanentEdits();
   await syncTruckStopsToCloud(truck);
+  if (!truck.linkKey) { truck.linkKey = genLinkKey(); await savePermanentEdits(); }
+  await cloudSetLinkToken(truck.id, truck.linkKey);
 
   let driverUrl = buildDriverFullUrl(truck);
   renderFleetTabs();
@@ -2690,9 +3018,11 @@ async function revokeDriverLink(truckId) {
   if (!truck) return;
   const pending = truck.stops.filter(x => x.status === 'pending');
   if (!(await appConfirm(`THU HỒI ${truck.name}?\n\n• ${pending.length} điểm CHƯA GIAO sẽ được rút về kho đơn chung để xếp xe khác.\n• Điểm đã giao / thất bại giữ nguyên (bấm "Hoàn tất chuyến" khi xe về để đóng chuyến).`))) return;
+  logAct('Thu hồi link tài xế', truck.name + ' (' + pending.length + ' điểm chưa giao rút về)');
   pending.forEach(x => { x.truckId = null; x.locked = false; x.stopSeq = 0; x.lifoSeq = 0; });
   truck.stops = truck.stops.filter(x => x.status !== 'pending');
   if (truck.stops.length === 0) { truck.linkIssued = false; truck.linkToken = null; }
+  truck.linkKey = null; await lockDriverLinkCloud(truck.id);
   optimizeTruckSequence(truck);
   refreshAllViews();
   await savePermanentEdits();
@@ -2722,7 +3052,9 @@ async function completeTrip(truckId) {
       x.archived = true; x.tripNo = tripNo; x.truckId = truck.id;
     }
   });
+  logAct('Hoàn tất chuyến', truck.name + ' (chuyến ' + tripNo + ')');
   truck.stops = []; truck.linkIssued = false; truck.linkToken = null; truck.tripNo = tripNo + 1;
+  truck.linkKey = null; await lockDriverLinkCloud(truck.id);
   refreshAllViews();
   await savePermanentEdits();
   await syncTruckStopsToCloud(truck);
@@ -2866,7 +3198,7 @@ function renderDriverAppCards() {
           <span class="text-xs font-black text-blue-700 shrink-0">${s.totalQty} Thùng</span>
         </div>
 ${(s.tags || []).includes('nodebt') ? '<div class="p-2 bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold">⛔ Khách không công nợ: CHỈ GIAO KHI THU ĐỦ TIỀN</div>' : ''}
-${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">🕛 Hay nghỉ trưa (11h–13h30): ghé trước hoặc sau giờ này</div>' : ''}
+${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-800 rounded-lg text-[11px] font-bold">🕛 Hay nghỉ trưa (12h00–14h30): ghé trước hoặc sau giờ này</div>' : ''}
         <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl text-xs">
           <div>
             <span class="text-[10px] text-slate-400 uppercase font-bold">Cần thu COD:</span>
@@ -2927,7 +3259,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
     // Nếu tài xế vừa báo 'đã giao / không giao được' thì GIỮ LẠI, không ghi đè bằng trạng thái cũ trên máy kế toán
     const { data: cur } = await db.from('dispatch_sessions').select('stops').eq('order_date', today).eq('truck_id', Number(truck.id)).maybeSingle();
     const cloudMap = new Map(((cur && Array.isArray(cur.stops)) ? cur.stops : []).filter(x => (x.tripNo || 1) === tripNo).map(x => [x.canonicalId, x]));
-    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; s.pay = normPay(c.pay); } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
+    (truck.stops || []).forEach(s => { const c = cloudMap.get(s.canonicalId); if (c && c.status && c.status !== 'pending' && s.status === 'pending') { s.status = c.status; s.failedReason = c.failedReason || ''; s.collected = c.collected == null ? null : c.collected; s.pay = normPay(c.pay); s.doneAt = c.doneAt || s.doneAt || ''; } if (c && Array.isArray(c.orders) && isMultiOrder(s) && mergeOrderStates(s, c.orders, false)) recomputeStopFromOrders(s); });
     let cleanStops = (truck.stops || []).map(s => ({
       canonicalId: s.canonicalId || '',
       custName: s.custName || '',
@@ -2940,6 +3272,7 @@ ${(s.tags || []).includes('lunch') ? '<div class="p-2 bg-amber-100 text-amber-80
       totalCod: s.totalCod || 0,
       status: s.status || 'pending',
       failedReason: s.failedReason || '',
+      doneAt: s.doneAt || '',
       collected: s.collected == null ? null : s.collected,
       pay: s.pay || null,
       stopSeq: s.stopSeq || 1,
@@ -3572,8 +3905,8 @@ return `
       return `border-left:5px solid ${stopColor(s)};background:${bg}`;
     }
     function statusPill(s) {
-      if (s.status === 'success') return '<span class="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded">✓ Đã giao</span>';
-      if (s.status === 'failed') return '<span class="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded">✕ Thất bại</span>';
+      if (s.status === 'success') return '<span class="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded">✓ Đã giao' + (s.doneAt ? ' • ' + fmtHM(s.doneAt) : '') + '</span>';
+      if (s.status === 'failed') return '<span class="text-[10px] bg-rose-600 text-white font-bold px-1.5 py-0.5 rounded">✕ Thất bại' + (s.doneAt ? ' • ' + fmtHM(s.doneAt) : '') + '</span>';
       return `<span class="text-[10px] text-white font-bold px-1.5 py-0.5 rounded" style="background:${stopColor(s)}">Chưa giao</span>`;
     }
 const TAG_DEFS = { lunch: { label: '🕛 Nghỉ trưa', cls: 'bg-amber-100 text-amber-800' }, nodebt: { label: '⛔ Không công nợ', cls: 'bg-rose-100 text-rose-800' } };
@@ -4793,6 +5126,7 @@ async function removeVehicle(id) {
 
     async function clearTodayTestOrders() {
       if ((await appPrompt("Thao tác này XÓA TOÀN BỘ đơn hôm nay trên MỌI máy.\nGõ chữ XOA để xác nhận:")) !== "XOA") return;
+      logAct('Xóa toàn bộ đơn test hôm nay', '');
 
       allMergedStops = [];
       unmappedStops = [];
