@@ -60,6 +60,10 @@
       #printArea, #printArea * { visibility: visible; }
       #printArea { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
     }
+    /* Ghi chú đơn hàng: chớp nhẹ cho tới khi đơn được xử lý xong */
+    @keyframes noteBlink { 0%, 100% { background-color: #fef3c7; box-shadow: 0 0 0 0 rgba(245,158,11,0); } 50% { background-color: #fde047; box-shadow: 0 0 0 3px rgba(245,158,11,.45); } }
+    .note-blink { animation: noteBlink 1.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .note-blink { animation: none; } }
   </style>
 </head>
 <body class="bg-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden text-slate-800 antialiased select-none">
@@ -1444,7 +1448,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       return (Array.isArray(arr) ? arr : []).map(o => { o = o || {}; return {
         inv: String(o.inv || ''), qty: num(o.qty), cod: num(o.cod),
         status: ['pending', 'success', 'failed'].includes(o.status) ? o.status : 'pending',
-        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected), pay: normPay(o.pay), doneAt: o.doneAt ? String(o.doneAt) : '',
+        failedReason: String(o.failedReason || ''), collected: (o.collected == null || o.collected === '') ? null : num(o.collected), pay: normPay(o.pay), doneAt: o.doneAt ? String(o.doneAt) : '', note: String(o.note || ''),
         items: (Array.isArray(o.items) ? o.items : []).map(it => ({ itemName: String((it && it.itemName) || ''), qty: num(it && it.qty), unit: String((it && it.unit) || ''), lineAmount: num(it && it.lineAmount) }))
       }; }).filter(o => o.inv);
     }
@@ -1499,12 +1503,25 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         const cod = codByInv.get(invId) || 0, tc = parseFloat(stop.totalCod) || 0;
         const st = (stop.status === 'success' || stop.status === 'failed') ? stop.status : 'pending';
         let col = null; if (st === 'success') col = (stop.collected != null && tc > 0) ? Math.round(cod * (parseFloat(stop.collected) || 0) / tc) : cod;
-        od = { inv: invId, qty: 0, cod, status: st, failedReason: st === 'failed' ? (stop.failedReason || '') : '', collected: col, items: [] };
+        od = { inv: invId, qty: 0, cod, status: st, failedReason: st === 'failed' ? (stop.failedReason || '') : '', collected: col, items: [], note: rowNote(row) };
         stop.orders.push(od); done.add(key);
       }
       od.qty = Math.round((od.qty + q.box) * 10) / 10;
       od.items.push({ itemName: q.itemName, qty: q.rawQty, unit: q.unit, lineAmount: q.lineAmount });
       return true;
+    }
+    // ----- Ghi chú đơn hàng (cột "Ghi chú" / "Ghi chú giao hàng" của file KiotViet) -----
+    function rowNote(row) {
+      const parts = [row['Ghi chú'], row['Ghi chú giao hàng']].map(v => String(v == null ? '' : v).replace(/\s*[\r\n]+\s*/g, ' / ').trim()).filter(Boolean);
+      return Array.from(new Set(parts)).join(' • ').slice(0, 300);
+    }
+    function stopNoteList(s) { return ((s && s.orders) || []).map((o, i) => ({ i, inv: o.inv, note: o.note || '', status: o.status })).filter(x => x.note); }
+    // compact=true: 1 dòng cắt ngắn (danh sách kế toán); false: hiện đủ nội dung (thẻ tài xế). Chớp khi còn đơn chưa xử lý.
+    function stopNoteHtml(s, compact) {
+      const L = stopNoteList(s); if (!L.length) return '';
+      const multi = ((s.orders || []).length >= 2), active = L.some(x => x.status === 'pending');
+      if (compact) return `<div class="mt-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 truncate ${active ? 'note-blink' : ''}">📝 ${esc(L.map(x => (multi ? 'Đơn ' + (x.i + 1) + ': ' : '') + x.note).join(' • '))}</div>`;
+      return `<div class="mt-1 text-[11px] font-bold text-amber-900 bg-amber-100 border border-amber-400 rounded-lg px-2 py-1 ${active ? 'note-blink' : ''}" style="word-break:break-word">${L.map(x => `<div>📝 ${multi ? '<span class="font-extrabold">Đơn ' + (x.i + 1) + ':</span> ' : ''}${esc(x.note)}</div>`).join('')}</div>`;
     }
     function orderIcon(st) { return st === 'success' ? '✅' : (st === 'failed' ? '❌' : '⏳'); }
     function orderChipHtml(s) {
@@ -1572,6 +1589,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
           <div class="bg-blue-50 border border-blue-100 rounded-xl p-2.5"><div class="text-[10px] text-blue-700 uppercase font-bold">Số lượng</div><div class="font-extrabold text-blue-900 text-base">${o.qty} Thùng</div></div>
           <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5"><div class="text-[10px] text-amber-700 uppercase font-bold">Cần thu COD</div><div class="font-extrabold text-amber-900 text-base">${formatMoney(cod)}</div></div>
         </div>
+        ${o.note ? `<div class="p-2 rounded-xl bg-amber-100 border border-amber-400 text-[12px] font-bold text-amber-900 ${o.status === 'pending' ? 'note-blink' : ''}" style="word-break:break-word">📝 ${esc(o.note)}</div>` : ''}
         <div class="border rounded-xl p-2.5 bg-white"><div class="text-[10px] text-slate-400 uppercase font-bold mb-1">Hàng trong đơn</div>${items}</div>
         ${info}`;
       if (isDriverMode) {
@@ -1905,7 +1923,7 @@ async function restoreMasterBackupFromCloud() {
           await savePermanentEdits();
           for (const t of fleet) if (t.stops.length > 0) await syncTruckStopsToCloud(t);
           alert(`ĐÃ GỘP ĐỢT NẠP MỚI:\n• +${st.newInv} hóa đơn mới (${st.newStops} điểm giao mới)\n• Bỏ qua ${st.dupInv} hóa đơn đã nạp từ trước\n` +
-                (st.splitStops ? `• ${st.splitStops} điểm đã giao/đã phát xe trước đó nay có đơn mới → tạo thành điểm giao riêng (đợt sau), COD cũ không bị tính lại\n` : '') + (st.backfilled ? `• Đã bổ sung chi tiết từng đơn cho ${st.backfilled} điểm giao (đơn cũ, không cộng trùng)\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
+                (st.splitStops ? `• ${st.splitStops} điểm đã giao/đã phát xe trước đó nay có đơn mới → tạo thành điểm giao riêng (đợt sau), COD cũ không bị tính lại\n` : '') + (st.backfilled ? `• Đã bổ sung chi tiết từng đơn cho ${st.backfilled} điểm giao (đơn cũ, không cộng trùng)\n` : '') + (st.notesAdded ? `• Đã bổ sung ghi chú cho ${st.notesAdded} đơn cũ\n` : '') + `• Tổng hôm nay: ${allMergedStops.length} điểm giao.\nĐơn mới nằm ở tab "Chưa Xếp".`);
         } catch (err) { alert("Lỗi đọc file: " + err.message); }
         finally { input.value = ''; }
       };
@@ -1945,13 +1963,14 @@ async function restoreMasterBackupFromCloud() {
           codByInv.set(inv, (codByInv.get(inv) || 0) + parseMoney(row['Thành tiền']));   // không có cột COD: cộng tất cả dòng của hóa đơn
         }
       });
-      const newInv = new Set(), dupInv = new Set(), touched = new Set(), batchStop = new Map(); let newStops = 0, splitStops = 0; const bfStops = new Set(), bfDone = new Set();
+      const newInv = new Set(), dupInv = new Set(), touched = new Set(), batchStop = new Map(); let newStops = 0, splitStops = 0, notesAdded = 0; const bfStops = new Set(), bfDone = new Set();
       rows.forEach(row => {
         const { inv: invId, cust: rawCustId } = keyOf(row);
         if (!rawCustId || !invId || rawCustId.toLowerCase().includes('tổng')) return;
         if (known.has(invId)) {
           dupInv.add(invId);
-          { const _bs = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_bs && backfillOrder(_bs, invId, row, codByInv, bfDone)) { bfStops.add(_bs); touched.add(_bs); } }
+          { const _bs = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_bs && backfillOrder(_bs, invId, row, codByInv, bfDone)) { bfStops.add(_bs); touched.add(_bs); }
+            { const _n = rowNote(row), _o = _bs && (_bs.orders || []).find(o => o.inv === invId); if (_n && _o && !_o.note) { _o.note = _n; notesAdded++; } } }
           const _sr = String(row['Người bán'] || row['Người tạo'] || row['Nhân viên bán hàng'] || '').trim();
           const _ph = _sr.match(/(\+?84|0)[\d .\-]{8,11}\d/);
           if (_ph) { const _ex = allMergedStops.find(x => x.invoices && x.invoices.has(invId)); if (_ex && !_ex.salePhone) { _ex.salePhone = normalizePhone(_ph[0]); _ex.saleName = _sr.replace(_ph[0], '').replace(/\s+/g, ' ').trim(); } }
@@ -1997,13 +2016,13 @@ const salePhone = normalizePhone(phoneHit ? phoneHit[0] : '') || normalizePhone(
       if (saleName) s.saleName = saleName; if (salePhone) s.salePhone = salePhone;
         s.totalQty = Math.round((s.totalQty + boxEquivalent) * 10) / 10;
         s.items.push({ invId, itemName, qty: rawQty, unit, lineAmount });
-        { let od = s.orders.find(o => o.inv === invId); if (!od) { od = { inv: invId, qty: 0, cod: codByInv.get(invId) || 0, status: 'pending', failedReason: '', collected: null, items: [] }; s.orders.push(od); } od.qty = Math.round((od.qty + boxEquivalent) * 10) / 10; od.items.push({ itemName, qty: rawQty, unit, lineAmount }); }
+        { let od = s.orders.find(o => o.inv === invId); if (!od) { od = { inv: invId, qty: 0, cod: codByInv.get(invId) || 0, status: 'pending', failedReason: '', collected: null, items: [], note: '' }; s.orders.push(od); } if (!od.note) od.note = rowNote(row); od.qty = Math.round((od.qty + boxEquivalent) * 10) / 10; od.items.push({ itemName, qty: rawQty, unit, lineAmount }); }
         if (!s.invoices.has(invId)) { s.invoices.add(invId); s.totalCod = (s.totalCod || 0) + (codByInv.get(invId) || 0); }
         newInv.add(invId); touched.add(s);
       });
       touched.forEach(s => { s.totalQty = Math.max(0.5, Math.round(s.totalQty * 10) / 10); recomputeStopFromOrders(s); });
       refreshStopMappingFromMaster();
-      return { newInv: newInv.size, dupInv: dupInv.size, newStops, splitStops, reopened: 0, backfilled: bfStops.size };
+      return { newInv: newInv.size, dupInv: dupInv.size, newStops, splitStops, reopened: 0, backfilled: bfStops.size, notesAdded };
     }
 
     // -------------------------------------------------------------------------
@@ -3317,7 +3336,8 @@ function renderDriverAppCards() {
             <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0">#${s.stopSeq}</span>
             <div>
               <h4 class="font-bold text-slate-900 text-xs">${esc(s.custName)}</h4>
-              <p class="text-[11px] text-slate-500">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
+              ${stopNoteHtml(s, false)}
+              <p class="text-[11px] text-slate-500 mt-0.5">${esc(s.addr || 'Chưa có địa chỉ chi tiết')}</p>
 <div class="flex gap-1 flex-wrap mt-1">${tagBadges(s.tags)}</div>
               ${driverCardKmHtml(s, kmap)}
               ${colocChipHtml(s)}
@@ -4011,6 +4031,7 @@ return `
               <span class="text-xs font-bold text-slate-900 truncate">${o.num || ''}${esc(s.custName)}</span>
               <span class="text-xs font-extrabold text-blue-600 shrink-0">${s.totalQty} Thùng</span>
             </div>
+            ${stopNoteHtml(s, true)}
             <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
             ${o.leg || ''}
             ${colocChipHtml(s)}
