@@ -792,6 +792,7 @@
           <div id="modalStopGeoMeta" class="mt-1 whitespace-normal"></div>
         </div>
         <button onclick="focusStopOnMap(currentDetailStop && currentDetailStop.canonicalId)" class="bg-white border border-blue-300 text-blue-700 px-2.5 py-1 rounded text-[11px] font-semibold shrink-0">📍 Xem trên bản đồ</button>
+        <button onclick="quickPinPick(currentDetailStop && currentDetailStop.canonicalId)" class="bg-white border border-blue-300 text-blue-700 px-2.5 py-1 rounded text-[11px] font-semibold shrink-0">🎯 Bấm bản đồ để đặt</button>
         <button onclick="promptEditStopCoordinates()" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shrink-0">
           <i data-lucide="map-pin" class="w-3 h-3"></i> Đổi Map & Lưu Lên Cloud
         </button>
@@ -3924,6 +3925,7 @@ async function submitDriverRejectReason(reason) {
             <div class="text-[11px] font-bold text-slate-800">Giao: ${x.totalQty} Thùng • COD: ${formatMoney(x.totalCod)}</div>
             <div>${geoBadgeOfStop(x)}</div>
             <button onclick="openStopDetail(${jsq(x.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
+            ${isDriverMode ? '' : `<button onclick="quickPinPick(${jsq(x.canonicalId)})" class="mt-1 w-full bg-white border border-blue-400 text-blue-700 font-bold py-1 rounded text-[10px]">🎯 Bấm bản đồ để đặt</button>`}
           </div>`).addTo(pinsLayer);
         (grp || [x]).forEach(m => pinIdx.set(m.canonicalId, _mk));
       });
@@ -4254,6 +4256,8 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     var geo = { panelOpen: false, collapsed: false, showAll: false, tab: 'search', q: '', sel: null, newLat: null, newLon: null, pick: false, radius: 20, limit: 30, anchors: {}, undo: [], ignored: new Set(), off: new Set(), excluded: new Set(), dotMul: 0, ver: 0, gKey: '', groups: [], layer: null, selLayer: null, hiLayer: null, renderer: null, marker: null, ignLoaded: false, msg: '', msgT: null };
     try { JSON.parse(localStorage.getItem(GEO_IGN_KEY) || '[]').forEach(k => geo.ignored.add(k)); } catch (e) {}
     try { JSON.parse(localStorage.getItem(GEO_EXC_KEY) || '[]').forEach(k => geo.excluded.add(k)); } catch (e) {}
+    var GEO_IGM_KEY = 'FMCG_GEO_IGNMETA_V1'; geo.ignMeta = {};   // key nhóm -> {at, by, act: merge|keep|confirm}
+    try { JSON.parse(localStorage.getItem(GEO_IGM_KEY) || '[]').forEach(p => { geo.ignMeta[p[0]] = p[1]; }); } catch (e) {}
     function geoIsTouch() { try { return window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 720; } catch (e) { return false; } }
     try { geo.dotMul = parseFloat(localStorage.getItem(GEO_DOT_KEY)) || 0; } catch (e) {}
     if (!geo.dotMul) geo.dotMul = geoIsTouch() ? 1.5 : 1.15;
@@ -4332,7 +4336,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         const d = dup.has(m.id);
         const c = L.circleMarker([m.lat, m.lon], { renderer: geo.renderer, radius: geoDotRadius(d), weight: 2, color: '#ffffff', fillColor: d ? '#f97316' : '#0ea5e9', fillOpacity: 0.95, bubblingMouseEvents: false });
         c._geoDup = d;
-        c.bindTooltip(esc(m.id + ' • ' + m.name), { direction: 'top', opacity: 0.95 }).on('click', () => geoSelect(m.id)).addTo(geo.layer);
+        c.bindTooltip(esc(m.id + ' • ' + m.name) + '<br>' + esc(geoMetaText(m)), { direction: 'top', opacity: 0.95 }).on('click', () => geoSelect(m.id)).addTo(geo.layer);
       });
     }
     function geoShowSelMarker() {
@@ -4400,6 +4404,8 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       const arr = Array.from(geo.ignored);
       try { localStorage.setItem(GEO_IGN_KEY, JSON.stringify(arr)); } catch (e) {}
       try { await cloudSetSetting('geo_ignored', arr); } catch (e) { console.warn(e); }
+      const mp = Object.entries(geo.ignMeta); try { localStorage.setItem(GEO_IGM_KEY, JSON.stringify(mp)); } catch (e) {}
+      try { await cloudSetSetting('geo_ignored_meta', mp); } catch (e) { console.warn(e); }
     }
     async function geoPersistExcluded() {
       const arr = Array.from(geo.excluded);
@@ -4407,20 +4413,21 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       try { await cloudSetSetting('geo_excluded', arr); } catch (e) { console.warn(e); }
     }
     async function geoLoadIgnoredCloud() {
-      const { data } = await db.from('app_settings').select('key_name,setting_val').in('key_name', ['geo_ignored', 'geo_excluded']);
+      const { data } = await db.from('app_settings').select('key_name,setting_val').in('key_name', ['geo_ignored', 'geo_excluded', 'geo_ignored_meta']);
       (data || []).forEach(r => {
         if (!Array.isArray(r.setting_val)) return;
         if (r.key_name === 'geo_ignored') { r.setting_val.forEach(k => geo.ignored.add(k)); try { localStorage.setItem(GEO_IGN_KEY, JSON.stringify(Array.from(geo.ignored))); } catch (e) {} }
+        else if (r.key_name === 'geo_ignored_meta') { r.setting_val.forEach(p => { if (Array.isArray(p) && p[0]) geo.ignMeta[p[0]] = p[1]; }); try { localStorage.setItem(GEO_IGM_KEY, JSON.stringify(Object.entries(geo.ignMeta))); } catch (e) {} }
         else { r.setting_val.forEach(k => geo.excluded.add(k)); try { localStorage.setItem(GEO_EXC_KEY, JSON.stringify(Array.from(geo.excluded))); } catch (e) {} }
       });
       geo.ver++;
     }
-    function geoIgnore(key, on) {
-      if (on) geo.ignored.add(key); else geo.ignored.delete(key);
+    function geoIgnore(key, on, act) {
+      if (on) { geo.ignored.add(key); geo.ignMeta[key] = { at: new Date().toISOString(), by: geoMetaWho(), act: act || 'keep' }; } else { geo.ignored.delete(key); delete geo.ignMeta[key]; }
       geo.ver++; geoPersistIgnored(); geoDrawDots(); renderGeoPanel();
       geoToast(on ? 'Đã đánh dấu KHÔNG gộp. Sẽ không gợi ý lại nhóm này.' : 'Đã bỏ đánh dấu, nhóm này sẽ được gợi ý lại.');
     }
-    function geoResetIgnored() { geo.ignored.clear(); geo.excluded.clear(); geo.off.clear(); geo.ver++; geoPersistIgnored(); geoPersistExcluded(); geoDrawDots(); renderGeoPanel(); geoToast('Đã hiện lại tất cả nhóm và điểm đã loại.'); }
+    function geoResetIgnored() { geo.ignMeta = {}; geo.ignored.clear(); geo.excluded.clear(); geo.off.clear(); geo.ver++; geoPersistIgnored(); geoPersistExcluded(); geoDrawDots(); renderGeoPanel(); geoToast('Đã hiện lại tất cả nhóm và điểm đã loại.'); }
 
     // ---- Chọn KH ----
     function geoSelect(id, noAnchor) {
@@ -4458,7 +4465,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     // ---- Ghi tọa độ mới vào master (Cloud + máy) và cập nhật đơn hôm nay ----
     async function geoApplyCoords(changes, label, isUndo, ignKeys, excIds) {
       const recs = [], old = [];
-      changes.forEach(c => { const r = masterGpsMap.get(c.id); if (!r) return; old.push({ id: r.id, lat: r.lat, lon: r.lon, geo_updated_at: r.geo_updated_at || null, geo_updated_by: r.geo_updated_by || null, geo_source: r.geo_source || null }); const nr = Object.assign({}, r, { lat: c.lat, lon: c.lon }); if (c.meta) { nr.geo_updated_at = c.meta.geo_updated_at || null; nr.geo_updated_by = c.meta.geo_updated_by || null; nr.geo_source = c.meta.geo_source || null; } else geoStamp(nr, r, 'Chuẩn hóa vị trí'); recs.push(nr); });
+      changes.forEach(c => { const r = masterGpsMap.get(c.id); if (!r) return; old.push({ id: r.id, lat: r.lat, lon: r.lon, geo_updated_at: r.geo_updated_at || null, geo_updated_by: r.geo_updated_by || null, geo_source: r.geo_source || null }); const nr = Object.assign({}, r, { lat: c.lat, lon: c.lon }); if (c.meta) { nr.geo_updated_at = c.meta.geo_updated_at || null; nr.geo_updated_by = c.meta.geo_updated_by || null; nr.geo_source = c.meta.geo_source || null; } else geoStamp(nr, r, c.src || 'Chuẩn hóa vị trí'); recs.push(nr); });
       if (!recs.length) throw new Error('Không tìm thấy KH để cập nhật');
       if (db) await upsertMasterChunks(recs);   // lỗi Cloud => dừng, không đổi gì trên máy
       recs.forEach(r => masterGpsMap.set(r.id, r));
@@ -4520,7 +4527,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       }
       try {
         await geoApplyCoords(last.items.map(i => ({ id: i.id, lat: i.lat, lon: i.lon, meta: i })), '', true);
-        geo.undo.pop(); if (last.ign && last.ign.length) { last.ign.forEach(k => geo.ignored.delete(k)); geoPersistIgnored(); } if (last.exc && last.exc.length) { last.exc.forEach(k => geo.excluded.delete(k)); geoPersistExcluded(); } geo.ver++;
+        geo.undo.pop(); if (last.ign && last.ign.length) { last.ign.forEach(k => { geo.ignored.delete(k); delete geo.ignMeta[k]; }); geoPersistIgnored(); } if (last.exc && last.exc.length) { last.exc.forEach(k => geo.excluded.delete(k)); geoPersistExcluded(); } geo.ver++;
         geo.newLat = null; geo.newLon = null; geoAfterChange(); geoToast('Đã hoàn tác: ' + last.label);
       } catch (e) { alert('Lỗi hoàn tác: ' + (e.message || e)); }
     }
@@ -4559,8 +4566,8 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       if (!(await appConfirm(`GỘP VỊ TRÍ ${active.length} KH về vị trí của "${A.name}" (${anchorId})?\n\n• Chỉ đổi TỌA ĐỘ của ${others.length} KH còn lại.\n• Mã KH, tên, SĐT, địa chỉ và ĐƠN HÀNG của từng KH GIỮ NGUYÊN (không gộp khách, không gộp đơn).\n` + (dropped.length ? `• ${dropped.length} điểm bỏ tick được giữ nguyên tọa độ và loại khỏi gợi ý trùng.\n` : '') + `• Có thể bấm "Hoàn tác" ngay sau đó.`))) return;
       try {
         const newKey = active.join('|');
-        await geoApplyCoords(others.map(id => ({ id, lat: A.lat, lon: A.lon })), `Gộp vị trí ${active.length} KH về ${anchorId}`, false, [key, newKey], dropped.filter(id => !geo.excluded.has(id)));
-        geo.ignored.add(key); geo.ignored.add(newKey); geoPersistIgnored();   // nhóm đã xử lý: không gợi ý lại
+        await geoApplyCoords(others.map(id => ({ id, lat: A.lat, lon: A.lon, src: 'Gộp vị trí' })), `Gộp vị trí ${active.length} KH về ${anchorId}`, false, [key, newKey], dropped.filter(id => !geo.excluded.has(id)));
+        { const _im = { at: new Date().toISOString(), by: geoMetaWho(), act: 'merge' }; geo.ignored.add(key); geo.ignored.add(newKey); geo.ignMeta[key] = _im; geo.ignMeta[newKey] = _im; } geoPersistIgnored();   // nhóm đã xử lý: không gợi ý lại
         dropped.forEach(id => { geo.excluded.add(id); geo.off.delete(id); }); if (dropped.length) geoPersistExcluded();
         geo.ver++; geo.hiLayer.clearLayers(); geoAfterChange(); geoToast(`Đã gộp vị trí ${active.length} KH (giữ nguyên mã KH và đơn). Bấm Hoàn tác nếu cần.`);
       } catch (e) { alert('Lỗi lưu Cloud: ' + (e.message || e)); }
@@ -4576,16 +4583,16 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         return `<div class="flex items-center gap-2 py-1 ${on ? '' : 'opacity-50'}">
           <input type="checkbox" class="w-5 h-5 shrink-0" ${on ? 'checked' : ''} ${(isA || g.ignored) ? 'disabled' : ''} onchange="geoToggleOff(${jsq(id)}, this.checked)" title="Tick = thuộc nhóm gộp vị trí. Bỏ tick = không gộp điểm này">
           <input type="radio" class="w-4 h-4 shrink-0" name="ga${idx}" ${isA ? 'checked' : ''} ${(g.ignored || !on) ? 'disabled' : ''} onchange="geoSetAnchor(${jsq(g.key)}, ${jsq(id)})" title="Giữ vị trí của KH này (điểm gốc)">
-          <button class="min-w-0 flex-1 text-left leading-tight hover:text-blue-700" onclick="geoSelect(${jsq(id)})"><b>${esc(id)}</b> • ${esc(m.name)}</button>
+          <button class="min-w-0 flex-1 text-left leading-tight hover:text-blue-700" onclick="geoSelect(${jsq(id)})"><b>${esc(id)}</b> • ${esc(m.name)}<span class="block mt-0.5">${geoBadgeHtml(m)}</span></button>
           <span class="shrink-0 text-slate-500 text-right" style="min-width:48px">${isA ? 'giữ vị trí' : (on ? Math.round(geoDist(m, A)) + ' m' : 'bỏ ra')}</span>
           <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-slate-300 text-slate-700" onclick="geoPickFor(${jsq(id)})" title="Đặt vị trí riêng cho KH này">✎ Riêng</button>
           <button class="shrink-0 font-bold rounded px-2 py-1 text-xs bg-white border border-rose-300 text-rose-700" onclick="geoDeleteCustomer(${jsq(id)})" title="Xóa KH này (đã đóng cửa / không hoạt động)">🗑</button></div>`;
       }).join('');
       const bs = 'font-bold rounded px-2.5 py-1.5 text-xs';
       const btns = g.ignored
-        ? `<span class="text-slate-500">Đã xử lý / đánh dấu KHÔNG gộp</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, false)">Bỏ đánh dấu</button>`
+        ? `<span class="text-slate-600 font-bold">${geoIgnLabel(g.key)}</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, false)">Bỏ đánh dấu</button>`
         : ((g.same && !offN)
-          ? `<span class="text-slate-600">Đang cùng 1 tọa độ.</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true)">Đúng, không báo lại</button>`
+          ? `<span class="text-slate-600">Đang cùng 1 tọa độ.</span><button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true, 'confirm')">Đúng, không báo lại</button>`
           : `<button class="${bs} bg-blue-600 text-white ${active.length < 2 ? 'opacity-40' : ''}" onclick="geoMergeGroup(${jsq(g.key)})">🔗 Gộp vị trí (${active.length})</button>`
             + (offN ? `<button class="${bs} bg-white border border-rose-300 text-rose-700" onclick="geoExcludeOff(${jsq(g.key)})">🚫 Loại ${offN} điểm bỏ tick</button>` : '')
             + `<button class="${bs} bg-slate-200 text-slate-700" onclick="geoIgnore(${jsq(g.key)}, true)">Không gộp</button>`);
@@ -4610,7 +4617,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       });
       hits.sort((a, b) => a[0] - b[0] || String(a[1].name).localeCompare(String(b[1].name), 'vi'));
       el.innerHTML = hits.length
-        ? hits.slice(0, 15).map(h => `<button class="w-full text-left px-2 py-1.5 border-b border-slate-100 hover:bg-blue-50" onclick="geoSelect(${jsq(h[1].id)})"><b>${esc(h[1].id)}</b> • ${esc(h[1].name)}<span class="block text-slate-500 truncate">${esc(h[1].addr || '')}</span></button>`).join('') + (hits.length > 15 ? `<div class="text-slate-400 px-2 py-1">Còn ${hits.length - 15} kết quả nữa, gõ thêm để lọc.</div>` : '')
+        ? hits.slice(0, 15).map(h => `<button class="w-full text-left px-2 py-1.5 border-b border-slate-100 hover:bg-blue-50" onclick="geoSelect(${jsq(h[1].id)})"><b>${esc(h[1].id)}</b> • ${esc(h[1].name)}<span class="block text-slate-500 truncate">${esc(h[1].addr || '')}</span><span class="block">${geoBadgeHtml(h[1])}</span></button>`).join('') + (hits.length > 15 ? `<div class="text-slate-400 px-2 py-1">Còn ${hits.length - 15} kết quả nữa, gõ thêm để lọc.</div>` : '')
         : '<div class="text-slate-400 px-2 py-1">Không tìm thấy KH nào có vị trí.</div>';
     }
 
@@ -4648,6 +4655,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         h += `<div class="border border-blue-300 bg-blue-50 rounded-lg p-2 space-y-1.5">
           <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="font-extrabold text-slate-900 break-words">${esc(m.id)} • ${esc(m.name)}</div><div class="text-slate-600 break-words">${esc(m.addr || 'Chưa có địa chỉ')}</div></div><button onclick="geoDeselect()" class="text-slate-500 font-bold px-1">✕</button></div>
           <div class="text-slate-600">Đang lưu: <b>${m.lat}, ${m.lon}</b> • <a target="_blank" rel="noopener" class="text-blue-700 underline" href="https://www.google.com/maps?q=${m.lat},${m.lon}">Google Maps</a></div>
+          <div>${geoBadgeHtml(m, true)}</div>
           <div class="flex gap-1"><input id="geoCoordInput" type="text" autocomplete="off" class="select-text flex-1 min-w-0 border border-slate-300 rounded px-2 py-1 text-[11px]" placeholder="Dán 11.xxxx, 106.xxxx hoặc link Google Maps"><button onclick="geoApplyInput()" class="${bs} bg-white border border-slate-300 text-slate-700 shrink-0">Áp dụng</button></div>
           <div id="geoChangeInfo" class="text-slate-400"></div>
           <div class="flex flex-wrap gap-1"><button id="geoPickBtn" onclick="geoTogglePick()" class="${bs} bg-white border border-slate-300 text-slate-700">🎯 Bấm bản đồ để đặt</button><button onclick="geoResetNew()" class="${bs} bg-white border border-slate-300 text-slate-700">Đặt lại</button><button id="geoSaveBtn" onclick="geoSave()" class="${bs} bg-blue-600 text-white">💾 Lưu vị trí</button><button onclick="geoDeleteCustomer(${jsq(m.id)})" class="${bs} bg-white border border-rose-300 text-rose-700">🗑 Xóa KH</button></div>
@@ -4921,6 +4929,25 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     function geoMetaOfStop(s) { return masterGpsMap.get(s.baseId || s.canonicalId); }
     function geoBadgeOfStop(s, full) { return geoBadgeHtml(geoMetaOfStop(s), full); }
 
+    function geoMetaText(rec) { return (rec && rec.geo_updated_at) ? 'Map ' + geoFmtAt(rec.geo_updated_at) + (rec.geo_updated_by ? ' • ' + rec.geo_updated_by : '') : 'Chưa rõ lần map'; }
+    function geoIgnLabel(key) {
+      const im = geo.ignMeta[key];
+      if (!im) return 'Đã xử lý / đánh dấu KHÔNG gộp (chưa rõ thời gian)';
+      const w = im.act === 'merge' ? '🔗 Đã gộp vị trí' : (im.act === 'confirm' ? '✔ Đã xác nhận đúng' : '✋ Đã đánh dấu KHÔNG gộp');
+      return w + ' ' + geoFmtAt(im.at) + (im.by ? ' • ' + esc(im.by) : '');
+    }
+    // Nút "🎯 Bấm bản đồ để đặt" dùng nhanh từ popup ghim / chi tiết / bảng trùng: mở bản đồ mở rộng + bảng Chuẩn hóa, chọn KH, bật chế độ bấm bản đồ
+    async function quickPinPick(id) {
+      const s = allMergedStops.find(x => x.canonicalId === id), bid = s ? (s.baseId || s.canonicalId) : id;
+      closeStopDetailModal(); try { map && map.closePopup(); } catch (e) {}
+      if (s && !masterGpsMap.get(bid)) return triggerClickToPin(id);   // chưa có tọa độ: dùng luồng ghim cũ
+      const sw = window.innerWidth < 768 && mobileView === 'list';
+      if (sw) toggleMobileView();
+      setTimeout(() => {
+        if (!mapExpanded) toggleMapExpand(true);
+        setTimeout(async () => { if (!geo.panelOpen) await toggleGeoPanel(); geoPickFor(bid); }, 150);
+      }, sw ? 450 : 0);
+    }
     // ---- Nút 📍: nhảy sang bản đồ, zoom + mở ghim của khách ----
     function focusStopOnMap(id) {
       const s = allMergedStops.find(x => x.canonicalId === id); if (!s) return;
@@ -4973,7 +5000,7 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     function colocPopupHtml(g) {
       const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
       return `<div class="space-y-1"><div class="font-bold text-orange-700">📍 ${g.length} đơn cùng 1 vị trí</div>
-        ${g.map(s => { const tr = fleet.find(t => t.id === s.truckId); return `<div class="text-[11px] border-t pt-1"><b style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}${esc(s.custName)}</b><br>${s.totalQty} Thùng • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao')}<br><button onclick="openStopDetail(${jsq(s.canonicalId)})" class="text-blue-600 font-bold underline">Xem chi tiết</button></div>`; }).join('')}
+        ${g.map(s => { const tr = fleet.find(t => t.id === s.truckId); return `<div class="text-[11px] border-t pt-1"><b style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}${esc(s.custName)}</b><br>${s.totalQty} Thùng • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao')}<br>${geoBadgeOfStop(s)}<br><button onclick="openStopDetail(${jsq(s.canonicalId)})" class="text-blue-600 font-bold underline">Xem chi tiết</button>${isDriverMode ? '' : ` • <button onclick="quickPinPick(${jsq(s.canonicalId)})" class="text-blue-600 font-bold underline">🎯 Đặt lại vị trí</button>`}</div>`; }).join('')}
         <div class="text-[11px] font-bold border-t pt-1">Tổng: ${tot} Thùng • COD ${formatMoney(cod)}</div></div>`;
     }
     function closeColocModal() { const m = document.getElementById('colocModal'); if (m) m.style.display = 'none'; }
@@ -4995,7 +5022,7 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
             <div class="font-bold text-slate-900 truncate"><span style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}</span>${esc(s.custName || '(không tên)')} <span class="font-mono font-normal text-slate-500">${esc(s.canonicalId)}</span></div>
             <div class="text-slate-500 truncate">${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
             <div class="text-slate-700"><b class="text-blue-700">${s.totalQty} thùng</b> • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${stTxt(s)}</div>
-            <div class="mt-0.5">${geoBadgeOfStop(s)}</div></div>`; };
+            <div class="mt-0.5 flex flex-wrap items-center gap-1">${geoBadgeOfStop(s)}<button onclick="event.stopPropagation(); closeColocModal(); quickPinPick(${jsq(s.canonicalId)})" class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">🎯 Đặt lại vị trí</button></div></div>`; };
       const card = g => {
         const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
         let mx = 0; for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) mx = Math.max(mx, calcDistanceKm(g[i].lat, g[i].lon, g[j].lat, g[j].lon) * 1000);
