@@ -785,11 +785,13 @@
         </table>
       </div>
 
-      <div class="bg-slate-50 p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs">
-        <div class="truncate flex-1">
+      <div class="bg-slate-50 p-2.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="truncate flex-1 min-w-[60%]">
           <span class="text-slate-500">Tọa độ: </span>
           <strong id="modalStopGpsText" class="font-mono text-blue-600">Chưa có</strong>
+          <div id="modalStopGeoMeta" class="mt-1 whitespace-normal"></div>
         </div>
+        <button onclick="focusStopOnMap(currentDetailStop && currentDetailStop.canonicalId)" class="bg-white border border-blue-300 text-blue-700 px-2.5 py-1 rounded text-[11px] font-semibold shrink-0">📍 Xem trên bản đồ</button>
         <button onclick="promptEditStopCoordinates()" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 shrink-0">
           <i data-lucide="map-pin" class="w-3 h-3"></i> Đổi Map & Lưu Lên Cloud
         </button>
@@ -818,7 +820,7 @@
         Nhiều Sale lên đơn tạo các mã KiotViet khác nhau cho cùng một quán. Khi gộp tại đây, bất kỳ Sale nào lên đơn ở mã nào cũng tự động gom chung về 1 điểm dừng trên bản đồ.
       </p>
 
-      <button onclick="closeAliasModal(); openColocModal()" class="w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-2 rounded-xl text-xs shadow">📍 Xem các điểm chung vị trí hôm nay (không gộp khách)</button>
+      <button onclick="closeAliasModal(); openColocModal()" class="w-full bg-orange-500 hover:bg-orange-400 text-white font-bold py-2 rounded-xl text-xs shadow">📍 Xem điểm trùng & gần nhau hôm nay (không gộp khách)</button>
       <div id="aliasListContainer" class="space-y-1.5 max-h-[220px] overflow-y-auto"></div>
 
       <div class="p-2.5 bg-slate-50 rounded-xl border space-y-2 text-xs">
@@ -1323,9 +1325,9 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
     }
     async function upsertMasterChunks(list) {
       for (let i = 0; i < list.length; i += 200) {
-        const chunk = list.slice(i, i + 200).map(m => ({ id: String(m.id).trim(), name: m.name || '', phone: normalizePhone(m.phone || ''), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', updated_at: new Date().toISOString(), ...(Array.isArray(m.tags) ? { tags: m.tags } : {}) }))
+        const chunk = list.slice(i, i + 200).map(m => ({ id: String(m.id).trim(), name: m.name || '', phone: normalizePhone(m.phone || ''), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', updated_at: new Date().toISOString(), ...(Array.isArray(m.tags) ? { tags: m.tags } : {}), ...geoPayloadOf(m) }))
           .filter(m => m.id && !isNaN(m.lat) && !isNaN(m.lon));
-        const { error } = await db.from('master_customers').upsert(chunk, { onConflict: 'id' });
+        const { error } = await masterUpsert(chunk);
         if (error) throw error;
       }
     }
@@ -1694,7 +1696,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
           if (!stop) return;
           let lat = parseFloat(e.latlng.lat.toFixed(6));
           let lon = parseFloat(e.latlng.lng.toFixed(6));
-          if (confirm(`Gán tọa độ [${lat}, ${lon}] cho quán "${stop.custName}"?`)) saveStopNewCoords(stop.canonicalId, lat, lon);
+          if (confirm(`Gán tọa độ [${lat}, ${lon}] cho quán "${stop.custName}"?`)) saveStopNewCoords(stop.canonicalId, lat, lon, 'Ghim bản đồ');
         });
       } catch (err) {
         console.warn("Lỗi khởi tạo Leaflet Map:", err);
@@ -1752,7 +1754,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       const data = await fetchAllRows('master_customers', '*', 'id');
       if (data.length > 0) {
         masterGpsMap.clear();
-   data.forEach(m => masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', tags: Array.isArray(m.tags) ? m.tags : [] }));   localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
+   data.forEach(m => masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', tags: Array.isArray(m.tags) ? m.tags : [], geo_updated_at: m.geo_updated_at || null, geo_updated_by: m.geo_updated_by || null, geo_source: m.geo_source || null }));   localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
         updateMasterCountBadge(masterGpsMap.size, "Supabase Cloud");
       } else if (masterGpsMap.size > 0) {
         updateMasterCountBadge(masterGpsMap.size, "Cache máy - CHƯA lên Cloud");
@@ -1836,10 +1838,10 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       let coords = parseCoords(coordsStr);
       if (!coords) return alert("Tọa độ không hợp lệ!");
 
-  let newRecord = { id, name, phone: normalizePhone(phone), lat: coords.lat, lon: coords.lon, addr, tags: (masterGpsMap.get(id) || {}).tags || [] };
+  let newRecord = geoStamp({ id, name, phone: normalizePhone(phone), lat: coords.lat, lon: coords.lon, addr, tags: (masterGpsMap.get(id) || {}).tags || [] }, masterGpsMap.get(id), 'Quản trị Master');
 masterGpsMap.set(id, newRecord);
 
-      if (db) { const { error } = await db.from('master_customers').upsert(newRecord, { onConflict: 'id' }); if (error) return alert("Lỗi lưu Cloud: " + error.message); }
+      if (db) { const { error } = await masterUpsert(newRecord); if (error) return alert("Lỗi lưu Cloud: " + error.message); }
 
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
       alert(`Đã lưu vĩnh viễn khách hàng [${id} - ${name}] lên Cloud!`);
@@ -3892,7 +3894,7 @@ async function submitDriverRejectReason(reason) {
     function renderRouteOnMap() {
       if (mapSelectMode && map) { renderSelectModeMap(false); return; }
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
-      routeLayer.clearLayers(); pinsLayer.clearLayers();
+      routeLayer.clearLayers(); pinsLayer.clearLayers(); pinIdx.clear();
       updateMapLegend(); renderMapFilterPanel();
       const d = [warehouseDepot.lat, warehouseDepot.lon], truck = fleet.find(t => t.id === activeTruckId);
       let actLine = null, actLatLngs = null;
@@ -3914,14 +3916,16 @@ async function submitDriverRejectReason(reason) {
         const pin = stopPinHtml(x, false, false), tr = fleet.find(t => t.id === x.truckId);
         { const _ob = invCountOf(x) >= 2 ? orderBadgeHtml(invCountOf(x)) : ''; if (grp || _ob) pin.html = `<div style="position:relative">${pin.html}${grp ? colocBadgeHtml(grp.length) : ''}${_ob}</div>`; }
         const stTxt = x.status === 'success' ? '✓ Đã giao' : (x.status === 'failed' ? '✕ Thất bại: ' + esc(x.failedReason || '') : 'Chưa giao');
-        L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(grp ? colocPopupHtml(grp) : `
+        const _mk = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'stop-map-pin', html: pin.html, iconSize: [pin.size, pin.size], iconAnchor: [pin.size / 2, pin.size / 2] }) }).bindPopup(grp ? colocPopupHtml(grp) : `
           <div class="space-y-1">
             <div class="font-bold" style="color:${stopColor(x)}">${x.stopSeq && tr ? '#' + x.stopSeq + ' • ' : ''}${esc(x.custName)}</div>
             <div class="text-[11px] text-slate-500">${esc(x.addr)}</div>
             <div class="text-[11px]"><b>${tr ? esc(tr.name) : 'Chưa xếp xe'}</b> • ${stTxt}</div>
             <div class="text-[11px] font-bold text-slate-800">Giao: ${x.totalQty} Thùng • COD: ${formatMoney(x.totalCod)}</div>
+            <div>${geoBadgeOfStop(x)}</div>
             <button onclick="openStopDetail(${jsq(x.canonicalId)})" class="mt-1 w-full bg-blue-600 text-white font-bold py-1 rounded text-[10px]">Xem Chi Tiết</button>
           </div>`).addTo(pinsLayer);
+        (grp || [x]).forEach(m => pinIdx.set(m.canonicalId, _mk));
       });
       if (bounds.isValid() && !(typeof geo !== 'undefined' && geo.panelOpen)) map.fitBounds(bounds, { padding: [30, 30] });   // đang chỉnh vị trí KH: không tự nhảy bản đồ
     }
@@ -3994,6 +3998,7 @@ async function submitDriverRejectReason(reason) {
       const gps = s.isMapped ? '' : `<button onclick="event.stopPropagation(); promptEditStopCoordinates(${jsq(s.canonicalId)})" class="text-[10px] bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-200">Gắn Map</button>`;
       const multi = (s.rawIds && s.rawIds.size > 1) ? `<span class="text-[9px] bg-purple-100 text-purple-700 font-bold px-1 rounded">Gộp ${s.rawIds.size}</span>` : '';
       const re = (o.reassign && isPendingStop(s)) ? `<button onclick="reassignStopToAnotherTruck(event, ${jsq(s.canonicalId)})" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium underline">Chuyển xe</button>` : '';
+      const mp = (!isDriverMode && s.isMapped) ? `<button onclick="event.stopPropagation(); focusStopOnMap(${jsq(s.canonicalId)})" class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">📍 Map</button>` : '';
       const ed = `<button onclick="openEditCustomer(${jsq(s.canonicalId)}, event)" class="text-[10px] text-slate-500 hover:text-blue-600 font-medium underline">Sửa KH</button>`;
 return `
         <div style="${rowStyle(s)}" class="px-2.5 py-1.5 hover:bg-slate-50 cursor-pointer transition flex items-start gap-2">
@@ -4007,9 +4012,10 @@ return `
             <div class="text-[10px] text-slate-500 truncate"><strong class="text-slate-700">${esc(s.canonicalId)}</strong> • ${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
             ${o.leg || ''}
             ${colocChipHtml(s)}
+            ${(!isDriverMode && s.isMapped) ? '<div class="mt-0.5">' + geoBadgeOfStop(s) + '</div>' : ''}
             <div class="flex items-center justify-between gap-1 mt-0.5">
               <div class="flex items-center gap-1 flex-wrap">${pill}${trPill}${multi}${orderChipHtml(s)}${tagBadges(s.tags)}${gps}</div>
-              <div class="flex items-center gap-2 shrink-0">${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
+              <div class="flex items-center gap-2 shrink-0">${mp}${ed}${re}<span class="text-[11px] font-bold text-amber-700">COD ${formatMoney(s.totalCod)}</span></div>
             </div>
           </div>
         </div>`;
@@ -4147,7 +4153,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     // Vẽ TẤT CẢ điểm chưa lưu trữ: màu theo xe, xám = chưa xếp, cam = đang chọn, mờ = đã khóa/đã giao
     function renderSelectModeMap(fit) {
       if (!map || typeof L === 'undefined' || !routeLayer || !pinsLayer) return;
-      routeLayer.clearLayers(); pinsLayer.clearLayers();
+      routeLayer.clearLayers(); pinsLayer.clearLayers(); pinIdx.clear();
       updateMapLegend(); renderMapFilterPanel();
       const d = [warehouseDepot.lat, warehouseDepot.lon], bounds = L.latLngBounds([d]);
       fleet.forEach(t => {
@@ -4452,7 +4458,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     // ---- Ghi tọa độ mới vào master (Cloud + máy) và cập nhật đơn hôm nay ----
     async function geoApplyCoords(changes, label, isUndo, ignKeys, excIds) {
       const recs = [], old = [];
-      changes.forEach(c => { const r = masterGpsMap.get(c.id); if (!r) return; old.push({ id: r.id, lat: r.lat, lon: r.lon }); recs.push(Object.assign({}, r, { lat: c.lat, lon: c.lon })); });
+      changes.forEach(c => { const r = masterGpsMap.get(c.id); if (!r) return; old.push({ id: r.id, lat: r.lat, lon: r.lon, geo_updated_at: r.geo_updated_at || null, geo_updated_by: r.geo_updated_by || null, geo_source: r.geo_source || null }); const nr = Object.assign({}, r, { lat: c.lat, lon: c.lon }); if (c.meta) { nr.geo_updated_at = c.meta.geo_updated_at || null; nr.geo_updated_by = c.meta.geo_updated_by || null; nr.geo_source = c.meta.geo_source || null; } else geoStamp(nr, r, 'Chuẩn hóa vị trí'); recs.push(nr); });
       if (!recs.length) throw new Error('Không tìm thấy KH để cập nhật');
       if (db) await upsertMasterChunks(recs);   // lỗi Cloud => dừng, không đổi gì trên máy
       recs.forEach(r => masterGpsMap.set(r.id, r));
@@ -4513,7 +4519,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
         return;
       }
       try {
-        await geoApplyCoords(last.items.map(i => ({ id: i.id, lat: i.lat, lon: i.lon })), '', true);
+        await geoApplyCoords(last.items.map(i => ({ id: i.id, lat: i.lat, lon: i.lon, meta: i })), '', true);
         geo.undo.pop(); if (last.ign && last.ign.length) { last.ign.forEach(k => geo.ignored.delete(k)); geoPersistIgnored(); } if (last.exc && last.exc.length) { last.exc.forEach(k => geo.excluded.delete(k)); geoPersistExcluded(); } geo.ver++;
         geo.newLat = null; geo.newLon = null; geoAfterChange(); geoToast('Đã hoàn tác: ' + last.label);
       } catch (e) { alert('Lỗi hoàn tác: ' + (e.message || e)); }
@@ -4678,6 +4684,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       document.getElementById('modalStopGpsText').innerText = stop.isMapped ? `${stop.lat.toFixed(6)}, ${stop.lon.toFixed(6)}` : "Chưa có tọa độ";
 
       document.getElementById('modalOrdersChip').innerHTML = orderChipHtml(stop);
+      { const _gm = document.getElementById('modalStopGeoMeta'); if (_gm) _gm.innerHTML = stop.isMapped ? geoBadgeOfStop(stop, true) : ''; }
       let tbody = document.getElementById('modalItemsTableBody');
       tbody.innerHTML = stop.items.map(it => `
         <tr class="hover:bg-slate-50">
@@ -4705,7 +4712,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       if (!input) return;
 
       let coords = parseCoords(input);
-      if (coords) saveStopNewCoords(stop.canonicalId, coords.lat, coords.lon);
+      if (coords) saveStopNewCoords(stop.canonicalId, coords.lat, coords.lon, 'Dán tọa độ');
       else alert("Tọa độ không hợp lệ!");
     }
 
@@ -4716,7 +4723,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       alert(`Đã chọn: "${stop.custName}".\n\nBây giờ anh hãy CLICK TRỰC TIẾP lên bản đồ ở góc đường mong muốn để gán tọa độ!`);
     }
 
-    async function saveStopNewCoords(canonicalId, lat, lon) {
+    async function saveStopNewCoords(canonicalId, lat, lon, src) {
       let stop = allMergedStops.find(s => s.canonicalId === canonicalId);
       if (!stop) return;
 
@@ -4724,10 +4731,10 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
       stop.lon = lon;
       stop.isMapped = true;
 
-       let item = { id: stop.baseId || canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr, tags: stop.tags || [] };
+       let item = geoStamp({ id: stop.baseId || canonicalId, name: stop.custName, phone: normalizePhone(stop.phone), lat, lon, addr: stop.addr, tags: stop.tags || [] }, masterGpsMap.get(stop.baseId || canonicalId), src || 'Ghim bản đồ');
  masterGpsMap.set(item.id, item);
 
-      if (db) { const { error } = await db.from('master_customers').upsert(item, { onConflict: 'id' }); if (error) return alert("Lỗi lưu tọa độ lên Cloud: " + error.message); }
+      if (db) { const { error } = await masterUpsert(item); if (error) return alert("Lỗi lưu tọa độ lên Cloud: " + error.message); }
 
       localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
 
@@ -4800,8 +4807,8 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
   const baseId = stop.baseId || stop.canonicalId;
   let savedForever = false;
   if (lat !== null && lon !== null) {
-    const rec = { id: baseId, name, phone, lat, lon, addr, tags };
-    if (db) { const { error } = await db.from('master_customers').upsert(rec, { onConflict: 'id' }); if (error) return alert('Lỗi lưu Cloud: ' + error.message); }
+    const rec = geoStamp({ id: baseId, name, phone, lat, lon, addr, tags }, masterGpsMap.get(baseId), 'Sửa KH');
+    if (db) { const { error } = await masterUpsert(rec); if (error) return alert('Lỗi lưu Cloud: ' + error.message); }
     masterGpsMap.set(baseId, rec);
     localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values())));
     savedForever = true;
@@ -4831,8 +4838,10 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     // Chỉ: (1) báo "chung vị trí" trên danh sách, (2) gom ghim chồng nhau trên bản đồ thành 1 ghim có số lượng,
     // (3) cho biết "N đơn / M vị trí" để không bị "mất điểm".
     // =========================================================================
-    const COLOC_M = 40;   // mét: 2 điểm cách nhau <= 40 m coi là chung vị trí
-    let _colocKey = '', _colocVal = new Map(), _colocArr = [];
+    const COLOC_M = 5;    // mét: <= 5 m = TRÙNG vị trí (gộp 1 ghim ×N)
+    const NEAR_M = 40;    // mét: 5–40 m = chỉ GẦN NHAU (giữ ghim riêng, không gộp)
+    let _colocKey = '', _colocVal = new Map(), _colocArr = [], _nearVal = new Map();
+    var pinIdx = new Map();   // canonicalId -> marker trên bản đồ (để nút 📍 mở đúng ghim)
     function colocMap(arr) {   // arr: các stop đã lọc (có tọa độ). Trả Map canonicalId -> mảng các stop chung vị trí (>=2)
       const par = arr.map((_, i) => i); const find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
       for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++)
@@ -4846,6 +4855,90 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
       });
       return out;
     }
+
+    // ---- GẦN NHAU (5–40 m): tính theo từng cặp, KHÔNG gom dây chuyền ----
+    function nearPairs(arr) {
+      const out = [];
+      for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+        const d = calcDistanceKm(arr[i].lat, arr[i].lon, arr[j].lat, arr[j].lon) * 1000;
+        if (d > COLOC_M && d <= NEAR_M) out.push({ a: arr[i], b: arr[j], d });
+      }
+      return out.sort((x, y) => x.d - y.d);
+    }
+    function nearMap(arr) {
+      const m = new Map();
+      nearPairs(arr).forEach(p => [[p.a, p.b], [p.b, p.a]].forEach(([x, y]) => { if (!m.has(x.canonicalId)) m.set(x.canonicalId, []); m.get(x.canonicalId).push({ s: y, d: p.d }); }));
+      return m;
+    }
+    function getNear() { getColoc(); return _nearVal; }
+    function nearChipHtml(s) {
+      const n = getNear().get(s.canonicalId); if (!n || !n.length) return '';
+      const txt = '📏 Gần ' + n.slice(0, 2).map(o => esc(colocShort(o.s, s)) + ' ~' + Math.round(o.d) + ' m').join(', ') + (n.length > 2 ? ' +' + (n.length - 2) : '');
+      return isDriverMode
+        ? `<div class="mt-1"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-300">${txt}</span></div>`
+        : `<div class="mt-0.5"><button onclick="event.stopPropagation(); openColocModal(${jsq(s.canonicalId)})" class="text-left text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-300">${txt}</button></div>`;
+    }
+    function colocChipHtml(s) { return colocExactChipHtml(s) + nearChipHtml(s); }
+
+    // ---- LẦN MAP GẦN NHẤT (geo_updated_at / geo_updated_by / geo_source trong master_customers) ----
+    var _geoMetaOk = true, _geoMetaWarned = false;
+    function geoMetaWho() { try { return (AUTH && AUTH.name) ? AUTH.name : ''; } catch (e) { return ''; } }
+    function geoStamp(rec, old, src) {   // chỉ đóng dấu khi TỌA ĐỘ thật sự đổi (> 1 m)
+      const moved = !old || !Number.isFinite(old.lat) || !Number.isFinite(old.lon) || geoDist(old, rec) > 1;
+      if (moved) { rec.geo_updated_at = new Date().toISOString(); rec.geo_updated_by = geoMetaWho(); rec.geo_source = src; }
+      else if (old && old.geo_updated_at) { rec.geo_updated_at = old.geo_updated_at; rec.geo_updated_by = old.geo_updated_by || ''; rec.geo_source = old.geo_source || ''; }
+      return rec;
+    }
+    function geoPayloadOf(m) {   // dùng trong upsertMasterChunks
+      if ('geo_updated_at' in m) return { geo_updated_at: m.geo_updated_at || null, geo_updated_by: m.geo_updated_by || null, geo_source: m.geo_source || null };
+      const old = masterGpsMap.get(String(m.id).trim());
+      if (!old || !Number.isFinite(old.lat) || geoDist(old, { lat: parseFloat(m.lat), lon: parseFloat(m.lon) }) > 1) return { geo_updated_at: new Date().toISOString(), geo_updated_by: geoMetaWho() || null, geo_source: 'Import' };
+      return {};
+    }
+    async function masterUpsert(payload) {   // payload: 1 bản ghi hoặc mảng. Chưa có cột geo_* => tự bỏ cột đó và vẫn lưu vị trí.
+      const arr = Array.isArray(payload);
+      const strip = r => { const c = Object.assign({}, r); delete c.geo_updated_at; delete c.geo_updated_by; delete c.geo_source; return c; };
+      const send = p => db.from('master_customers').upsert(p, { onConflict: 'id' });
+      let res = await send(_geoMetaOk ? payload : (arr ? payload.map(strip) : strip(payload)));
+      if (res.error && _geoMetaOk && /geo_(updated|source)/.test(res.error.message || '')) {
+        _geoMetaOk = false;
+        if (!_geoMetaWarned) { _geoMetaWarned = true; alert('Chưa chạy lệnh SQL thêm cột geo_* trên Supabase nên tạm thời CHƯA lưu được "lần map gần nhất". Vị trí khách vẫn lưu bình thường.'); }
+        res = await send(arr ? payload.map(strip) : strip(payload));
+      }
+      return res;
+    }
+    function geoFmtAt(iso) {
+      const d = new Date(iso); if (isNaN(d)) return ''; const n = new Date(), p = x => String(x).padStart(2, '0');
+      if (d.toDateString() === n.toDateString()) return 'hôm nay ' + p(d.getHours()) + ':' + p(d.getMinutes());
+      return p(d.getDate()) + '/' + p(d.getMonth() + 1) + (d.getFullYear() !== n.getFullYear() ? '/' + d.getFullYear() : '');
+    }
+    function geoBadgeHtml(rec, full) {
+      if (!rec || !Number.isFinite(rec.lat)) return '';
+      if (!rec.geo_updated_at) return '<span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">⚠ Chưa rõ lần map</span>';
+      const by = rec.geo_updated_by ? ' • ' + esc(rec.geo_updated_by) : '', sr = (full && rec.geo_source) ? ' (' + esc(rec.geo_source) + ')' : '';
+      return `<span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">✅ Map ${geoFmtAt(rec.geo_updated_at)}${by}${sr}</span>`;
+    }
+    function geoMetaOfStop(s) { return masterGpsMap.get(s.baseId || s.canonicalId); }
+    function geoBadgeOfStop(s, full) { return geoBadgeHtml(geoMetaOfStop(s), full); }
+
+    // ---- Nút 📍: nhảy sang bản đồ, zoom + mở ghim của khách ----
+    function focusStopOnMap(id) {
+      const s = allMergedStops.find(x => x.canonicalId === id); if (!s) return;
+      if (!s.isMapped || !s.lat || !s.lon) return promptEditStopCoordinates(id);
+      closeStopDetailModal();
+      const sw = window.innerWidth < 768 && mobileView === 'list';
+      if (sw) toggleMobileView();
+      setTimeout(() => {
+        if (!map) return;
+        map.invalidateSize(); map.setView([s.lat, s.lon], Math.max(map.getZoom(), 18), { animate: false });
+        const mk = pinIdx.get(id);
+        if (mk && pinsLayer.hasLayer(mk)) mk.openPopup();
+        else L.popup().setLatLng([s.lat, s.lon]).setContent('<b>' + esc(s.custName) + '</b><br><span style="font-size:11px">Điểm này đang bị ẩn bởi bộ lọc bản đồ.</span>').openOn(map);
+        const ring = L.circleMarker([s.lat, s.lon], { radius: 26, color: '#f59e0b', weight: 4, fill: false, interactive: false }).addTo(map);
+        setTimeout(() => { try { map.removeLayer(ring); } catch (e) {} }, 2500);
+      }, sw ? 450 : 60);
+    }
+
     function colocBase(list) { return (list || []).filter(s => s && s.isMapped && s.lat && s.lon && !s.archived); }
     function getColoc() {
       let list = allMergedStops;
@@ -4853,7 +4946,7 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
       const arr = colocBase(list);
       const key = arr.map(s => s.canonicalId + ':' + s.lat + ':' + s.lon).join('|');
       const same = key === _colocKey && _colocArr.length === arr.length && arr.every((s, i) => s === _colocArr[i]);
-      if (!same) { _colocKey = key; _colocArr = arr; _colocVal = colocMap(arr); }
+      if (!same) { _colocKey = key; _colocArr = arr; _colocVal = colocMap(arr); _nearVal = nearMap(arr); }
       return _colocVal;
     }
     function colocMergedCount(stops) {   // số điểm "dư" do chung vị trí (5 đơn / 4 vị trí => 1)
@@ -4866,7 +4959,7 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
       if (!tr || !o.stopSeq) return nm + ' (chưa xếp xe)';
       return (ref && ref.truckId === o.truckId ? '' : tr.name.split('(')[0].trim() + ' ') + '#' + o.stopSeq + ' ' + nm;
     }
-    function colocChipHtml(s) {
+    function colocExactChipHtml(s) {
       const g = getColoc().get(s.canonicalId); if (!g) return '';
       const oth = g.filter(x => x.canonicalId !== s.canonicalId);
       const others = oth.map(o => esc(colocShort(o, s))).join(', ');
@@ -4892,33 +4985,49 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
         m.addEventListener('click', e => { if (e.target === m) closeColocModal(); });
         document.body.appendChild(m);
       }
-      const cm = colocMap(colocBase(allMergedStops)), seen = new Set(), groups = [];
+      const base = colocBase(allMergedStops), cm = colocMap(base), seen = new Set(), groups = [];
       cm.forEach(g => { if (!seen.has(g)) { seen.add(g); groups.push(g); } });
       groups.sort((a, b) => (b.some(s => s.canonicalId === focusId) - a.some(s => s.canonicalId === focusId)) || (b.length - a.length));
+      const pairs = nearPairs(base).sort((x, y) => ((y.a.canonicalId === focusId || y.b.canonicalId === focusId) - (x.a.canonicalId === focusId || x.b.canonicalId === focusId)) || x.d - y.d);
       const dis = allMergedStops.filter(s => !s.archived).length, extra = groups.reduce((a, g) => a + g.length - 1, 0);
-      const card = g => {
-        const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
-        const hasFocus = g.some(s => s.canonicalId === focusId);
-        return `<div class="p-2.5 rounded-xl border ${hasFocus ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-white'} space-y-1">
-          <div class="flex items-center justify-between"><span class="text-[11px] font-bold text-orange-800">📍 ${g.length} đơn cùng vị trí</span>
-            <button onclick="closeColocModal(); focusMapAt(${g[0].lat}, ${g[0].lon})" class="text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded">Xem trên bản đồ</button></div>
-          ${g.map(s => { const tr = fleet.find(t => t.id === s.truckId); return `<div onclick="closeColocModal(); openStopDetail(${jsq(s.canonicalId)})" class="p-1.5 bg-white border rounded-lg text-[11px] cursor-pointer">
+      const stTxt = s => s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao');
+      const memRow = s => { const tr = fleet.find(t => t.id === s.truckId); return `<div onclick="closeColocModal(); openStopDetail(${jsq(s.canonicalId)})" class="p-1.5 bg-white border rounded-lg text-[11px] cursor-pointer">
             <div class="font-bold text-slate-900 truncate"><span style="color:${stopColor(s)}">${s.stopSeq && tr ? '#' + s.stopSeq + ' ' : ''}</span>${esc(s.custName || '(không tên)')} <span class="font-mono font-normal text-slate-500">${esc(s.canonicalId)}</span></div>
             <div class="text-slate-500 truncate">${normalizePhone(s.phone) || 'Trống SĐT'} • ${esc(s.addr || 'Chưa có địa chỉ')}</div>
-            <div class="text-slate-700"><b class="text-blue-700">${s.totalQty} thùng</b> • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${s.status === 'success' ? '✓ Đã giao' : (s.status === 'failed' ? '✕ Thất bại' : 'Chưa giao')}</div></div>`; }).join('')}
+            <div class="text-slate-700"><b class="text-blue-700">${s.totalQty} thùng</b> • COD ${formatMoney(s.totalCod)} • ${tr ? esc(tr.name.split('(')[0].trim()) : 'Chưa xếp xe'} • ${stTxt(s)}</div>
+            <div class="mt-0.5">${geoBadgeOfStop(s)}</div></div>`; };
+      const card = g => {
+        const tot = Math.round(g.reduce((a, s) => a + (parseFloat(s.totalQty) || 0), 0) * 10) / 10, cod = g.reduce((a, s) => a + (parseFloat(s.totalCod) || 0), 0);
+        let mx = 0; for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) mx = Math.max(mx, calcDistanceKm(g[i].lat, g[i].lon, g[j].lat, g[j].lon) * 1000);
+        const hasFocus = g.some(s => s.canonicalId === focusId);
+        return `<div class="p-2.5 rounded-xl border ${hasFocus ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-white'} space-y-1">
+          <div class="flex items-center justify-between"><span class="text-[11px] font-bold text-orange-800">📍 ${g.length} đơn trùng vị trí • ${mx < 0.5 ? 'tọa độ y hệt' : 'lệch tối đa ' + mx.toFixed(1) + ' m'}</span>
+            <button onclick="closeColocModal(); focusMapAt(${g[0].lat}, ${g[0].lon})" class="text-[10px] font-bold bg-orange-500 text-white px-2 py-0.5 rounded">Xem trên bản đồ</button></div>
+          ${g.map(memRow).join('')}
           <div class="text-[10px] text-slate-500">Cộng nhóm: <b>${tot} thùng</b> • COD ${formatMoney(cod)} (mỗi khách vẫn theo dõi riêng)</div></div>`;
       };
+      const pcard = p => {
+        const hasFocus = p.a.canonicalId === focusId || p.b.canonicalId === focusId;
+        return `<div class="p-2.5 rounded-xl border ${hasFocus ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-white'} space-y-1">
+          <div class="flex items-center justify-between"><span class="text-[11px] font-bold text-sky-800">📏 Gần nhau, cách ~${Math.round(p.d)} m (không trùng)</span>
+            <button onclick="closeColocModal(); focusMapAt(${(p.a.lat + p.b.lat) / 2}, ${(p.a.lon + p.b.lon) / 2}, 19)" class="text-[10px] font-bold bg-sky-600 text-white px-2 py-0.5 rounded">Xem trên bản đồ</button></div>
+          ${memRow(p.a)}${memRow(p.b)}</div>`;
+      };
+      const none = t => `<div class="p-3 text-center text-xs text-slate-400">${t}</div>`;
       m.innerHTML = `<div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div class="flex items-center justify-between px-4 py-3 border-b shrink-0"><h3 class="font-extrabold text-slate-900 text-sm">📍 Các điểm chung vị trí</h3><button onclick="closeColocModal()" class="text-slate-500 text-lg px-2">✕</button></div>
+        <div class="flex items-center justify-between px-4 py-3 border-b shrink-0"><h3 class="font-extrabold text-slate-900 text-sm">📍 Điểm trùng & gần nhau</h3><button onclick="closeColocModal()" class="text-slate-500 text-lg px-2">✕</button></div>
         <div class="overflow-y-auto p-3 space-y-2">
-          <div class="text-[11px] text-slate-600">Hôm nay <b>${dis}</b> đơn/điểm, nhưng chỉ có <b>${dis - extra}</b> vị trí trên bản đồ vì ${groups.length} nhóm nằm chồng lên nhau (≤ ${COLOC_M} m). <b>Không gộp khách</b> — chỉ để biết giao cùng 1 lần dừng.</div>
-          ${groups.length ? groups.map(card).join('') : '<div class="p-6 text-center text-xs text-slate-400">Không có điểm nào chung vị trí.</div>'}
+          <div class="text-[11px] text-slate-600">Hôm nay <b>${dis}</b> đơn/điểm → <b>${dis - extra}</b> ghim trên bản đồ. <b>${groups.length}</b> nhóm <b>TRÙNG</b> (≤ ${COLOC_M} m) gộp 1 ghim ×N; <b>${pairs.length}</b> cặp chỉ <b>GẦN NHAU</b> (${COLOC_M}–${NEAR_M} m) vẫn giữ ghim riêng. <b>Không gộp khách.</b></div>
+          <div class="text-[11px] font-extrabold text-orange-800">📍 Trùng vị trí (≤ ${COLOC_M} m): ${groups.length}</div>
+          ${groups.length ? groups.map(card).join('') : none('Không có điểm nào trùng vị trí.')}
+          <div class="text-[11px] font-extrabold text-sky-800 pt-1">📏 Gần nhau (${COLOC_M}–${NEAR_M} m): ${pairs.length} cặp</div>
+          ${pairs.length ? pairs.map(pcard).join('') : none('Không có cặp nào gần nhau.')}
         </div></div>`;
       m.style.display = 'flex';
     }
-    function focusMapAt(lat, lon) {
+    function focusMapAt(lat, lon, z) {
       try { if (typeof toggleMobileView === 'function' && mobileView === 'list' && window.innerWidth < 768) toggleMobileView(); } catch (e) { }
-      setTimeout(() => { if (map) { map.invalidateSize(); map.setView([lat, lon], 17); } }, 200);
+      setTimeout(() => { if (map) { map.invalidateSize(); map.setView([lat, lon], z || 17); } }, 200);
     }
 
     function openAliasModal() {
