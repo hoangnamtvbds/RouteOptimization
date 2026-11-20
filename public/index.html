@@ -51,6 +51,8 @@
     body.map-guest #dispatchAppContainer { visibility: hidden; }
     body.map-guest #mapWrap { visibility: visible; }
     body.map-guest #btnMapExpand { display: none !important; }
+    @keyframes truckNotePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); background-color: #f0fdf4; } 50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); background-color: #dcfce7; } }
+    .truck-note { color: #15803d; border: 1px solid #86efac; animation: truckNotePulse 2.4s ease-in-out infinite; }
     .driver-scroll-container {
       padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
     }
@@ -1267,7 +1269,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (isMapGuestHash()) { if (!(await mapGuestGate())) return; }
       else if (!(await authGate())) return;
       loadLocalCache(); checkMonthlyAutoReset();
-      setTimeout(() => { try { initMap(); renderRouteOnMap(); if (document.body.classList.contains('map-guest')) setTimeout(() => toggleMapExpand(true), 150); } catch (e) {} }, 150);
+      setTimeout(() => { try { initMap(); renderRouteOnMap(); if (document.body.classList.contains('map-guest')) { setTimeout(() => toggleMapExpand(true), 150); setTimeout(() => { try { if (!geo.panelOpen) toggleGeoPanel(); } catch (e) {} }, 450); } } catch (e) {} }, 150);
       refreshAllViews();
       const res = await reloadAllFromCloud();
       syncServerTime();
@@ -3777,9 +3779,8 @@ async function submitDriverRejectReason(reason) {
               <td class="p-2" ${can('admin') ? `onclick="event.stopPropagation(); openTruckEditModal(${t.id});" title="Bấm để sửa xe / ghi chú"` : ''}>
                 <strong class="text-slate-800 flex items-center gap-1.5">${truckDot(t.id)}${esc(t.name)}${can('admin') ? ' <span class="text-[11px] opacity-60">✏️</span>' : ''}</strong>
                 <div class="text-[10px] text-slate-400 font-mono">${esc(t.plate)} • Chuyến ${t.tripNo || 1}</div>
-                ${t.note ? `<div class="text-[10px] text-amber-700 font-semibold mt-0.5 break-words" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">📝 ${esc(t.note)}</div>` : ''}
               </td>
-              <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
+              <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div>${t.note ? `<div class="truck-note text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded break-words">📝 ${esc(t.note)}</div>` : ''}</td>
               <td class="p-2 text-center font-bold ${truckLoad > t.maxCapacity ? 'text-rose-600' : 'text-blue-600'}">${Math.round(truckLoad)}/${t.maxCapacity}</td>
               <td class="p-2 text-center font-bold text-slate-800">${t.stops.length}</td>
               <td class="p-2 text-right font-bold text-amber-800 font-mono">${formatMoney(truckCod)}</td>
