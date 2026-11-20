@@ -50,7 +50,7 @@
     /* Chế độ khách vào bằng link bản đồ: chỉ thấy bản đồ mở rộng */
     body.map-guest #dispatchAppContainer { visibility: hidden; }
     body.map-guest #mapWrap { visibility: visible; }
-    body.map-guest #btnMapExpand { display: none !important; }
+    body.map-guest #btnMapExpand, body.map-guest #btnMapFilter, body.map-guest #btnMapSelect, body.map-guest #mapLegend, body.map-guest #mapRouteHeader, body.map-guest [onclick*="openGoogleNavMultiStop"] { display: none !important; }
     @keyframes truckNotePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); background-color: #f0fdf4; } 50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); background-color: #dcfce7; } }
     .truck-note { color: #15803d; border: 1px solid #86efac; animation: truckNotePulse 2.4s ease-in-out infinite; }
     .driver-scroll-container {
@@ -222,7 +222,7 @@
             <div class="flex items-center gap-1.5 min-w-0">
               <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-600 shrink-0"></i>
               <div class="text-left min-w-0">
-                <span class="text-[11px] font-bold text-slate-800 block truncate" id="labelInvoice">Nạp File Hóa Đơn KiotViet</span>
+                <span class="text-[11px] font-bold text-slate-800 block truncate" id="labelInvoice">Tải lên đơn hàng</span>
                 <span class="text-[10px] text-slate-500 block truncate" id="subInvoice">Đang kết nối Cloud Master Data...</span>
               </div>
             </div>
@@ -882,7 +882,7 @@
         <label class="block">Biển số<input id="tePlate" type="text" class="w-full border rounded p-1.5 mt-0.5"></label>
         <label class="block">Tải trọng (thùng)<input id="teCap" type="number" class="w-full border rounded p-1.5 mt-0.5 font-bold text-blue-600"></label>
       </div>
-      <label class="block">📝 Ghi chú xe<textarea id="teNote" rows="3" maxlength="300" placeholder="VD: xe hỏng đèn hậu, chỉ chạy nội thành..." class="w-full border rounded p-1.5 mt-0.5"></textarea></label>
+      <label class="block">📝 Ghi chú xe<textarea id="teNote" rows="3" maxlength="300" class="w-full border rounded p-1.5 mt-0.5"></textarea></label>
       <div id="teLinkWarn" class="hidden text-[10px] text-amber-600">Xe đã phát link: tên/SĐT tài xế mới sẽ tự cập nhật sang app tài xế.</div>
       <div class="flex justify-between items-center gap-2 pt-2 border-t">
         <button onclick="removeVehicleFromEdit()" class="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 font-bold px-3 py-1.5 rounded-lg">Xóa xe</button>
@@ -1269,9 +1269,10 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
       if (isMapGuestHash()) { if (!(await mapGuestGate())) return; }
       else if (!(await authGate())) return;
       loadLocalCache(); checkMonthlyAutoReset();
-      setTimeout(() => { try { initMap(); renderRouteOnMap(); if (document.body.classList.contains('map-guest')) { setTimeout(() => toggleMapExpand(true), 150); setTimeout(() => { try { if (!geo.panelOpen) toggleGeoPanel(); } catch (e) {} }, 450); } } catch (e) {} }, 150);
+      setTimeout(() => { try { initMap(); renderRouteOnMap(); if (document.body.classList.contains('map-guest')) { setTimeout(() => toggleMapExpand(true), 150); setTimeout(() => { try { geo.showAll = true; if (!geo.panelOpen) toggleGeoPanel(); mapGuestCenter(); } catch (e) {} }, 450); } } catch (e) {} }, 150);
       refreshAllViews();
       const res = await reloadAllFromCloud();
+      if (document.body.classList.contains('map-guest')) { try { mapGuestCenter(); geoDrawDots(); } catch (e) {} }
       syncServerTime();
       if (res) await seedAfterFirstLoad(res);
     }
@@ -4261,6 +4262,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     const mapHiddenKeys = new Set();   // 't<id>' hoặc 'none' (chưa xếp tuyến). Rỗng = hiện tất cả
     function stopKey(s) { return fleet.some(t => t.id === s.truckId) ? 't' + s.truckId : 'none'; }
     function mapStopVisible(s) {
+      if (document.body.classList.contains('map-guest')) return false;   // link bản đồ khách: không hiện đơn/xe đang giao
       if (mapOnlyPending && s.status !== 'pending') return false;
       return !mapHiddenKeys.has(stopKey(s));
     }
@@ -5264,6 +5266,7 @@ async function mapGuestGate() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) mapGuestRecheck(); });
   return true;
 }
+function mapGuestCenter() { if (map && warehouseDepot && warehouseDepot.lat) map.setView([warehouseDepot.lat, warehouseDepot.lon], 12); }
 function mapShareUrl() { return window.location.origin + window.location.pathname + '#/map?k=' + encodeURIComponent(mapShare.token); }
 async function openMapShareModal() {
   document.getElementById('mapShareModal').classList.remove('hidden');
@@ -5581,7 +5584,7 @@ async function removeVehicle(id) {
       let labelInv = document.getElementById('labelInvoice');
       let subInv = document.getElementById('subInvoice');
       let btnSmart = document.getElementById('btnSmartDispatch');
-      if (labelInv) labelInv.innerText = "Kéo File Hóa Đơn KiotViet Hôm Nay";
+      if (labelInv) labelInv.innerText = "Tải lên đơn hàng";
       if (subInv) {
         subInv.innerText = `Đã kết nối ${masterGpsMap.size} tọa độ gốc từ Cloud`;
         subInv.className = "text-[10px] text-slate-500";
