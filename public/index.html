@@ -1248,6 +1248,27 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         } catch (e) { console.warn('Realtime refresh lỗi:', e); }
       }, 400);
     }
+    // Cập nhật TỪNG ĐIỂM ngay từ gói realtime (không tải lại 2156 KH) => nhanh hơn nhiều
+    const _mstQ = new Map(); let _mstT = null;
+    function applyMasterRealtime(p) {
+      let id = null, row = null;
+      try { row = (p && p.eventType !== 'DELETE') ? p.new : null; id = row ? row.id : (p && p.old ? p.old.id : null); } catch (e) {}
+      if (id === null || id === undefined || (row && !(Number.isFinite(parseFloat(row.lat)) && Number.isFinite(parseFloat(row.lon))))) return scheduleRemoteRefresh('master');   // gói thiếu dữ liệu => tải lại đầy đủ
+      _mstQ.set(id, row);
+      clearTimeout(_mstT);
+      _mstT = setTimeout(() => {
+        try {
+          _mstQ.forEach((m, k) => {
+            if (!m) masterGpsMap.delete(k);
+            else masterGpsMap.set(m.id, { id: m.id, name: m.name, phone: normalizePhone(m.phone), lat: parseFloat(m.lat), lon: parseFloat(m.lon), addr: m.addr || '', tags: Array.isArray(m.tags) ? m.tags : [], geo_updated_at: m.geo_updated_at || null, geo_updated_by: m.geo_updated_by || null, geo_source: m.geo_source || null });
+          });
+          _mstQ.clear();
+          try { localStorage.setItem(STORAGE_KEY_MASTER_CACHE, JSON.stringify(Array.from(masterGpsMap.values()))); } catch (e) {}
+          refreshStopMappingFromMaster(); refreshAllViews();
+          updateMasterCountBadge(masterGpsMap.size, 'Supabase Cloud');
+        } catch (e) { console.warn('Realtime master lỗi, tải lại đầy đủ:', e); _mstQ.clear(); scheduleRemoteRefresh('master'); }
+      }, 150);
+    }
     function setupSupabaseRealtime() {
       if (!db || _rtChannel || isDriverMode) return;
       const today = getTodayString();
@@ -1259,7 +1280,7 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_sessions', filter: `order_date=eq.${today}` }, () => scheduleRemoteRefresh('session'))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => scheduleRemoteRefresh('settings'))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'master_customers' }, () => scheduleRemoteRefresh('master'))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'master_customers' }, p => applyMasterRealtime(p))
         .subscribe(st => { if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') console.warn('Realtime:', st); });
     }
     window.addEventListener('online', () => { if (!isDriverMode && !cloudReady) reloadAllFromCloud(); else flushDriverSync(); });
