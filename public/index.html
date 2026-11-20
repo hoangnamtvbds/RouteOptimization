@@ -47,6 +47,10 @@
     .leaflet-popup-content-wrapper { border-radius: 12px; font-size: 12px; }
     
     /* Khắc phục triệt để lỗi khuất nút trên Mobile do dính Bottom Bar */
+    /* Chế độ khách vào bằng link bản đồ: chỉ thấy bản đồ mở rộng */
+    body.map-guest #dispatchAppContainer { visibility: hidden; }
+    body.map-guest #mapWrap { visibility: visible; }
+    body.map-guest #btnMapExpand { display: none !important; }
     .driver-scroll-container {
       padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important;
     }
@@ -181,6 +185,11 @@
         <button onclick="promptMasterAdmin()" title="Quản trị Master Data GPS" class="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 shadow transition">
           <i data-lucide="shield" class="w-3.5 h-3.5"></i>
           <span>Quản Trị Master</span>
+        </button>
+
+        <button onclick="openMapShareModal()" title="Tạo / hủy link bản đồ cho khách tự map điểm" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
+          <span class="text-xs leading-none">🔗</span>
+          <span class="hidden sm:inline">Link Bản Đồ</span>
         </button>
 
         <button onclick="openAliasModal()" title="Bảng gom mã KiotViet trùng" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-700 flex items-center gap-1 transition">
@@ -845,6 +854,44 @@
     </div>
   </div>
 
+  <!-- MODAL LINK BẢN ĐỒ CHO KHÁCH -->
+  <div id="mapShareModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3 text-xs">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-900 text-sm">🔗 Link bản đồ cho khách</h3>
+        <button onclick="closeMapShareModal()" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+      </div>
+      <div id="mapShareBody" class="space-y-2 text-slate-700"></div>
+      <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-2 text-[11px]">Người có link vào được bản đồ mở rộng đầy đủ (kể cả xếp xe, sửa/gộp vị trí KH), không cần đăng nhập. Chỉ gửi cho người tin cậy, nên đặt hạn dùng và hủy khi xong. Không có quyền xóa khách khỏi Master / sửa xe / kho.</div>
+    </div>
+  </div>
+
+  <!-- MODAL SỬA 1 XE (kèm ghi chú) -->
+  <div id="truckEditModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-2.5 text-xs">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-slate-900 text-sm">✏️ Sửa xe</h3>
+        <button onclick="closeTruckEditModal()" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+      </div>
+      <label class="block">Tên xe<input id="teName" type="text" class="w-full border rounded p-1.5 mt-0.5 font-bold"></label>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="block">Tài xế<input id="teDriver" type="text" class="w-full border rounded p-1.5 mt-0.5"></label>
+        <label class="block">SĐT tài xế<input id="tePhone" type="tel" class="w-full border rounded p-1.5 mt-0.5"></label>
+        <label class="block">Biển số<input id="tePlate" type="text" class="w-full border rounded p-1.5 mt-0.5"></label>
+        <label class="block">Tải trọng (thùng)<input id="teCap" type="number" class="w-full border rounded p-1.5 mt-0.5 font-bold text-blue-600"></label>
+      </div>
+      <label class="block">📝 Ghi chú xe<textarea id="teNote" rows="3" maxlength="300" placeholder="VD: xe hỏng đèn hậu, chỉ chạy nội thành..." class="w-full border rounded p-1.5 mt-0.5"></textarea></label>
+      <div id="teLinkWarn" class="hidden text-[10px] text-amber-600">Xe đã phát link: tên/SĐT tài xế mới sẽ tự cập nhật sang app tài xế.</div>
+      <div class="flex justify-between items-center gap-2 pt-2 border-t">
+        <button onclick="removeVehicleFromEdit()" class="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 font-bold px-3 py-1.5 rounded-lg">Xóa xe</button>
+        <div class="flex gap-2">
+          <button onclick="closeTruckEditModal()" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold">Hủy</button>
+          <button onclick="saveTruckEdit()" class="px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold">Lưu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL CẤU HÌNH ĐỘI XE -->
   <div id="fleetModal" class="fixed inset-0 bg-black/60 z-[2000] hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl space-y-3">
@@ -990,10 +1037,10 @@
       if (error) { console.error(error); setCloudStatus(false, 'Lỗi lưu cấu hình: ' + error.message); return false; }
       return true;
     }
-    function fleetConfigOnly() { return fleet.map(t => ({ id: t.id, name: t.name, plate: t.plate, driver: t.driver, phone: t.phone, maxCapacity: t.maxCapacity })); }
+    function fleetConfigOnly() { return fleet.map(t => ({ id: t.id, name: t.name, plate: t.plate, driver: t.driver, phone: t.phone, maxCapacity: t.maxCapacity, note: t.note || '' })); }
     function applyFleetConfig(cfgs) {
       const old = new Map(fleet.map(t => [t.id, t]));
-      fleet = cfgs.map(c => Object.assign({ stops: [], linkIssued: false, linkToken: null }, old.get(c.id) || {}, { id: c.id, name: c.name, plate: c.plate, driver: c.driver, phone: c.phone, maxCapacity: c.maxCapacity }));
+      fleet = cfgs.map(c => Object.assign({ stops: [], linkIssued: false, linkToken: null }, old.get(c.id) || {}, { id: c.id, name: c.name, plate: c.plate, driver: c.driver, phone: c.phone, maxCapacity: c.maxCapacity, note: c.note || '' }));
       fleet.forEach(t => { if (!Array.isArray(t.stops)) t.stops = []; });
       old.forEach((t, id) => { if (!fleet.some(x => x.id === id) && t.stops && t.stops.length) fleet.push(t); });
       if (!fleet.some(t => t.id === activeTruckId) && fleet.length) activeTruckId = fleet[0].id;
@@ -1217,9 +1264,10 @@ if (s.status === 'pending') s.tags = Array.isArray(m.tags) ? m.tags : [];
 
     async function bootstrapApp() {
       if (checkDriverRoutingModeSync()) { hideBoot(); return; }
-      if (!(await authGate())) return;
+      if (isMapGuestHash()) { if (!(await mapGuestGate())) return; }
+      else if (!(await authGate())) return;
       loadLocalCache(); checkMonthlyAutoReset();
-      setTimeout(() => { try { initMap(); renderRouteOnMap(); } catch (e) {} }, 150);
+      setTimeout(() => { try { initMap(); renderRouteOnMap(); if (document.body.classList.contains('map-guest')) setTimeout(() => toggleMapExpand(true), 150); } catch (e) {} }, 150);
       refreshAllViews();
       const res = await reloadAllFromCloud();
       syncServerTime();
@@ -2646,6 +2694,8 @@ while (improved && pass < 80 && performance.now() < deadline) {
       promptMasterAdmin: ['admin', 'Mở Quản trị Master'], saveSingleMasterFromAdmin: ['admin', 'Sửa Master 1 điểm'],
       forcePushLocalMasterToCloud: ['admin', 'Đẩy Master từ máy lên Cloud'], restoreMasterBackupFromCloud: ['admin', 'Khôi phục Master từ backup'],
       resetApp: ['admin', ''], clearTodayTestOrders: ['admin', ''], completeTrip: ['admin', ''],
+      openMapShareModal: ['admin', ''], createMapShare: ['admin', 'Tạo link bản đồ'], revokeMapShare: ['admin', 'Hủy link bản đồ'],
+      openTruckEditModal: ['admin', ''], saveTruckEdit: ['admin', 'Sửa thông tin xe'], removeVehicleFromEdit: ['admin', ''],
       openFleetConfigModal: ['admin', ''], closeFleetModal: ['admin', ''], addNewVehicle: ['admin', ''], removeVehicle: ['admin', ''], updateVehicle: ['admin', ''],
       geoDeleteCustomer: ['admin', 'Xóa khách khỏi Master'],
       openUsersModal: ['admin', ''], openLogModal: ['admin', ''],
@@ -2666,7 +2716,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
       geoDeleteCustomer: a => String(a[0] || ''), saveDepotCoordinates: () => ''
     };
     // Nút nào bị ẩn hẳn khi không đủ quyền (nút tạo động cũng bị ẩn nhờ CSS)
-    const ACL_HIDE = ['openDepotModal', 'promptMasterAdmin', 'resetApp', 'clearTodayTestOrders', 'completeTrip', 'openFleetConfigModal',
+    const ACL_HIDE = ['openDepotModal', 'promptMasterAdmin', 'resetApp', 'clearTodayTestOrders', 'completeTrip', 'openFleetConfigModal', 'openMapShareModal',
       'openAliasModal', 'openEditCustomer', 'promptEditStopCoordinates', 'geoMergeGroup', 'geoDeleteCustomer', 'geoPickFor'];
 
     function authInstallGuards() {
@@ -2749,7 +2799,7 @@ while (improved && pass < 80 && performance.now() < deadline) {
     }
     // Mỗi 60s kiểm tra lại: tk bị khóa / đổi mật khẩu / đổi quyền => áp dụng ngay
     setInterval(async () => {
-      if (!AUTH || isDriverMode || !db) return;
+      if (!AUTH || AUTH.guest || isDriverMode || !db) return;
       try {
         const { data, error } = await db.from('app_users').select('*').eq('id', AUTH.id).maybeSingle();
         if (error) return;
@@ -3724,9 +3774,10 @@ async function submitDriverRejectReason(reason) {
 
           return `
             <tr onclick="selectTruck(${t.id})" class="hover:bg-blue-50 cursor-pointer transition ${t.id === activeTruckId ? 'bg-blue-50/70 font-semibold' : ''}">
-              <td class="p-2">
-                <strong class="text-slate-800 flex items-center gap-1.5">${truckDot(t.id)}${esc(t.name)}</strong>
+              <td class="p-2" ${can('admin') ? `onclick="event.stopPropagation(); openTruckEditModal(${t.id});" title="Bấm để sửa xe / ghi chú"` : ''}>
+                <strong class="text-slate-800 flex items-center gap-1.5">${truckDot(t.id)}${esc(t.name)}${can('admin') ? ' <span class="text-[11px] opacity-60">✏️</span>' : ''}</strong>
                 <div class="text-[10px] text-slate-400 font-mono">${esc(t.plate)} • Chuyến ${t.tripNo || 1}</div>
+                ${t.note ? `<div class="text-[10px] text-amber-700 font-semibold mt-0.5 break-words" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">📝 ${esc(t.note)}</div>` : ''}
               </td>
               <td class="p-2">${esc(t.driver)}<div class="text-[10px] text-slate-400">${normalizePhone(t.phone)}</div></td>
               <td class="p-2 text-center font-bold ${truckLoad > t.maxCapacity ? 'text-rose-600' : 'text-blue-600'}">${Math.round(truckLoad)}/${t.maxCapacity}</td>
@@ -4260,6 +4311,7 @@ function tagBadges(tags) { return (tags || []).filter(t => TAG_DEFS[t]).map(t =>
     function mapFilterAll(on) { mapHiddenKeys.clear(); if (!on) { fleet.forEach(t => mapHiddenKeys.add('t' + t.id)); mapHiddenKeys.add('none'); } mapRefreshAfterFilter(); }
     function toggleMapExpand(force) {
       const w = document.getElementById('mapWrap'); if (!w || !map) return;
+      if (document.body.classList.contains('map-guest') && force !== true) return;
       mapExpanded = (typeof force === 'boolean') ? force : !mapExpanded;
       w.classList.toggle('map-expanded', mapExpanded); mapPanelOpen = mapExpanded;
       const t = document.getElementById('btnMapExpandText'), i = document.getElementById('btnMapExpandIcon');
@@ -5130,6 +5182,131 @@ if (document.getElementById('ecTagNoDebt').checked) tags.push('nodebt');
     // -------------------------------------------------------------------------
     let _fleetSaveTimer = null;
 const _fleetDirty = new Set();
+
+// ---------- SỬA 1 XE (kèm ghi chú) ----------
+let _teId = null;
+function openTruckEditModal(id) {
+  const t = fleet.find(x => x.id === id); if (!t) return;
+  _teId = id;
+  document.getElementById('teName').value = t.name || '';
+  document.getElementById('teDriver').value = t.driver || '';
+  document.getElementById('tePhone').value = t.phone || '';
+  document.getElementById('tePlate').value = t.plate || '';
+  document.getElementById('teCap').value = t.maxCapacity || '';
+  document.getElementById('teNote').value = t.note || '';
+  document.getElementById('teLinkWarn').classList.toggle('hidden', !t.linkIssued);
+  document.getElementById('truckEditModal').classList.remove('hidden');
+}
+function closeTruckEditModal() { document.getElementById('truckEditModal').classList.add('hidden'); _teId = null; }
+async function saveTruckEdit() {
+  const t = fleet.find(x => x.id === _teId); if (!t) return closeTruckEditModal();
+  const name = document.getElementById('teName').value.trim();
+  const cap = parseFloat(document.getElementById('teCap').value);
+  if (!name) return alert('Tên xe không được để trống');
+  if (!(cap > 0)) return alert('Tải trọng phải là số lớn hơn 0');
+  t.name = name;
+  t.driver = document.getElementById('teDriver').value.trim();
+  t.phone = normalizePhone(document.getElementById('tePhone').value.trim());
+  t.plate = document.getElementById('tePlate').value.trim();
+  t.maxCapacity = cap;
+  t.note = document.getElementById('teNote').value.trim().slice(0, 300);
+  const id = t.id; closeTruckEditModal();
+  saveLocalCache(); refreshAllViews();
+  await persistSettings(['fleet']);
+  savePermanentEdits();
+  if (t.linkIssued) { try { await syncTruckStopsToCloud(t); } catch (e) { console.warn(e); } }
+}
+async function removeVehicleFromEdit() {
+  const id = _teId; if (id == null) return;
+  closeTruckEditModal();
+  await removeVehicle(id);
+  refreshAllViews();
+}
+
+// ---------- LINK BẢN ĐỒ CHO KHÁCH (#/map?k=TOKEN) ----------
+// Lưu trong app_settings: key 'map_share' = {token, createdAt, expiresAt|null, by}. token = null => đã hủy.
+const MAP_SHARE_KEY = 'map_share';
+let mapShare = null;
+function isMapGuestHash() { return (window.location.hash || '').startsWith('#/map'); }
+function mapGuestKey() { const q = new URLSearchParams(((window.location.hash || '').split('?')[1]) || ''); return q.get('k') || ''; }
+function mapShareAlive(v) { return !!(v && v.token && (!v.expiresAt || Date.now() < v.expiresAt)); }
+async function mapShareFetch() {
+  if (!(await ensureSupabase())) throw new Error('no-db');
+  const { data, error } = await db.from('app_settings').select('setting_val').eq('key_name', MAP_SHARE_KEY).maybeSingle();
+  if (error) throw error;
+  return data ? data.setting_val : null;
+}
+function mapGuestDead(msg) {
+  AUTH = null; try { clearInterval(window._mapGuestT); } catch (e) {}
+  let o = document.getElementById('mapGuestDead');
+  if (!o) { o = document.createElement('div'); o.id = 'mapGuestDead'; o.style.cssText = 'position:fixed;inset:0;z-index:9800;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font:600 15px system-ui'; document.body.appendChild(o); }
+  o.textContent = msg;
+}
+async function mapGuestRecheck() {
+  if (!AUTH || !AUTH.guest) return;
+  try {
+    const v = await mapShareFetch();
+    if (!mapShareAlive(v) || v.token !== mapGuestKey()) mapGuestDead('Link bản đồ đã hết hạn hoặc bị thu hồi. Vui lòng xin link mới.');
+  } catch (e) { /* mất mạng tạm thời: giữ nguyên */ }
+}
+async function mapGuestGate() {
+  authInstallGuards();
+  let v = null;
+  try { v = await mapShareFetch(); }
+  catch (e) { hideBoot(); mapGuestDead('Không kết nối được máy chủ. Vui lòng tải lại trang.'); return false; }
+  if (!mapShareAlive(v) || v.token !== mapGuestKey()) { hideBoot(); mapGuestDead('Link bản đồ không hợp lệ, đã hết hạn hoặc bị thu hồi.'); return false; }
+  // Quyền khách = Kế toán + tick sẵn sửa GPS & gộp trùng; KHÔNG có quyền Admin (xóa Master, sửa xe/kho...)
+  AUTH = { id: 'map-guest', username: 'map-guest', name: 'Khách (link bản đồ)', role: 'accountant', perms: { edit_pin: true, merge_dup: true }, h: '', guest: true };
+  document.body.classList.add('map-guest');
+  applyRoleUI();
+  window._mapGuestT = setInterval(mapGuestRecheck, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) mapGuestRecheck(); });
+  return true;
+}
+function mapShareUrl() { return window.location.origin + window.location.pathname + '#/map?k=' + encodeURIComponent(mapShare.token); }
+async function openMapShareModal() {
+  document.getElementById('mapShareModal').classList.remove('hidden');
+  document.getElementById('mapShareBody').innerHTML = '<div class="text-slate-400">Đang tải...</div>';
+  try { mapShare = await mapShareFetch(); } catch (e) { mapShare = null; }
+  renderMapShare();
+}
+function closeMapShareModal() { document.getElementById('mapShareModal').classList.add('hidden'); }
+function renderMapShare() {
+  const b = document.getElementById('mapShareBody'); if (!b) return;
+  const alive = mapShareAlive(mapShare);
+  const mk = (h, label, cls) => `<button onclick="createMapShare(${h})" class="${cls} font-bold px-3 py-2 rounded-lg">${label}</button>`;
+  let h = '';
+  if (alive) {
+    const exp = mapShare.expiresAt ? 'Hết hạn: ' + new Date(mapShare.expiresAt).toLocaleString('vi-VN') : 'Không giới hạn thời gian';
+    h += `<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2"><b class="text-emerald-700">Đang có link hoạt động</b><div class="text-[11px] text-slate-500">${esc(exp)}${mapShare.by ? ' • tạo bởi ' + esc(mapShare.by) : ''}</div></div>
+      <input id="mapShareUrl" readonly value="${esc(mapShareUrl())}" onclick="this.select()" class="w-full border rounded p-1.5 font-mono text-[10px]">
+      <div class="flex gap-2"><button onclick="copyMapShare()" class="flex-1 bg-indigo-600 text-white font-bold px-3 py-2 rounded-lg">Copy link</button>
+      <button onclick="revokeMapShare()" class="flex-1 bg-rose-600 text-white font-bold px-3 py-2 rounded-lg">Hủy link</button></div>
+      <div class="text-[11px] text-slate-500 pt-1">Tạo link mới sẽ vô hiệu link cũ:</div>`;
+  } else {
+    h += `<div class="bg-slate-50 border rounded-lg p-2 text-slate-500">${mapShare && mapShare.token ? 'Link cũ đã hết hạn.' : 'Chưa có link nào đang hoạt động.'}</div>`;
+  }
+  h += `<div class="grid grid-cols-3 gap-2">${mk(24, 'Tạo 24 giờ', 'bg-blue-600 text-white')}${mk(168, 'Tạo 7 ngày', 'bg-blue-600 text-white')}${mk(0, 'Không hạn', 'bg-slate-200 text-slate-800')}</div>`;
+  b.innerHTML = h;
+}
+async function createMapShare(hours) {
+  const now = Date.now();
+  const v = { token: genLinkKey() + genLinkKey(), createdAt: now, expiresAt: hours ? now + hours * 3600000 : null, by: (AUTH && AUTH.name) || '' };
+  if (!(await cloudSetSetting(MAP_SHARE_KEY, v))) return alert('Không lưu được link lên Cloud. Kiểm tra mạng rồi thử lại.');
+  mapShare = v; renderMapShare(); copyMapShare();
+}
+async function revokeMapShare() {
+  if (!(await appConfirm('Hủy link bản đồ? Người đang mở sẽ bị đóng trong tối đa 30 giây.'))) return;
+  const v = { token: null, revokedAt: Date.now() };
+  if (!(await cloudSetSetting(MAP_SHARE_KEY, v))) return alert('Không hủy được trên Cloud. Thử lại.');
+  mapShare = v; renderMapShare();
+}
+function copyMapShare() {
+  if (!mapShareAlive(mapShare)) return;
+  const url = mapShareUrl();
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => alert('Đã copy link bản đồ. Dán gửi Zalo cho khách.'), () => prompt('Copy link:', url));
+  else prompt('Copy link:', url);
+}
 
 function openFleetConfigModal() {
   const box = document.getElementById('fleetListContainer');
